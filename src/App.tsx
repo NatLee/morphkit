@@ -1,0 +1,291 @@
+import { useEffect, useRef, useState } from 'react';
+import { Hero } from './components/Hero';
+import { DropZone } from './components/DropZone';
+import { FileCard } from './components/FileCard';
+import { SettingsPanel } from './components/SettingsPanel';
+import { LANGS, useI18n } from './i18n';
+import { defaultTarget, detectKind, formatBytes, outputFileName } from './lib/formats';
+import { convertImage } from './lib/imageConvert';
+import { convertMedia, isEngineReady } from './lib/ffmpegClient';
+import { extractMeta } from './lib/metadata';
+import { loadSettings, saveSettings, type Settings } from './lib/settings';
+import type { Item } from './types';
+
+let uid = 0;
+type EngineState = 'idle' | 'loading' | 'ready' | 'error';
+
+function useTheme() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
+  );
+  const toggle = () =>
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('morphkit-theme', next); } catch { /* ignore */ }
+      return next;
+    });
+  return { theme, toggle };
+}
+
+export default function App() {
+  const { t, lang, setLang } = useI18n();
+  const { theme, toggle } = useTheme();
+  const [items, setItems] = useState<Item[]>([]);
+  const [engine, setEngine] = useState<EngineState>('idle');
+  const [engineDl, setEngineDl] = useState<{ received: number; total: number } | null>(null);
+  const [skipped, setSkipped] = useState('');
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const itemsRef = useRef<Item[]>([]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+
+  // counting semaphore — caps concurrent media jobs at settings.concurrency
+  const runningRef = useRef(0);
+  const waitersRef = useRef<(() => void)[]>([]);
+
+  const acquireSlot = () =>
+    new Promise<void>((resolve) => {
+      if (runningRef.current < settingsRef.current.concurrency) {
+        runningRef.current++;
+        resolve();
+      } else {
+        waitersRef.current.push(() => {
+          runningRef.current++;
+          resolve();
+        });
+      }
+    });
+
+  const releaseSlot = () => {
+    runningRef.current--;
+    waitersRef.current.shift()?.();
+  };
+
+  const updateSettings = (s: Settings) => {
+    setSettings(s);
+    saveSettings(s);
+  };
+
+  const patch = (id: string, p: Partial<Item>) =>
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...p } : it)));
+
+  const addFiles = (files: File[]) => {
+    const bad: string[] = [];
+    const good: Item[] = [];
+    for (const f of files) {
+      const kind = detectKind(f);
+      if (!kind) { bad.push(f.name); continue; }
+      good.push({
+        id: `f${++uid}`,
+        file: f,
+        kind,
+        target: defaultTarget(kind, f),
+        quality: 0.9,
+        status: 'ready',
+        progress: 0,
+      });
+    }
+    if (good.length) {
+      setItems((prev) => [...prev, ...good]);
+      // extract metadata (dims / duration / EXIF / GPS) in the background
+      for (const it of good) {
+        extractMeta(it.file, it.kind).then((meta) => patch(it.id, { meta }));
+      }
+    }
+    if (bad.length) {
+      setSkipped(bad.join(', '));
+      window.setTimeout(() => setSkipped(''), 6000);
+    }
+  };
+
+  const runConvert = async (id: string) => {
+    const item = itemsRef.current.find((i) => i.id === id);
+    if (!item) return;
+    if (item.outUrl) URL.revokeObjectURL(item.outUrl);
+    patch(id, { status: 'converting', progress: 0, outUrl: undefined });
+    try {
+      let blob: Blob;
+      if (item.kind === 'image') {
+        blob = await convertImage(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality);
+      } else {
+        if (!isEngineReady()) setEngine('loading');
+        try {
+          blob = await convertMedia(
+            item.file,
+            item.target,
+            settingsRef.current,
+            (p) => patch(id, { progress: p }),
+            (received, total) => setEngineDl({ received, total })
+          );
+          setEngine('ready');
+          setEngineDl(null);
+        } catch (e) {
+          if (!isEngineReady()) { setEngine('error'); setEngineDl(null); }
+          throw e;
+        }
+      }
+      patch(id, {
+        status: 'done',
+        progress: 1,
+        outUrl: URL.createObjectURL(blob),
+        outName: outputFileName(item.file.name, item.target),
+        outSize: blob.size,
+      });
+    } catch {
+      patch(id, { status: 'error' });
+    }
+  };
+
+  const schedule = (id: string) => {
+    const item = itemsRef.current.find((i) => i.id === id);
+    if (!item || item.status === 'converting' || item.status === 'queued') return;
+    if (item.kind === 'image') {
+      // images are near-instant — run immediately, no queue
+      void runConvert(id);
+      return;
+    }
+    patch(id, { status: 'queued' });
+    void (async () => {
+      await acquireSlot();
+      try {
+        // re-check: the item may have been removed while waiting
+        if (itemsRef.current.some((i) => i.id === id)) await runConvert(id);
+      } finally {
+        releaseSlot();
+      }
+    })();
+  };
+
+  const convertAll = () => {
+    for (const it of itemsRef.current) {
+      if (it.status === 'ready' || it.status === 'error') schedule(it.id);
+    }
+  };
+
+  const remove = (id: string) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const clearAll = () => {
+    for (const it of itemsRef.current) if (it.outUrl) URL.revokeObjectURL(it.outUrl);
+    setItems([]);
+  };
+
+  const hasVideo = items.some((i) => i.kind === 'video');
+  const pending = items.filter((i) => i.status === 'ready' || i.status === 'error').length;
+  const dlPct = engineDl && engineDl.total > 0
+    ? Math.min(100, Math.round((engineDl.received / engineDl.total) * 100))
+    : 0;
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <rect width="32" height="32" rx="8" fill="var(--mark-bg)" />
+              <path d="M10 21V11l6 6 6-6v10" stroke="var(--accent)" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="brand-name">MorphKit</span>
+        </div>
+
+        <div className="topbar-actions">
+          <div className="lang-switch" role="group">
+            {LANGS.map((l) => (
+              <button
+                key={l.code}
+                className={lang === l.code ? 'active' : ''}
+                onClick={() => setLang(l.code)}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <button
+            className={`theme-toggle${showSettings ? ' active' : ''}`}
+            onClick={() => setShowSettings((v) => !v)}
+            aria-label={t('settings')}
+            title={t('settings')}
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17"><path d="M10.3 3.6a2 2 0 0 1 3.4 0l.6 1a2 2 0 0 0 2.1.9l1.1-.2a2 2 0 0 1 2.3 2.3l-.2 1.1a2 2 0 0 0 .9 2.1l1 .6a2 2 0 0 1 0 3.4l-1 .6a2 2 0 0 0-.9 2.1l.2 1.1a2 2 0 0 1-2.3 2.3l-1.1-.2a2 2 0 0 0-2.1.9l-.6 1a2 2 0 0 1-3.4 0l-.6-1a2 2 0 0 0-2.1-.9l-1.1.2a2 2 0 0 1-2.3-2.3l.2-1.1a2 2 0 0 0-.9-2.1l-1-.6a2 2 0 0 1 0-3.4l1-.6a2 2 0 0 0 .9-2.1l-.2-1.1A2 2 0 0 1 6.5 5.3l1.1.2a2 2 0 0 0 2.1-.9z" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
+          </button>
+          <button className="theme-toggle" onClick={toggle} aria-label={t('themeToggle')}>
+            {theme === 'dark' ? (
+              <svg viewBox="0 0 24 24" width="17" height="17"><path d="M12 4V2m0 20v-2M4 12H2m20 0h-2M5.6 5.6 4.2 4.2m15.6 15.6-1.4-1.4m0-12.8 1.4-1.4M4.2 19.8l1.4-1.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="17" height="17"><path d="M20.4 14.5A8.5 8.5 0 0 1 9.5 3.6a8.5 8.5 0 1 0 10.9 10.9z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
+            )}
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <Hero />
+
+        <section className="workbench">
+          {showSettings && <SettingsPanel settings={settings} onChange={updateSettings} />}
+
+          <DropZone onFiles={addFiles} />
+
+          {engine === 'loading' && (
+            <div className="banner info engine-banner">
+              <span className="spinner" aria-hidden="true" />
+              <div className="engine-dl">
+                <span>{t('engineLoading')}</span>
+                {engineDl && (
+                  <>
+                    <div className="fc-progress engine-progress">
+                      <div className="fc-bar" style={{ width: `${dlPct}%` }} />
+                    </div>
+                    <span className="fc-pct">
+                      {formatBytes(engineDl.received)} / {formatBytes(engineDl.total)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          {engine === 'error' && <div className="banner danger">{t('engineError')}</div>}
+          {skipped && <div className="banner warn">{t('unsupported', { names: skipped })}</div>}
+          {hasVideo && <div className="banner note">{t('warnVideo')}</div>}
+
+          {items.length > 0 && (
+            <>
+              <div className="list-actions">
+                <button className="btn btn-accent" onClick={convertAll} disabled={pending === 0}>
+                  {t('convertAll')}
+                </button>
+                <button className="btn btn-ghost" onClick={clearAll}>
+                  {t('clearAll')}
+                </button>
+              </div>
+              <div className="file-list">
+                {items.map((item) => (
+                  <FileCard
+                    key={item.id}
+                    item={item}
+                    onTarget={(id, target) => patch(id, { target, status: 'ready', outUrl: undefined })}
+                    onQuality={(id, quality) => patch(id, { quality })}
+                    onConvert={schedule}
+                    onRemove={remove}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      </main>
+
+      <footer className="footer">
+        <p>{t('footerNote')}</p>
+      </footer>
+    </div>
+  );
+}
