@@ -1,48 +1,50 @@
-# MorphKit — 瑞士刀級檔案轉換器
+# MorphKit — The Swiss-army file converter
 
-100% 靜態網站。圖片、音訊、影片轉換全部在瀏覽器內完成，檔案永遠不會離開使用者的裝置。
+[English](README.md) | [繁體中文](README.zh-TW.md)
 
-## 功能
+A 100% static website. Image, audio and video conversion runs entirely inside the browser — files never leave the user's device.
 
-支援三大類轉換：圖片（PNG / JPG / WEBP / BMP / GIF / AVIF → WEBP / PNG / JPG，附品質滑桿）、音訊（MP3 / WAV / OGG / FLAC / M4A / AAC / OPUS 互轉）、影片（MP4 / WEBM / MOV / AVI / MKV → MP4 / WEBM / GIF，或抽出 MP3 音軌）。介面支援深淺色主題與三語系（中文／English／日本語），設定會記憶在 localStorage。
+## Features
 
-進階功能：轉換進度條（含引擎下載進度）；可設定的平行工作數（1–4 個 worker，每個是獨立的 ffmpeg.wasm 實體，core 只下載一次共用）；轉換參數面板（音訊位元率、影片 CRF、GIF 幀率與寬度）；檔案 metadata 萃取——圖片尺寸、影音時長，以及照片 EXIF（相機型號、鏡頭、ISO、快門、光圈、焦距、拍攝時間、GPS 位置附地圖連結，透過 [exifr](https://github.com/MikeKovarik/exifr) 解析）。
+Three conversion categories: images (PNG / JPG / WEBP / BMP / GIF / AVIF → WEBP / PNG / JPG, with a quality slider), audio (MP3 / WAV / OGG / FLAC / M4A / AAC / OPUS), and video (MP4 / WEBM / MOV / AVI / MKV → MP4 / WEBM / GIF, or MP3 audio extraction). The UI ships with light / dark themes and three languages (繁體中文 / English / 日本語); preferences persist in localStorage.
 
-## 技術架構
+Advanced features: per-task progress bars (plus a download progress bar for the engine itself); configurable parallel workers (1–4, each an independent ffmpeg.wasm instance sharing a single downloaded core); a conversion settings panel (audio bitrate, video CRF, GIF frame rate and width); and file metadata extraction — image dimensions, media duration, and photo EXIF (camera, lens, ISO, shutter, aperture, focal length, capture time, and GPS location with a map link, parsed by [exifr](https://github.com/MikeKovarik/exifr)).
 
-- **Vite + React + TypeScript**，`base: './'` 讓 build 結果在任何 GitHub Pages 路徑下都能運作
-- **圖片**：瀏覽器原生 Canvas API，零額外下載
-- **音訊／影片**：[ffmpeg.wasm](https://ffmpegwasm.netlify.app/) 單執行緒核心（約 31 MB），首次使用時才從 CDN 延遲載入。單執行緒版不需要 COOP/COEP header，因此 GitHub Pages 可以直接跑
-- 轉換任務以佇列序列化執行（ffmpeg.wasm 一次只能跑一個任務）
+## Architecture
 
-## 本機開發
+- **Vite + React + TypeScript**, with `base: './'` so the build works under any GitHub Pages path
+- **Images**: native Canvas API — zero extra download
+- **Audio / video**: [ffmpeg.wasm](https://ffmpegwasm.netlify.app/) single-thread core (~31 MB), lazily loaded from CDN on first use. The single-thread build needs no COOP/COEP headers, so it runs on GitHub Pages out of the box
+- Conversion jobs are scheduled through a counting semaphore capped at the user's worker setting
+
+## Local development
 
 ```bash
 npm install
-npm run dev      # 開發伺服器
-npm run build    # 產出 dist/
+npm run dev      # dev server
+npm run build    # outputs dist/
 ```
 
-## 部署到 GitHub Pages
+## Deploying to GitHub Pages
 
-1. 在 GitHub 建立 repo，push 這個資料夾：
+1. Create a GitHub repo and push this folder:
 
    ```bash
    git init
    git add -A
    git commit -m "MorphKit initial commit"
    git branch -M main
-   git remote add origin https://github.com/<你的帳號>/<repo名>.git
+   git remote add origin https://github.com/<user>/<repo>.git
    git push -u origin main
    ```
 
-2. 到 repo 的 **Settings → Pages → Build and deployment → Source**，選 **GitHub Actions**。
-3. push 到 `main` 就會自動 build + 部署（workflow 在 `.github/workflows/deploy.yml`）。
+2. In the repo, go to **Settings → Pages → Build and deployment → Source** and select **GitHub Actions**.
+3. Every push to `main` builds and deploys automatically (workflow in `.github/workflows/deploy.yml`).
 
-## 已知限制
+## Known limitations
 
-- 瀏覽器記憶體上限約 1.8–2 GB，超過的檔案幾乎必定失敗（UI 會警告使用者）
-- ffmpeg.wasm 比原生 ffmpeg 慢 5–20 倍，大影片請耐心等候；轉 WEBM（VP8）特別慢
-- 動態 GIF 目前以圖片處理（只取第一格）；要保留動畫請把來源當影片轉 GIF
-- Canvas 轉出 WEBP 在較舊的 Safari 不支援
-- 轉換引擎從 unpkg CDN 載入，離線時音訊／影片轉換無法使用（圖片不受影響）
+- Browser memory tops out around 1.8–2 GB; larger files will almost certainly fail (the UI warns the user)
+- ffmpeg.wasm is 5–20× slower than native ffmpeg — be patient with large videos; WEBM (VP8) encoding is especially slow
+- Animated GIFs are currently treated as images (first frame only); to keep the animation, convert the source as video → GIF
+- Canvas WEBP export is unsupported in older Safari
+- The conversion engine loads from the unpkg CDN, so audio / video conversion is unavailable offline (images are unaffected)
