@@ -70,11 +70,6 @@ export function Hero({ onFiles }: Props) {
 
   return (
     <section className="hero">
-      <div className="radar" aria-hidden="true">
-        <div className="radar-rings" />
-        <div className="radar-sweep" />
-      </div>
-
       <p className="hero-tagline">{t('tagline')}</p>
       <h1 className="hero-title">
         {t('heroA')}

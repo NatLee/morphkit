@@ -226,10 +226,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="bg-fx" aria-hidden="true">
-        <span className="fx fx-a" />
-        <span className="fx fx-b" />
-      </div>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
