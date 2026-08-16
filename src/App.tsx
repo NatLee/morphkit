@@ -3,8 +3,9 @@ import { Hero } from './components/Hero';
 import { DropZone } from './components/DropZone';
 import { FileCard } from './components/FileCard';
 import { SettingsPanel } from './components/SettingsPanel';
+import { FormatMatrix } from './components/FormatMatrix';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, formatBytes, outputFileName } from './lib/formats';
+import { defaultTarget, detectKind, formatBytes, outputFileName, type Kind } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
@@ -73,17 +74,19 @@ export default function App() {
   const patch = (id: string, p: Partial<Item>) =>
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...p } : it)));
 
-  const addFiles = (files: File[]) => {
+  const addFiles = (files: File[], preset?: { kind: Kind; target: string }) => {
     const bad: string[] = [];
     const good: Item[] = [];
     for (const f of files) {
       const kind = detectKind(f);
       if (!kind) { bad.push(f.name); continue; }
+      const target =
+        preset && preset.kind === kind ? preset.target : defaultTarget(kind, f);
       good.push({
         id: `f${++uid}`,
         file: f,
         kind,
-        target: defaultTarget(kind, f),
+        target,
         quality: 0.9,
         status: 'ready',
         progress: 0,
@@ -185,6 +188,10 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="bg-fx" aria-hidden="true">
+        <span className="fx fx-a" />
+        <span className="fx fx-b" />
+      </div>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
@@ -227,7 +234,7 @@ export default function App() {
       </header>
 
       <main>
-        <Hero />
+        <Hero onFiles={addFiles} />
 
         <section className="workbench">
           {showSettings && <SettingsPanel settings={settings} onChange={updateSettings} />}
@@ -281,6 +288,8 @@ export default function App() {
             </>
           )}
         </section>
+
+        <FormatMatrix />
       </main>
 
       <footer className="footer">

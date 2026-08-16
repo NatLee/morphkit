@@ -61,6 +61,10 @@ const zh: Dict = {
   taken: '拍攝時間',
   location: 'GPS 位置',
   openMap: '在地圖開啟',
+  chooseFiles: '選擇檔案',
+  supported: '支援的轉換格式',
+  inLabel: '輸入',
+  outLabel: '輸出',
 };
 
 const en: Dict = {
@@ -114,6 +118,10 @@ const en: Dict = {
   taken: 'Taken',
   location: 'GPS location',
   openMap: 'Open map',
+  chooseFiles: 'Choose files',
+  supported: 'Supported conversions',
+  inLabel: 'Input',
+  outLabel: 'Output',
 };
 
 const ja: Dict = {
@@ -167,6 +175,10 @@ const ja: Dict = {
   taken: '撮影日時',
   location: 'GPS位置',
   openMap: '地図で開く',
+  chooseFiles: 'ファイルを選択',
+  supported: '対応する変換フォーマット',
+  inLabel: '入力',
+  outLabel: '出力',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
