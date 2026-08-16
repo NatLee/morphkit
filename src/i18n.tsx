@@ -11,9 +11,9 @@ export const LANGS: { code: Lang; label: string }[] = [
 type Dict = Record<string, string>;
 
 const zh: Dict = {
-  tagline: '瑞士刀級的檔案轉換器',
-  heroA: '任何格式，',
-  heroB: '就地轉換。',
+  tagline: 'Simple file converter',
+  heroA: '什麼都能',
+  heroB: '轉。',
   heroSub: '圖片、音訊、影片 — 全部在你的瀏覽器內完成。',
   privacy: '檔案永遠不會離開你的裝置',
   dropTitle: '把檔案丟進來',
@@ -39,7 +39,7 @@ const zh: Dict = {
   warnHuge: '這個檔案超過瀏覽器的記憶體上限（約 1.8 GB），幾乎一定會失敗。建議改用桌面工具。',
   warnVideo: '影片轉換完全在你的電腦上執行，速度取決於裝置效能；大檔案建議耐心等候或裁小再轉。',
   unsupported: '不支援的檔案已略過：{names}',
-  footerNote: '100% 靜態網站 · 零上傳 · 由 ffmpeg.wasm 與 Canvas API 驅動',
+  footerNote: '由 ffmpeg.wasm 與 Canvas API 驅動',
   themeToggle: '切換深淺色主題',
   settings: '轉換設定',
   workers: '平行工作數',
@@ -65,12 +65,16 @@ const zh: Dict = {
   supported: '支援的轉換格式',
   inLabel: '輸入',
   outLabel: '輸出',
+  downloadAll: '全部下載 (ZIP)',
+  filesSummary: '{n} 個檔案 · {size}',
+  progressSummary: '完成 {done}/{total}',
+  close: '關閉',
 };
 
 const en: Dict = {
-  tagline: 'The Swiss-army file converter',
-  heroA: 'Convert anything,',
-  heroB: 'locally.',
+  tagline: 'Simple file converter',
+  heroA: 'Convert ',
+  heroB: 'anything.',
   heroSub: 'Images, audio and video — converted entirely inside your browser.',
   privacy: 'Files never leave your device',
   dropTitle: 'Drop files here',
@@ -96,7 +100,7 @@ const en: Dict = {
   warnHuge: 'This file exceeds the browser memory ceiling (~1.8 GB) and will almost certainly fail. Use a desktop tool instead.',
   warnVideo: 'Video conversion runs entirely on your machine — speed depends on your hardware. Be patient with big files.',
   unsupported: 'Unsupported files skipped: {names}',
-  footerNote: '100% static site · zero uploads · powered by ffmpeg.wasm & Canvas API',
+  footerNote: 'Powered by ffmpeg.wasm & Canvas API',
   themeToggle: 'Toggle light / dark theme',
   settings: 'Conversion settings',
   workers: 'Parallel workers',
@@ -122,12 +126,16 @@ const en: Dict = {
   supported: 'Supported conversions',
   inLabel: 'Input',
   outLabel: 'Output',
+  downloadAll: 'Download all (ZIP)',
+  filesSummary: '{n} files · {size}',
+  progressSummary: '{done}/{total} done',
+  close: 'Close',
 };
 
 const ja: Dict = {
-  tagline: '十徳ナイフ級のファイル変換ツール',
-  heroA: 'どんな形式も、',
-  heroB: 'その場で変換。',
+  tagline: 'Simple file converter',
+  heroA: 'なんでも',
+  heroB: '変換。',
   heroSub: '画像・音声・動画 — すべてブラウザの中だけで完結。',
   privacy: 'ファイルは端末の外に出ません',
   dropTitle: 'ここにファイルをドロップ',
@@ -153,7 +161,7 @@ const ja: Dict = {
   warnHuge: 'このファイルはブラウザのメモリ上限（約1.8GB）を超えており、ほぼ確実に失敗します。デスクトップツールをご利用ください。',
   warnVideo: '動画変換はすべてお使いのマシン上で実行されます。速度はハードウェア次第です。大きなファイルは気長にどうぞ。',
   unsupported: '未対応のファイルをスキップしました：{names}',
-  footerNote: '100% 静的サイト · アップロードなし · ffmpeg.wasm & Canvas API 駆動',
+  footerNote: 'ffmpeg.wasm & Canvas API 駆動',
   themeToggle: 'ライト／ダークテーマ切替',
   settings: '変換設定',
   workers: '並列ワーカー数',
@@ -179,6 +187,10 @@ const ja: Dict = {
   supported: '対応する変換フォーマット',
   inLabel: '入力',
   outLabel: '出力',
+  downloadAll: 'すべてダウンロード (ZIP)',
+  filesSummary: '{n} 個のファイル · {size}',
+  progressSummary: '完了 {done}/{total}',
+  close: '閉じる',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

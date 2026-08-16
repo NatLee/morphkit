@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { zipSync } from 'fflate';
 import { Hero } from './components/Hero';
 import { DropZone } from './components/DropZone';
 import { FileCard } from './components/FileCard';
@@ -180,8 +181,45 @@ export default function App() {
     setItems([]);
   };
 
+  const downloadAll = async () => {
+    const done = itemsRef.current.filter((i) => i.status === 'done' && i.outUrl && i.outName);
+    if (!done.length) return;
+    const entries: Record<string, Uint8Array> = {};
+    for (const it of done) {
+      const buf = await fetch(it.outUrl as string).then((r) => r.arrayBuffer());
+      let name = it.outName as string;
+      let n = 1;
+      while (entries[name]) name = (it.outName as string).replace(/(\.[^.]+)$/, `_${n++}$1`);
+      entries[name] = new Uint8Array(buf);
+    }
+    const zipped = zipSync(entries);
+    const url = URL.createObjectURL(new Blob([zipped.slice()], { type: 'application/zip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'morphkit.zip';
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+
+  // close settings drawer on Escape
+  useEffect(() => {
+    if (!showSettings) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowSettings(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showSettings]);
+
   const hasVideo = items.some((i) => i.kind === 'video');
   const pending = items.filter((i) => i.status === 'ready' || i.status === 'error').length;
+  const doneCount = items.filter((i) => i.status === 'done').length;
+  const activeCount = items.filter((i) => i.status === 'converting' || i.status === 'queued').length;
+  const totalSize = items.reduce((s, i) => s + i.file.size, 0);
+  const overall = items.length
+    ? items.reduce(
+        (s, i) => s + (i.status === 'done' ? 1 : i.status === 'converting' ? i.progress : 0),
+        0
+      ) / items.length
+    : 0;
   const dlPct = engineDl && engineDl.total > 0
     ? Math.min(100, Math.round((engineDl.received / engineDl.total) * 100))
     : 0;
@@ -237,8 +275,6 @@ export default function App() {
         <Hero onFiles={addFiles} />
 
         <section className="workbench">
-          {showSettings && <SettingsPanel settings={settings} onChange={updateSettings} />}
-
           <DropZone onFiles={addFiles} />
 
           {engine === 'loading' && (
@@ -265,13 +301,35 @@ export default function App() {
 
           {items.length > 0 && (
             <>
-              <div className="list-actions">
-                <button className="btn btn-accent" onClick={convertAll} disabled={pending === 0}>
-                  {t('convertAll')}
-                </button>
-                <button className="btn btn-ghost" onClick={clearAll}>
-                  {t('clearAll')}
-                </button>
+              <div className="batch-bar">
+                <div className="bb-info">
+                  <span className="bb-count">
+                    {t('filesSummary', { n: String(items.length), size: formatBytes(totalSize) })}
+                  </span>
+                  {(doneCount > 0 || activeCount > 0) && (
+                    <span className="bb-progress-wrap">
+                      <span className="bb-progress">
+                        <span className="bb-bar" style={{ width: `${Math.round(overall * 100)}%` }} />
+                      </span>
+                      <span className="bb-done">
+                        {t('progressSummary', { done: String(doneCount), total: String(items.length) })}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div className="bb-actions">
+                  <button className="btn btn-accent" onClick={convertAll} disabled={pending === 0}>
+                    {t('convertAll')}
+                  </button>
+                  {doneCount > 1 && (
+                    <button className="btn btn-ghost" onClick={downloadAll}>
+                      {t('downloadAll')}
+                    </button>
+                  )}
+                  <button className="btn btn-ghost" onClick={clearAll}>
+                    {t('clearAll')}
+                  </button>
+                </div>
               </div>
               <div className="file-list">
                 {items.map((item) => (
@@ -291,6 +349,29 @@ export default function App() {
 
         <FormatMatrix />
       </main>
+
+      {showSettings && (
+        <div className="drawer-overlay" onClick={() => setShowSettings(false)}>
+          <aside
+            className="drawer"
+            role="dialog"
+            aria-label={t('settings')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="drawer-head">
+              <h2>{t('settings')}</h2>
+              <button
+                className="theme-toggle"
+                onClick={() => setShowSettings(false)}
+                aria-label={t('close')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+              </button>
+            </div>
+            <SettingsPanel settings={settings} onChange={updateSettings} />
+          </aside>
+        </div>
+      )}
 
       <footer className="footer">
         <p>{t('footerNote')}</p>

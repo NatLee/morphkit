@@ -338,14 +338,15 @@ select optgroup {
   gap: 8px;
   animation:
     cardIn 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both,
-    cardFloat 4.5s 1s ease-in-out infinite alternate;
+    cardFloat 7s ease-in-out infinite alternate;
+  will-change: translate;
 }
 
-.format-card.to { animation-delay: 0.1s, 2.6s; }
+.format-card.to { animation-delay: 0.1s, -3.5s; }
 
 @keyframes cardFloat {
   from { translate: 0 0; }
-  to { translate: 0 -7px; }
+  to { translate: 0 -6px; }
 }
 
 /* format pickers inside hero cards */
@@ -353,6 +354,12 @@ select optgroup {
   position: relative;
   display: inline-flex;
   align-items: center;
+  animation: fadeSwap 0.5s ease both;
+}
+
+@keyframes fadeSwap {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
 }
 
 .fsel::after {
@@ -374,9 +381,12 @@ select optgroup {
   font-size: 19px;
   letter-spacing: 0.06em;
   color: var(--ink);
-  padding: 2px 18px 2px 6px;
+  padding: 2px 16px 2px 4px;
   cursor: pointer;
+  /* fixed width so format-name changes never shift the layout */
+  width: 96px;
   text-align: center;
+  text-align-last: center;
 }
 
 .fsel select:focus-visible {
@@ -794,6 +804,134 @@ select optgroup {
 
 .fc-warn::before { content: '⚠'; }
 .fc-warn.danger { color: var(--danger); }
+
+/* ============ batch bar ============ */
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 22px 0 14px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--bg-raised), var(--bg));
+  animation: rise 0.4s ease both;
+}
+
+.bb-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.bb-count {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+
+.bb-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bb-progress {
+  display: inline-block;
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.bb-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #ffb454);
+  transition: width 0.4s ease;
+}
+
+.bb-done {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.bb-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ============ settings drawer ============ */
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 8, 5, 0.45);
+  backdrop-filter: blur(3px);
+  z-index: 100;
+  animation: fadeIn 0.25s ease both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 92vw);
+  background: var(--bg-raised);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+  overflow-y: auto;
+  z-index: 101;
+  animation: slideIn 0.32s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.drawer-head h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  margin: 0;
+}
+
+.drawer .settings-panel {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  animation: none;
+}
+
+.drawer .sp-grid {
+  grid-template-columns: 1fr;
+  gap: 22px;
+}
 
 /* ============ format matrix ============ */
 

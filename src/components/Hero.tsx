@@ -88,8 +88,13 @@ export function Hero({ onFiles }: Props) {
             <path d="M15 2v5h5" fill="none" stroke="currentColor" strokeWidth="1.6" />
             <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" strokeWidth="1.6" />
           </svg>
-          <div className="fsel">
-            <select value={from} onChange={(e) => pickFrom(e.target.value)} aria-label="Source format">
+          <div className="fsel" key={touched ? 'from' : `from-${from}`}>
+            <select
+              value={from}
+              onChange={(e) => pickFrom(e.target.value)}
+              onFocus={() => setTouched(true)}
+              aria-label="Source format"
+            >
               {FORMAT_GROUPS.map((g) => (
                 <optgroup key={g.kind} label={t(g.labelKey)}>
                   {g.formats.map((f) => (
@@ -119,8 +124,13 @@ export function Hero({ onFiles }: Props) {
             <path d="M15 2v5h5" fill="none" stroke="currentColor" strokeWidth="1.6" />
             <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" strokeWidth="1.6" />
           </svg>
-          <div className="fsel accent">
-            <select value={to} onChange={(e) => pickTo(e.target.value)} aria-label="Target format">
+          <div className="fsel accent" key={touched ? 'to' : `to-${to}`}>
+            <select
+              value={to}
+              onChange={(e) => pickTo(e.target.value)}
+              onFocus={() => setTouched(true)}
+              aria-label="Target format"
+            >
               {outs.map((o) => (
                 <option key={o} value={o}>{fmtLabel(o)}</option>
               ))}
@@ -145,11 +155,6 @@ export function Hero({ onFiles }: Props) {
             e.target.value = '';
           }}
         />
-      </div>
-
-      <div className="privacy-badge">
-        <span className="privacy-dot" />
-        {t('privacy')}
       </div>
     </section>
   );
