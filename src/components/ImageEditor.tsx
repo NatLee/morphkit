@@ -9,6 +9,7 @@ import type { Item } from '../types';
 type Tool = 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop' | 'wand';
 type ObjType = Exclude<Tool, 'select' | 'crop' | 'wand'>;
 type FontFam = 'sans' | 'serif' | 'mono';
+type Brush = 'pen' | 'marker' | 'highlight';
 
 interface Pt { x: number; y: number }
 
@@ -27,6 +28,7 @@ interface Obj {
   font?: FontFam;
   weight?: number;
   outline?: boolean;
+  brush?: Brush;
 }
 
 export const FONT_MAP: Record<FontFam, string> = {
@@ -118,10 +120,20 @@ function drawObj(ctx: CanvasRenderingContext2D, o: Obj) {
     return;
   }
   if (o.type === 'pen' && o.points?.length) {
+    ctx.save();
+    if (o.brush === 'marker') {
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = o.size * 1.8;
+    } else if (o.brush === 'highlight') {
+      ctx.globalAlpha = 0.32;
+      ctx.lineWidth = o.size * 3;
+      ctx.lineCap = 'butt';
+    }
     ctx.beginPath();
     ctx.moveTo(o.points[0].x, o.points[0].y);
     for (const p of o.points) ctx.lineTo(p.x, p.y);
     ctx.stroke();
+    ctx.restore();
     return;
   }
   if (!o.a || !o.b) return;
@@ -199,12 +211,14 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
   const [bold, setBold] = useState(false);
   const [outlineOn, setOutlineOn] = useState(false);
   const [wandTol, setWandTol] = useState(30);
+  const [brushType, setBrushType] = useState<Brush>('pen');
   const [zoom, setZoom] = useState(1);
   const [baseVer, setBaseVer] = useState(0);
   const [histVer, setHistVer] = useState(0);
   const [cropSel, setCropSel] = useState<{ a: Pt; b: Pt } | null>(null);
   const [textEdit, setTextEdit] = useState<{ id?: number; pos: Pt; value: string } | null>(null);
   const [ready, setReady] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const selObj = sel != null ? objects.find((o) => o.id === sel) ?? null : null;
 
@@ -379,7 +393,9 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
     pushHist();
     const id = ++objId;
     const base: Obj = { id, type: tool, color, size, visible: true };
-    const obj: Obj = tool === 'pen' ? { ...base, points: [p] } : { ...base, a: p, b: p };
+    const obj: Obj = tool === 'pen'
+      ? { ...base, points: [p], brush: brushType }
+      : { ...base, a: p, b: p };
     setObjects((prev) => [...prev, obj]);
     dragRef.current = { mode: 'draw', id };
   };
@@ -423,10 +439,40 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
     }
   };
 
-  // delete key removes selection
+  /** Composite base + objects into a fresh canvas (used by save & copy). */
+  const composite = (): HTMLCanvasElement | null => {
+    const base = baseRef.current;
+    if (!base) return null;
+    const out = document.createElement('canvas');
+    out.width = base.bmp.width;
+    out.height = base.bmp.height;
+    const ctx = out.getContext('2d')!;
+    ctx.drawImage(base.bmp, 0, 0);
+    for (const o of objectsRef.current) drawObj(ctx, o);
+    return out;
+  };
+
+  const copyCanvas = async () => {
+    const out = composite();
+    if (!out) return;
+    const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
+    if (!blob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard write not permitted */ }
+  };
+
+  // keyboard: Delete removes selection, Ctrl+C copies the composited image
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (textEdit) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        void copyCanvas();
+        return;
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel != null) {
         pushHist();
         setObjects((prev) => prev.filter((o) => o.id !== sel));
@@ -438,6 +484,27 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel, textEdit]);
+
+  // Ctrl+V: pasted text becomes a text object at the canvas centre
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (textEdit) return;
+      const txt = e.clipboardData?.getData('text');
+      if (!txt?.trim()) return;
+      e.preventDefault();
+      pushHist();
+      const c = canvasRef.current;
+      setObjects((prev) => [...prev, {
+        id: ++objId, type: 'text', color, size: fontSize, visible: true,
+        text: txt.trim(), pos: { x: (c?.width ?? 200) / 2, y: (c?.height ?? 200) / 2 },
+        font: fontFam, weight: bold ? 800 : 600, outline: outlineOn,
+      }]);
+      setTool('select');
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textEdit, color, fontSize, fontFam, bold, outlineOn]);
 
   const commitText = () => {
     if (!textEdit) return;
@@ -590,14 +657,8 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
 
   // ---- save ----
   const save = () => {
-    const base = baseRef.current;
-    if (!base) return;
-    const out = document.createElement('canvas');
-    out.width = base.bmp.width;
-    out.height = base.bmp.height;
-    const ctx = out.getContext('2d')!;
-    ctx.drawImage(base.bmp, 0, 0);
-    for (const o of objectsRef.current) drawObj(ctx, o);
+    const out = composite();
+    if (!out) return;
     out.toBlob((b) => {
       if (!b) return;
       const baseName = item.file.name.replace(/\.[^.]+$/, '');
@@ -649,6 +710,13 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
           <button className="tool-btn" onClick={redo} disabled={redoRef.current.length === 0} title={t('redo')}>
             <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
+          <button className="tool-btn" onClick={() => void copyCanvas()} title={copied ? t('copied') : `${t('copyResult')} (Ctrl+C)`}>
+            {copied ? (
+              <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            )}
+          </button>
           <span className="tb-sep" />
           {/* contextual properties: edit selection, or set defaults for new objects */}
           <input
@@ -672,6 +740,22 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
               }}
             />
           </label>
+          {(tool === 'pen' || selObj?.type === 'pen') && (
+            <select
+              className="tb-select"
+              value={selObj?.type === 'pen' ? selObj.brush ?? 'pen' : brushType}
+              onChange={(e) => {
+                const v = e.target.value as Brush;
+                if (selObj?.type === 'pen') { pushHist(); updateSel({ brush: v }); }
+                else setBrushType(v);
+              }}
+              title={t('brush')}
+            >
+              <option value="pen">{t('brushPen')}</option>
+              <option value="marker">{t('brushMarker')}</option>
+              <option value="highlight">{t('brushHighlight')}</option>
+            </select>
+          )}
           {(tool === 'text' || selObj?.type === 'text') && (
             <>
               <select

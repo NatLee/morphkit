@@ -35,6 +35,29 @@ const EDIT_ICONS = {
 export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit }: Props) {
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyResult = async () => {
+    if (!item.outUrl) return;
+    try {
+      const blob = await fetch(item.outUrl).then((r) => r.blob());
+      let png = blob;
+      if (blob.type !== 'image/png') {
+        const bmp = await createImageBitmap(blob);
+        const c = document.createElement('canvas');
+        c.width = bmp.width;
+        c.height = bmp.height;
+        c.getContext('2d')!.drawImage(bmp, 0, 0);
+        bmp.close();
+        const converted = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+        if (!converted) return;
+        png = converted;
+      }
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard unavailable for this type */ }
+  };
   const busy = item.status === 'converting' || item.status === 'queued';
   const showQuality =
     item.kind === 'image' && (item.target === 'jpeg' || item.target === 'webp');
@@ -155,6 +178,21 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
               onClick={() => onConvert(item.id)}
             >
               {item.status === 'converting' ? t('converting') : item.status === 'queued' ? t('queued') : item.status === 'error' ? t('retry') : t('convert')}
+            </button>
+          )}
+
+          {item.status === 'done' && item.outUrl && item.kind === 'image' && (
+            <button
+              className="btn btn-ghost fc-remove"
+              onClick={() => void copyResult()}
+              title={copied ? t('copied') : t('copyResult')}
+              aria-label={t('copyResult')}
+            >
+              {copied ? (
+                <svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="16" height="16"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              )}
             </button>
           )}
 

@@ -9,7 +9,7 @@ import { MediaEditor } from './components/MediaEditor';
 import { ImageEditor } from './components/ImageEditor';
 import { GifEditor } from './components/GifEditor';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, extOf, formatBytes, outputFileName, type Kind } from './lib/formats';
+import { defaultTarget, detectKind, extOf, formatBytes, outputFileName } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
@@ -80,14 +80,13 @@ export default function App() {
   const patch = (id: string, p: Partial<Item>) =>
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...p } : it)));
 
-  const addFiles = (files: File[], preset?: { kind: Kind; target: string }) => {
+  const addFiles = (files: File[]) => {
     const bad: string[] = [];
     const good: Item[] = [];
     for (const f of files) {
       const kind = detectKind(f);
       if (!kind) { bad.push(f.name); continue; }
-      const target =
-        preset && preset.kind === kind ? preset.target : defaultTarget(kind, f);
+      const target = defaultTarget(kind, f);
       good.push({
         id: `f${++uid}`,
         file: f,
@@ -225,6 +224,27 @@ export default function App() {
     window.setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
+  // global paste: Ctrl+V with a file (e.g. a screenshot) adds it to the list
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (editingId || showSettings) return;
+      const files: File[] = [];
+      for (const it of Array.from(e.clipboardData?.items ?? [])) {
+        if (it.kind === 'file') {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length) {
+        e.preventDefault();
+        addFiles(files);
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, showSettings]);
+
   // close settings drawer on Escape
   useEffect(() => {
     if (!showSettings) return;
@@ -335,7 +355,7 @@ export default function App() {
       </header>
 
       <main>
-        <Hero onFiles={addFiles} />
+        <Hero />
 
         <section className="workbench">
           <DropZone onFiles={addFiles} />

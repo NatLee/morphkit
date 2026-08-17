@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { GIFEncoder, quantize, applyPalette } from 'gifenc';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { GIFEncoder } from 'gifenc';
 import UPNG from 'upng-js';
-import { decodeAnim } from '../lib/animImage';
+import { decodeAnim, writeGifFrame } from '../lib/animImage';
 import { extOf } from '../lib/formats';
 import { useI18n } from '../i18n';
 import { DualRange } from './DualRange';
@@ -24,7 +24,9 @@ interface Cap {
   text: string;
   size: number;
   color: string;
-  pos: 'top' | 'bottom';
+  /** relative position 0..1 — draggable on the preview */
+  x: number;
+  y: number;
   /** 0-based inclusive frame range */
   from: number;
   to: number;
@@ -56,13 +58,14 @@ export function GifEditor({ item, onSave, onClose }: Props) {
   const [caps, setCaps] = useState<Cap[]>([]);
   const [outFmt, setOutFmt] = useState<'gif' | 'apng'>(srcIsApng ? 'apng' : 'gif');
   const [flatten, setFlatten] = useState(false);
+  void outFmt;
   const [matte, setMatte] = useState('#ffffff');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const dragCapRef = useRef<{ id: number; dx: number; dy: number } | null>(null);
 
-  // GIF output cannot hold partial alpha — flattening is mandatory there
-  const flattenActive = outFmt === 'gif' || flatten;
+  const flattenActive = flatten;
 
   // ---- decode via shared pipeline (GIF / APNG / static) ----
   useEffect(() => {
@@ -105,20 +108,65 @@ export function GifEditor({ item, onSave, onClose }: Props) {
       if (!cap.text.trim() || fi < cap.from || fi > cap.to) continue;
       ctx.font = `700 ${cap.size}px 'IBM Plex Sans', sans-serif`;
       ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.lineWidth = Math.max(2, cap.size / 9);
+      ctx.lineJoin = 'round';
       ctx.strokeStyle = '#000';
       ctx.fillStyle = cap.color;
-      if (cap.pos === 'top') {
-        ctx.textBaseline = 'top';
-        ctx.strokeText(cap.text, w / 2, cap.size * 0.35);
-        ctx.fillText(cap.text, w / 2, cap.size * 0.35);
-      } else {
-        ctx.textBaseline = 'bottom';
-        ctx.strokeText(cap.text, w / 2, h - cap.size * 0.35);
-        ctx.fillText(cap.text, w / 2, h - cap.size * 0.35);
-      }
+      ctx.strokeText(cap.text, cap.x * w, cap.y * h);
+      ctx.fillText(cap.text, cap.x * w, cap.y * h);
     }
   };
+
+  // ---- caption dragging on the preview canvas ----
+  const toCanvasPt = (e: PointerEvent<HTMLCanvasElement>) => {
+    const c = canvasRef.current!;
+    const rect = c.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * c.width,
+      y: ((e.clientY - rect.top) / rect.height) * c.height,
+    };
+  };
+
+  const capAt = (px: number, py: number): Cap | null => {
+    const c = canvasRef.current;
+    if (!c) return null;
+    const ctx = c.getContext('2d')!;
+    for (let i = caps.length - 1; i >= 0; i--) {
+      const cap = caps[i];
+      if (!cap.text.trim()) continue;
+      ctx.font = `700 ${cap.size}px 'IBM Plex Sans', sans-serif`;
+      const tw = ctx.measureText(cap.text).width;
+      const cx = cap.x * c.width;
+      const cy = cap.y * c.height;
+      if (Math.abs(px - cx) <= tw / 2 + 10 && Math.abs(py - cy) <= cap.size * 0.7 + 10) return cap;
+    }
+    return null;
+  };
+
+  const onCanvasDown = (e: PointerEvent<HTMLCanvasElement>) => {
+    const p = toCanvasPt(e);
+    const cap = capAt(p.x, p.y);
+    if (!cap) return;
+    setPlaying(false);
+    const c = canvasRef.current!;
+    dragCapRef.current = { id: cap.id, dx: p.x - cap.x * c.width, dy: p.y - cap.y * c.height };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+
+  const onCanvasMove = (e: PointerEvent<HTMLCanvasElement>) => {
+    const d = dragCapRef.current;
+    if (!d) return;
+    const c = canvasRef.current!;
+    const p = toCanvasPt(e);
+    patchCap(d.id, {
+      x: Math.min(1, Math.max(0, (p.x - d.dx) / c.width)),
+      y: Math.min(1, Math.max(0, (p.y - d.dy) / c.height)),
+    });
+  };
+
+  const onCanvasUp = () => { dragCapRef.current = null; };
 
   const drawFrame = (fi: number) => {
     const f = framesRef.current[fi];
@@ -262,7 +310,7 @@ export function GifEditor({ item, onSave, onClose }: Props) {
   // ---- captions ----
   const addCap = () => {
     setCaps((prev) => [...prev, {
-      id: ++capId, text: '', size: 28, color: '#ffffff', pos: 'bottom', from: range[0], to: range[1],
+      id: ++capId, text: '', size: 28, color: '#ffffff', x: 0.5, y: 0.88, from: range[0], to: range[1],
     }]);
   };
 
@@ -302,9 +350,7 @@ export function GifEditor({ item, onSave, onClose }: Props) {
         const enc = GIFEncoder();
         for (let i = 0; i < order.length; i++) {
           const img = renderFrame(order[i]);
-          const palette = quantize(img.data, 256);
-          const index = applyPalette(img.data, palette);
-          enc.writeFrame(index, w, h, { palette, delay: Math.round(frames[order[i]].delay / speed) });
+          writeGifFrame(enc, img.data, w, h, Math.round(frames[order[i]].delay / speed), !flattenActive);
           if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
         }
         enc.finish();
@@ -340,7 +386,13 @@ export function GifEditor({ item, onSave, onClose }: Props) {
         </div>
 
         <div className="ed-preview gif-preview">
-          <canvas ref={canvasRef} />
+          <canvas
+            ref={canvasRef}
+            onPointerDown={onCanvasDown}
+            onPointerMove={onCanvasMove}
+            onPointerUp={onCanvasUp}
+            style={{ touchAction: 'none', cursor: caps.length ? 'move' : 'default' }}
+          />
         </div>
 
         <div className="gif-transport">
@@ -445,7 +497,6 @@ export function GifEditor({ item, onSave, onClose }: Props) {
               <input
                 type="checkbox"
                 checked={flattenActive}
-                disabled={outFmt === 'gif'}
                 onChange={(e) => setFlatten(e.target.checked)}
               />
               <span className="sp-label">{t('flatten')}</span>
@@ -465,6 +516,7 @@ export function GifEditor({ item, onSave, onClose }: Props) {
               {t('captions')}
               <button className="btn btn-ghost btn-sm" onClick={addCap}>{t('addCaption')} +</button>
             </span>
+            {caps.length > 0 && <span className="ed-hint">{t('capDragHint')}</span>}
             {caps.map((cap) => (
               <div className="cap-row" key={cap.id}>
                 <input
@@ -489,13 +541,6 @@ export function GifEditor({ item, onSave, onClose }: Props) {
                   value={cap.color}
                   onChange={(e) => patchCap(cap.id, { color: e.target.value })}
                 />
-                <select
-                  value={cap.pos}
-                  onChange={(e) => patchCap(cap.id, { pos: e.target.value as 'top' | 'bottom' })}
-                >
-                  <option value="top">{t('posTop')}</option>
-                  <option value="bottom">{t('posBottom')}</option>
-                </select>
                 <input
                   type="number"
                   className="num-sm"

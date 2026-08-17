@@ -103,35 +103,63 @@ export function encodeAPNG(anim: Anim): Blob {
   return new Blob([out], { type: 'image/apng' });
 }
 
-/** Encode GIF — alpha is flattened onto a matte colour. */
-export async function encodeGIFBlob(anim: Anim, matte = '#ffffff'): Promise<Blob> {
+/** Quantize + write one RGBA frame into a GIF encoder, with or without transparency. */
+export function writeGifFrame(
+  enc: ReturnType<typeof GIFEncoder>,
+  data: Uint8ClampedArray,
+  w: number,
+  h: number,
+  delay: number,
+  keepAlpha: boolean
+): void {
+  if (keepAlpha) {
+    // rgba4444 keeps an alpha slot; index 0 becomes the transparent colour
+    const palette = quantize(data, 256, { format: 'rgba4444' });
+    const index = applyPalette(data, palette, 'rgba4444');
+    enc.writeFrame(index, w, h, { palette, delay, transparent: true, dispose: 2 });
+  } else {
+    const palette = quantize(data, 256);
+    const index = applyPalette(data, palette);
+    enc.writeFrame(index, w, h, { palette, delay });
+  }
+}
+
+/**
+ * Encode GIF.
+ * `matte === null` keeps binary transparency (GIF's 1-bit alpha);
+ * a colour string flattens the alpha channel onto that background.
+ */
+export async function encodeGIFBlob(anim: Anim, matte: string | null = null): Promise<Blob> {
   const { width: w, height: h } = anim;
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  const tmp = document.createElement('canvas');
+  tmp.width = w;
+  tmp.height = h;
+  const tctx = tmp.getContext('2d')!;
   const enc = GIFEncoder();
   for (let i = 0; i < anim.frames.length; i++) {
     const f = anim.frames[i];
-    ctx.fillStyle = matte;
-    ctx.fillRect(0, 0, w, h);
-    const tmp = document.createElement('canvas');
-    tmp.width = w;
-    tmp.height = h;
-    tmp.getContext('2d')!.putImageData(f.img, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (matte) {
+      ctx.fillStyle = matte;
+      ctx.fillRect(0, 0, w, h);
+    }
+    tctx.clearRect(0, 0, w, h);
+    tctx.putImageData(f.img, 0, 0);
     ctx.drawImage(tmp, 0, 0);
     const { data } = ctx.getImageData(0, 0, w, h);
-    const palette = quantize(data, 256);
-    const index = applyPalette(data, palette);
-    enc.writeFrame(index, w, h, { palette, delay: f.delay });
+    writeGifFrame(enc, data, w, h, f.delay, matte === null);
     if (i % 6 === 5) await new Promise((r) => setTimeout(r, 0));
   }
   enc.finish();
   return new Blob([enc.bytes().slice()], { type: 'image/gif' });
 }
 
-/** Convert to an animated target, preserving every frame. */
+/** Convert to an animated target, preserving every frame (and transparency). */
 export async function convertAnimImage(file: File, target: 'apng' | 'gif'): Promise<Blob> {
   const anim = await decodeAnim(file);
-  return target === 'apng' ? encodeAPNG(anim) : encodeGIFBlob(anim);
+  return target === 'apng' ? encodeAPNG(anim) : encodeGIFBlob(anim, null);
 }

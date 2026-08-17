@@ -161,6 +161,13 @@ const zh: Dict = {
   flatten: '去除透明度',
   matteColor: '背景色',
   outFormat: '輸出格式',
+  brush: '筆刷',
+  brushPen: '鋼筆',
+  brushMarker: '麥克筆',
+  brushHighlight: '螢光筆',
+  copyResult: '複製結果',
+  copied: '已複製',
+  capDragHint: '直接在預覽畫面拖曳字幕即可移動位置',
 };
 
 const en: Dict = {
@@ -314,6 +321,13 @@ const en: Dict = {
   flatten: 'Remove transparency',
   matteColor: 'Matte color',
   outFormat: 'Output format',
+  brush: 'Brush',
+  brushPen: 'Pen',
+  brushMarker: 'Marker',
+  brushHighlight: 'Highlighter',
+  copyResult: 'Copy result',
+  copied: 'Copied',
+  capDragHint: 'Drag captions on the preview to reposition them',
 };
 
 const ja: Dict = {
@@ -467,6 +481,13 @@ const ja: Dict = {
   flatten: '透明を除去',
   matteColor: '背景色',
   outFormat: '出力形式',
+  brush: 'ブラシ',
+  brushPen: 'ペン',
+  brushMarker: 'マーカー',
+  brushHighlight: '蛍光ペン',
+  copyResult: '結果をコピー',
+  copied: 'コピーしました',
+  capDragHint: 'プレビュー上でキャプションをドラッグして移動できます',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

@@ -166,10 +166,12 @@ select optgroup {
   transition: all 0.18s ease;
 }
 
-.theme-toggle:hover {
+.theme-toggle:hover:not(.active) {
   color: var(--ink);
   border-color: var(--ink);
 }
+
+.theme-toggle.active:hover { color: var(--bg); }
 
 .theme-toggle.active {
   background: var(--ink);
@@ -1384,13 +1386,16 @@ select optgroup {
 
 .tool-btn svg { width: 17px; height: 17px; }
 
-.tool-btn:hover:not(:disabled) { color: var(--ink); border-color: var(--ink); }
+.tool-btn:hover:not(:disabled):not(.active) { color: var(--ink); border-color: var(--ink); }
 
 .tool-btn.active {
   background: var(--ink);
   border-color: var(--ink);
   color: var(--bg);
 }
+
+/* keep the icon visible while hovering an active tool (was ink-on-ink) */
+.tool-btn.active:hover { color: var(--bg); }
 
 .tool-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
