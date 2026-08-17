@@ -43,6 +43,12 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 | `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
+| `components/Studio.tsx` | Project workspace (App `mode==='studio'`): project CRUD (IndexedDB), asset panel (import/drop, per-kind actions), hosts Mixer + reuses Image/Gif editors on assets via pseudo-Item |
+| `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
+| `lib/studioTypes.ts` | `Clip`/`Track`/`MixerDoc`/`ProjectRec`/`AssetRec`, `uid()` |
+| `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
+| `lib/audioEngine.ts` | AudioBuffer decode cache (assetId-keyed), `playMix` live graph (solo/mute logic), `renderMixWav` OfflineAudioContext, `peaks` for waveforms |
+| `lib/wav.ts` | AudioBuffer → 16-bit PCM WAV |
 | `gif-libs.d.ts` | Hand-written types for gifuct-js / gifenc / upng-js |
 
 ## Invariants & gotchas (violating these causes regressions)
@@ -57,6 +63,9 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 8. **ImageEditor history**: entries share the base `Blob` by reference; geometry ops (crop/rotate/flip/wand) create a new base blob AND transform object coordinates.
 9. Build output goes nowhere near the repo: `dist/` is gitignored.
 10. Bullet-proof rule: after edits run `npx tsc` — the project is strict-mode clean.
+11. **Studio persistence**: mixer doc saves to IndexedDB debounced 500ms via `persist()`; clips reference assets by id — deleting an asset must strip its clips AND `dropAssetBuffer`.
+12. **AudioContext** is created lazily (user gesture) — never at module load. Buffers must be decoded (cache warm) before `playMix`/`renderMixWav`; Studio warms the cache on project load.
+13. **MediaEdit trim preview**: never seek-back on reaching trim end (causes visible shake); trim handles scrub `currentTime` instead.
 
 ## Design language ("Drafting Table")
 
