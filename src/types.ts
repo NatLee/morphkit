@@ -9,12 +9,16 @@ export interface MediaEdit {
   trimStart?: number;
   /** seconds */
   trimEnd?: number;
-  /** 1 = unchanged (0–2) */
+  /** 1 = unchanged (0–2), applies to the audio track */
   volume?: number;
   /** 1 = unchanged (0.5–2) */
   speed?: number;
-  /** degrees clockwise, video only */
+  /** degrees clockwise, video track only */
   rotate?: 0 | 90 | 180 | 270;
+  /** video only: strip the audio track */
+  mute?: boolean;
+  /** video only: replace the audio track with this file (-map 0:v -map 1:a) */
+  audioTrack?: File;
 }
 
 export interface Item {

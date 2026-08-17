@@ -75,6 +75,8 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
     if (e.speed) editSummary.push(`${e.speed}×`);
     if (e.volume != null) editSummary.push(`${Math.round(e.volume * 100)}%`);
     if (e.rotate) editSummary.push(`${e.rotate}°`);
+    if (e.mute) editSummary.push(t('mutedChip'));
+    if (e.audioTrack) editSummary.push(t('audioReplaced'));
   }
 
   const m = item.meta;

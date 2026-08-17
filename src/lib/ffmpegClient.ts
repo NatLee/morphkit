@@ -110,11 +110,25 @@ function fpsOpt(s: Settings): string[] {
 }
 
 function videoAudioTrack(s: Settings, e?: MediaEdit): string[] {
-  return s.videoMute ? ['-an'] : ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)];
+  return s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)];
 }
 
-function buildArgs(target: string, input: string, output: string, s: Settings, e?: MediaEdit): string[] {
+/** Extra input + stream mapping when the audio track is replaced. */
+function trackMap(input2?: string): { inputs: string[]; map: string[] } {
+  if (!input2) return { inputs: [], map: [] };
+  return { inputs: ['-i', input2], map: ['-map', '0:v:0', '-map', '1:a:0', '-shortest'] };
+}
+
+function buildArgs(
+  target: string,
+  input: string,
+  output: string,
+  s: Settings,
+  e?: MediaEdit,
+  input2?: string
+): string[] {
   const trim = trimOpts(e);
+  const t2 = trackMap(input2);
   switch (target) {
     // ---- audio ----
     case 'mp3':
@@ -129,9 +143,9 @@ function buildArgs(target: string, input: string, output: string, s: Settings, e
       return [...trim, '-i', input, '-vn', '-c:a', 'aac', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), output];
     // ---- video ----
     case 'mp4':
-      return [...trim, '-i', input, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...videoAudioTrack(s, e), output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)] : videoAudioTrack(s, e)), output];
     case 'webm':
-      return [...trim, '-i', input, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...vfChain(s, e), ...fpsOpt(s), ...(s.videoMute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), output];
     case 'gif':
       return [...trim, '-i', input, ...vfChain(s, e, [`fps=${s.gifFps}`, `scale=${s.gifWidth}:-2:flags=lanczos`]), '-loop', '0', output];
     default:
@@ -152,6 +166,10 @@ export async function convertMedia(
   const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const inName = `in_${stamp}.${extOf(file.name) || 'bin'}`;
   const outName = `out_${stamp}.${target}`;
+  const replaceAudio = edit?.audioTrack && (target === 'mp4' || target === 'webm');
+  const in2Name = replaceAudio
+    ? `in2_${stamp}.${extOf(edit!.audioTrack!.name) || 'bin'}`
+    : undefined;
 
   const handler = ({ progress }: { progress: number }) => {
     if (Number.isFinite(progress)) onProgress(Math.min(1, Math.max(0, progress)));
@@ -159,8 +177,9 @@ export async function convertMedia(
 
   try {
     await ff.writeFile(inName, await fetchFile(file));
+    if (in2Name) await ff.writeFile(in2Name, await fetchFile(edit!.audioTrack!));
     ff.on('progress', handler);
-    const code = await ff.exec(buildArgs(target, inName, outName, settings, edit));
+    const code = await ff.exec(buildArgs(target, inName, outName, settings, edit, in2Name));
     if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
     const data = await ff.readFile(outName);
     if (typeof data === 'string') throw new Error('unexpected output');
@@ -168,6 +187,7 @@ export async function convertMedia(
   } finally {
     ff.off('progress', handler);
     try { await ff.deleteFile(inName); } catch { /* ignore */ }
+    if (in2Name) { try { await ff.deleteFile(in2Name); } catch { /* ignore */ } }
     try { await ff.deleteFile(outName); } catch { /* ignore */ }
     releaseEngine(ff);
   }

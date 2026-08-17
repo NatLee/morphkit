@@ -172,6 +172,13 @@ const zh: Dict = {
   kbdCopyImg: '複製圖片',
   kbdPasteText: '貼上文字',
   kbdDelete: '刪除選取',
+  videoTrackLabel: '視訊軌',
+  audioTrackLabel: '音訊軌',
+  muteTrack: '靜音（移除音軌）',
+  replaceAudio: '替換音軌',
+  clearLabel: '清除',
+  mutedChip: '靜音',
+  audioReplaced: '已換音軌',
 };
 
 const en: Dict = {
@@ -336,6 +343,13 @@ const en: Dict = {
   kbdCopyImg: 'copy image',
   kbdPasteText: 'paste text',
   kbdDelete: 'delete selection',
+  videoTrackLabel: 'Video track',
+  audioTrackLabel: 'Audio track',
+  muteTrack: 'Mute (remove audio track)',
+  replaceAudio: 'Replace audio',
+  clearLabel: 'Clear',
+  mutedChip: 'muted',
+  audioReplaced: 'audio replaced',
 };
 
 const ja: Dict = {
@@ -500,6 +514,13 @@ const ja: Dict = {
   kbdCopyImg: '画像をコピー',
   kbdPasteText: 'テキストを貼り付け',
   kbdDelete: '選択を削除',
+  videoTrackLabel: '映像トラック',
+  audioTrackLabel: '音声トラック',
+  muteTrack: 'ミュート（音声を削除）',
+  replaceAudio: '音声を差し替え',
+  clearLabel: 'クリア',
+  mutedChip: 'ミュート',
+  audioReplaced: '音声差替',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

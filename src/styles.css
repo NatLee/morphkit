@@ -1216,13 +1216,49 @@ select optgroup {
   margin-bottom: 16px;
 }
 
+/* fixed-height media stage — state updates while trimming can never shift layout */
+.media-preview.mp-video { height: 42vh; }
+
+.media-preview.mp-audio { height: 84px; }
+
 .ed-preview video {
   max-width: 100%;
-  max-height: 46vh;
+  height: 100%;
+  object-fit: contain;
   border-radius: 4px;
 }
 
 .ed-preview audio { width: 100%; }
+
+.track-sec {
+  border-top: 1px dashed var(--line);
+  padding-top: 13px;
+}
+
+.track-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 10px;
+}
+
+.replace-row {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.replace-row .btn {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
 
 .gif-preview canvas {
   max-width: 100%;
