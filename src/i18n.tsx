@@ -126,6 +126,20 @@ const zh: Dict = {
   mxEditImage: '可編輯：畫筆・文字・裁切・旋轉',
   mxEditAudio: '可編輯:剪輯・音量・變速',
   mxEditVideo: '可編輯:剪輯・旋轉・變速',
+  tool_select: '選取',
+  layers: '圖層',
+  moveUp: '上移',
+  moveDown: '下移',
+  zoomFit: '適合視窗',
+  play: '播放',
+  pause: '暫停',
+  prevFrame: '上一幀',
+  nextFrame: '下一幀',
+  delFrame: '刪除此幀',
+  dupFrame: '複製此幀',
+  frameDelay: '延遲 (ms)',
+  applyAll: '套用全部',
+  imageEditorHint2: '選取工具可拖曳物件、雙擊編輯文字、Delete 刪除；右側圖層面板可排序與顯示/隱藏',
 };
 
 const en: Dict = {
@@ -244,6 +258,20 @@ const en: Dict = {
   mxEditImage: 'Editable: pen · text · crop · rotate',
   mxEditAudio: 'Editable: trim · volume · speed',
   mxEditVideo: 'Editable: trim · rotate · speed',
+  tool_select: 'Select',
+  layers: 'Layers',
+  moveUp: 'Move up',
+  moveDown: 'Move down',
+  zoomFit: 'Fit',
+  play: 'Play',
+  pause: 'Pause',
+  prevFrame: 'Previous frame',
+  nextFrame: 'Next frame',
+  delFrame: 'Delete frame',
+  dupFrame: 'Duplicate frame',
+  frameDelay: 'Delay (ms)',
+  applyAll: 'Apply to all',
+  imageEditorHint2: 'Select tool: drag objects, double-click to edit text, Delete removes; reorder & toggle layers on the right',
 };
 
 const ja: Dict = {
@@ -362,6 +390,20 @@ const ja: Dict = {
   mxEditImage: '編集可：ペン・テキスト・切り抜き・回転',
   mxEditAudio: '編集可：トリム・音量・速度',
   mxEditVideo: '編集可：トリム・回転・速度',
+  tool_select: '選択',
+  layers: 'レイヤー',
+  moveUp: '上へ',
+  moveDown: '下へ',
+  zoomFit: '全体表示',
+  play: '再生',
+  pause: '一時停止',
+  prevFrame: '前のフレーム',
+  nextFrame: '次のフレーム',
+  delFrame: 'フレーム削除',
+  dupFrame: 'フレーム複製',
+  frameDelay: '間隔 (ms)',
+  applyAll: 'すべてに適用',
+  imageEditorHint2: '選択ツールでドラッグ移動、ダブルクリックでテキスト編集、Deleteで削除。右側でレイヤーの並替と表示切替',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
