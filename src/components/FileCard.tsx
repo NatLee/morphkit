@@ -83,9 +83,15 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
   return (
     <article className={`file-card kind-${item.kind} status-${item.status}`}>
       <div className="fc-main">
-        <div className="fc-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d={KIND_ICONS[item.kind]} fill="currentColor" /></svg>
-        </div>
+        {m?.preview ? (
+          <div className="fc-thumb" aria-hidden="true">
+            <img src={m.preview} alt="" loading="lazy" draggable={false} />
+          </div>
+        ) : (
+          <div className="fc-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d={KIND_ICONS[item.kind]} fill="currentColor" /></svg>
+          </div>
+        )}
 
         <div className="fc-meta">
           <p className="fc-name" title={item.file.name}>{item.file.name}</p>

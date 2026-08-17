@@ -180,14 +180,22 @@ export default function App() {
     }
   };
 
+  const revokePreview = (it?: Item) => {
+    if (it?.meta?.preview?.startsWith('blob:')) URL.revokeObjectURL(it.meta.preview);
+  };
+
   const remove = (id: string) => {
     const it = itemsRef.current.find((i) => i.id === id);
     if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    revokePreview(it);
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
   const clearAll = () => {
-    for (const it of itemsRef.current) if (it.outUrl) URL.revokeObjectURL(it.outUrl);
+    for (const it of itemsRef.current) {
+      if (it.outUrl) URL.revokeObjectURL(it.outUrl);
+      revokePreview(it);
+    }
     setItems([]);
   };
 
@@ -234,6 +242,7 @@ export default function App() {
   const saveEditedImage = (id: string, file: File) => {
     const it = itemsRef.current.find((i) => i.id === id);
     if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    revokePreview(it);
     patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
     extractMeta(file, 'image').then((meta) => patch(id, { meta }));
     setEditingId(null);
@@ -242,6 +251,7 @@ export default function App() {
   const saveEditedGif = (id: string, file: File) => {
     const it = itemsRef.current.find((i) => i.id === id);
     if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    revokePreview(it);
     // edited GIF is itself the deliverable — mark done with a ready download
     patch(id, {
       file,

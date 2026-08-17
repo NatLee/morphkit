@@ -16,6 +16,8 @@ export interface FileMeta {
   aspect?: string;
   /** e.g. "1,320 kbps" (audio/video, estimated from size) */
   bitrate?: string;
+  /** thumbnail — object URL for images (GIFs stay animated), dataURL frame-grab for video */
+  preview?: string;
   camera?: string;
   lens?: string;
   iso?: number;
@@ -51,6 +53,7 @@ function commonMeta(file: File): FileMeta {
 
 async function imageMeta(file: File): Promise<FileMeta> {
   const meta = commonMeta(file);
+  meta.preview = URL.createObjectURL(file);
   try {
     const bmp = await createImageBitmap(file);
     meta.width = bmp.width;
@@ -97,7 +100,8 @@ function mediaMeta(file: File, kind: 'audio' | 'video'): Promise<FileMeta> {
       URL.revokeObjectURL(url);
       resolve(meta);
     };
-    el.preload = 'metadata';
+    el.preload = kind === 'video' ? 'auto' : 'metadata';
+    el.muted = true;
     el.onloadedmetadata = () => {
       if (Number.isFinite(el.duration) && el.duration > 0) {
         meta.duration = el.duration;
@@ -107,11 +111,25 @@ function mediaMeta(file: File, kind: 'audio' | 'video'): Promise<FileMeta> {
         meta.width = el.videoWidth;
         meta.height = el.videoHeight;
         meta.aspect = aspectOf(el.videoWidth, el.videoHeight);
+        // grab a frame near the start for the list thumbnail
+        el.currentTime = Math.min(0.5, (el.duration || 1) * 0.1);
+      } else {
+        done();
       }
+    };
+    el.onseeked = () => {
+      try {
+        const c = document.createElement('canvas');
+        const scale = 180 / el.videoWidth;
+        c.width = 180;
+        c.height = Math.max(1, Math.round(el.videoHeight * scale));
+        c.getContext('2d')!.drawImage(el, 0, 0, c.width, c.height);
+        meta.preview = c.toDataURL('image/jpeg', 0.72);
+      } catch { /* tainted or unsupported — no thumbnail */ }
       done();
     };
     el.onerror = done;
-    window.setTimeout(done, 4000);
+    window.setTimeout(done, 5000);
     el.src = url;
   });
 }

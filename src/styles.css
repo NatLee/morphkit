@@ -636,6 +636,23 @@ select optgroup {
 
 .fc-icon svg { width: 20px; height: 20px; }
 
+.fc-thumb {
+  width: 64px;
+  height: 46px;
+  flex-shrink: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-sunken);
+}
+
+.fc-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .fc-meta { flex: 1; min-width: 180px; overflow: hidden; }
 
 .fc-name {
