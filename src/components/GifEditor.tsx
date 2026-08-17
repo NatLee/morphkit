@@ -1,20 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
+import UPNG from 'upng-js';
+import { decodeAnim } from '../lib/animImage';
+import { extOf } from '../lib/formats';
 import { useI18n } from '../i18n';
 import { DualRange } from './DualRange';
 import type { Item } from '../types';
 
-/* ScreenToGif-inspired: thumbnail film strip, frame stepping,
-   per-frame delete/duplicate/delay — all in the browser. */
+/* ScreenToGif-inspired frame editor for GIF **and APNG**:
+   film strip, per-frame ops, caption layers, dedupe, transparency flattening. */
 
-const FRAME_CAP = 240;
 const SPEEDS = [0.5, 0.75, 1, 1.5, 2];
+let capId = 0;
 
 interface Frame {
   bitmap: ImageBitmap;
-  delay: number; // ms
-  thumb: string; // dataURL
+  delay: number;
+  thumb: string;
+}
+
+interface Cap {
+  id: number;
+  text: string;
+  size: number;
+  color: string;
+  pos: 'top' | 'bottom';
+  /** 0-based inclusive frame range */
+  from: number;
+  to: number;
 }
 
 interface Props {
@@ -31,71 +44,51 @@ export function GifEditor({ item, onSave, onClose }: Props) {
   const timerRef = useRef(0);
   const posRef = useRef(0);
 
-  const [ver, setVer] = useState(0); // bump when framesRef mutates
+  const srcIsApng = extOf(item.file.name) === 'apng' || item.file.type === 'image/apng';
+
+  const [ver, setVer] = useState(0);
   const [cur, setCur] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [truncated, setTruncated] = useState(false);
   const [range, setRange] = useState<[number, number]>([0, 0]);
   const [speed, setSpeed] = useState(1);
   const [reverse, setReverse] = useState(false);
   const [boomerang, setBoomerang] = useState(false);
-  const [caption, setCaption] = useState('');
-  const [captionSize, setCaptionSize] = useState(28);
+  const [caps, setCaps] = useState<Cap[]>([]);
+  const [outFmt, setOutFmt] = useState<'gif' | 'apng'>(srcIsApng ? 'apng' : 'gif');
+  const [flatten, setFlatten] = useState(false);
+  const [matte, setMatte] = useState('#ffffff');
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // ---- decode + compose (honouring disposal) + thumbnails ----
+  // GIF output cannot hold partial alpha — flattening is mandatory there
+  const flattenActive = outFmt === 'gif' || flatten;
+
+  // ---- decode via shared pipeline (GIF / APNG / static) ----
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const buf = await item.file.arrayBuffer();
-      const gif = parseGIF(buf);
-      const raw = decompressFrames(gif, true);
-      const w = gif.lsd.width;
-      const h = gif.lsd.height;
-      const compose = document.createElement('canvas');
-      compose.width = w;
-      compose.height = h;
-      const ctx = compose.getContext('2d')!;
-      const patchCanvas = document.createElement('canvas');
-      const pctx = patchCanvas.getContext('2d')!;
-      const thumbCanvas = document.createElement('canvas');
+      const anim = await decodeAnim(item.file);
+      if (cancelled) return;
       const th = 48;
-      thumbCanvas.width = Math.max(1, Math.round((w / h) * th));
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = Math.max(1, Math.round((anim.width / anim.height) * th));
       thumbCanvas.height = th;
       const tctx = thumbCanvas.getContext('2d')!;
       const out: Frame[] = [];
-      const cap = Math.min(raw.length, FRAME_CAP);
-      for (let i = 0; i < cap; i++) {
-        const fr = raw[i];
-        patchCanvas.width = fr.dims.width;
-        patchCanvas.height = fr.dims.height;
-        pctx.putImageData(
-          new ImageData(new Uint8ClampedArray(fr.patch), fr.dims.width, fr.dims.height),
-          0,
-          0
-        );
-        const before = fr.disposalType === 3 ? ctx.getImageData(0, 0, w, h) : null;
-        ctx.drawImage(patchCanvas, fr.dims.left, fr.dims.top);
-        const bitmap = await createImageBitmap(compose);
+      for (const f of anim.frames) {
+        const bitmap = await createImageBitmap(f.img);
         tctx.clearRect(0, 0, thumbCanvas.width, th);
-        tctx.drawImage(compose, 0, 0, thumbCanvas.width, th);
-        out.push({ bitmap, delay: Math.max(fr.delay || 100, 20), thumb: thumbCanvas.toDataURL() });
+        tctx.drawImage(bitmap, 0, 0, thumbCanvas.width, th);
+        out.push({ bitmap, delay: f.delay, thumb: thumbCanvas.toDataURL() });
         bitmapsRef.current.add(bitmap);
-        if (fr.disposalType === 2) {
-          ctx.clearRect(fr.dims.left, fr.dims.top, fr.dims.width, fr.dims.height);
-        } else if (fr.disposalType === 3 && before) {
-          ctx.putImageData(before, 0, 0);
-        }
         if (cancelled) return;
       }
-      if (cancelled) return;
       framesRef.current = out;
-      setTruncated(raw.length > FRAME_CAP);
       setRange([0, out.length - 1]);
       const c = canvasRef.current!;
-      c.width = w;
-      c.height = h;
+      c.width = anim.width;
+      c.height = anim.height;
       setLoaded(true);
       setVer((v) => v + 1);
     })();
@@ -107,28 +100,38 @@ export function GifEditor({ item, onSave, onClose }: Props) {
     };
   }, [item.file]);
 
-  const drawCaption = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    if (!caption.trim()) return;
-    const size = captionSize;
-    ctx.font = `700 ${size}px 'IBM Plex Sans', sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.lineWidth = Math.max(2, size / 9);
-    ctx.strokeStyle = '#000';
-    ctx.fillStyle = '#fff';
-    ctx.strokeText(caption, w / 2, h - size * 0.35);
-    ctx.fillText(caption, w / 2, h - size * 0.35);
+  const drawCaptions = (ctx: CanvasRenderingContext2D, w: number, h: number, fi: number) => {
+    for (const cap of caps) {
+      if (!cap.text.trim() || fi < cap.from || fi > cap.to) continue;
+      ctx.font = `700 ${cap.size}px 'IBM Plex Sans', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.lineWidth = Math.max(2, cap.size / 9);
+      ctx.strokeStyle = '#000';
+      ctx.fillStyle = cap.color;
+      if (cap.pos === 'top') {
+        ctx.textBaseline = 'top';
+        ctx.strokeText(cap.text, w / 2, cap.size * 0.35);
+        ctx.fillText(cap.text, w / 2, cap.size * 0.35);
+      } else {
+        ctx.textBaseline = 'bottom';
+        ctx.strokeText(cap.text, w / 2, h - cap.size * 0.35);
+        ctx.fillText(cap.text, w / 2, h - cap.size * 0.35);
+      }
+    }
   };
 
   const drawFrame = (fi: number) => {
-    const frames = framesRef.current;
-    const f = frames[fi];
+    const f = framesRef.current[fi];
     const c = canvasRef.current;
     if (!f || !c) return;
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, c.width, c.height);
+    if (flattenActive) {
+      ctx.fillStyle = matte;
+      ctx.fillRect(0, 0, c.width, c.height);
+    }
     ctx.drawImage(f.bitmap, 0, 0);
-    drawCaption(ctx, c.width, c.height);
+    drawCaptions(ctx, c.width, c.height, fi);
   };
 
   const playOrder = (): number[] => {
@@ -162,13 +165,12 @@ export function GifEditor({ item, onSave, onClose }: Props) {
     tick();
     return () => window.clearTimeout(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, playing, range, speed, reverse, boomerang, caption, captionSize, ver]);
+  }, [loaded, playing, range, speed, reverse, boomerang, caps, flattenActive, matte, ver]);
 
-  // redraw paused frame when caption changes
   useEffect(() => {
     if (loaded && !playing) drawFrame(cur);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cur, caption, captionSize, playing, loaded, ver]);
+  }, [cur, caps, flattenActive, matte, playing, loaded, ver]);
 
   const selectFrame = (i: number) => {
     setPlaying(false);
@@ -180,23 +182,73 @@ export function GifEditor({ item, onSave, onClose }: Props) {
     selectFrame((cur + d + n) % n);
   };
 
-  const deleteFrame = () => {
-    const frames = framesRef.current;
-    if (frames.length <= 1) return;
-    frames.splice(cur, 1);
-    const n = frames.length;
+  const clampAfterMutate = () => {
+    const n = framesRef.current.length;
     setRange(([s, e]) => [Math.min(s, n - 1), Math.min(e, n - 1)]);
     setCur((c) => Math.min(c, n - 1));
     setVer((v) => v + 1);
   };
 
+  const deleteFrame = () => {
+    if (framesRef.current.length <= 1) return;
+    framesRef.current.splice(cur, 1);
+    clampAfterMutate();
+  };
+
   const duplicateFrame = () => {
-    const frames = framesRef.current;
-    const f = frames[cur];
+    const f = framesRef.current[cur];
     if (!f) return;
-    frames.splice(cur + 1, 0, { ...f });
+    framesRef.current.splice(cur + 1, 0, { ...f });
     setRange(([s, e]) => [s, e >= cur ? e + 1 : e]);
     setVer((v) => v + 1);
+  };
+
+  const moveFrame = (d: -1 | 1) => {
+    const frames = framesRef.current;
+    const j = cur + d;
+    if (j < 0 || j >= frames.length) return;
+    [frames[cur], frames[j]] = [frames[j], frames[cur]];
+    setCur(j);
+    setVer((v) => v + 1);
+  };
+
+  /** Merge consecutive visually-identical frames (delays are summed). */
+  const dedupe = () => {
+    const frames = framesRef.current;
+    if (frames.length < 2) return;
+    const c = document.createElement('canvas');
+    c.width = 32;
+    c.height = 32;
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
+    const sig = (f: Frame) => {
+      ctx.clearRect(0, 0, 32, 32);
+      ctx.drawImage(f.bitmap, 0, 0, 32, 32);
+      return ctx.getImageData(0, 0, 32, 32).data;
+    };
+    const same = (a: Uint8ClampedArray, b: Uint8ClampedArray) => {
+      let diff = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        diff += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+        if (diff > a.length) return false;
+      }
+      return diff / (a.length / 4) < 6;
+    };
+    let removed = 0;
+    let prev = sig(frames[0]);
+    for (let i = 1; i < frames.length;) {
+      const s = sig(frames[i]);
+      if (same(prev, s)) {
+        frames[i - 1].delay += frames[i].delay;
+        frames.splice(i, 1);
+        removed++;
+      } else {
+        prev = s;
+        i++;
+      }
+    }
+    clampAfterMutate();
+    setNote(t('dedupeDone', { n: String(removed) }));
+    window.setTimeout(() => setNote(''), 4000);
   };
 
   const setDelay = (ms: number, all = false) => {
@@ -207,6 +259,18 @@ export function GifEditor({ item, onSave, onClose }: Props) {
     setVer((x) => x + 1);
   };
 
+  // ---- captions ----
+  const addCap = () => {
+    setCaps((prev) => [...prev, {
+      id: ++capId, text: '', size: 28, color: '#ffffff', pos: 'bottom', from: range[0], to: range[1],
+    }]);
+  };
+
+  const patchCap = (id: number, p: Partial<Cap>) =>
+    setCaps((prev) => prev.map((c) => (c.id === id ? { ...c, ...p } : c)));
+
+  const removeCap = (id: number) => setCaps((prev) => prev.filter((c) => c.id !== id));
+
   // ---- encode ----
   const save = async () => {
     if (busy || !loaded) return;
@@ -214,30 +278,49 @@ export function GifEditor({ item, onSave, onClose }: Props) {
     setPlaying(false);
     try {
       const frames = framesRef.current;
-      const first = frames[0].bitmap;
-      const w = first.width;
-      const h = first.height;
+      const w = frames[0].bitmap.width;
+      const h = frames[0].bitmap.height;
       const tmp = document.createElement('canvas');
       tmp.width = w;
       tmp.height = h;
       const ctx = tmp.getContext('2d', { willReadFrequently: true })!;
-      const enc = GIFEncoder();
       const order = playOrder();
-      for (let i = 0; i < order.length; i++) {
-        const f = frames[order[i]];
-        ctx.clearRect(0, 0, w, h);
-        ctx.drawImage(f.bitmap, 0, 0);
-        drawCaption(ctx, w, h);
-        const { data } = ctx.getImageData(0, 0, w, h);
-        const palette = quantize(data, 256);
-        const index = applyPalette(data, palette);
-        enc.writeFrame(index, w, h, { palette, delay: Math.round(f.delay / speed) });
-        if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
-      }
-      enc.finish();
-      const bytes = enc.bytes();
       const base = item.file.name.replace(/\.[^.]+$/, '');
-      onSave(item.id, new File([bytes.slice()], `${base}_edited.gif`, { type: 'image/gif' }));
+
+      const renderFrame = (fi: number) => {
+        ctx.clearRect(0, 0, w, h);
+        if (flattenActive) {
+          ctx.fillStyle = matte;
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.drawImage(frames[fi].bitmap, 0, 0);
+        drawCaptions(ctx, w, h, fi);
+        return ctx.getImageData(0, 0, w, h);
+      };
+
+      if (outFmt === 'gif') {
+        const enc = GIFEncoder();
+        for (let i = 0; i < order.length; i++) {
+          const img = renderFrame(order[i]);
+          const palette = quantize(img.data, 256);
+          const index = applyPalette(img.data, palette);
+          enc.writeFrame(index, w, h, { palette, delay: Math.round(frames[order[i]].delay / speed) });
+          if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
+        }
+        enc.finish();
+        onSave(item.id, new File([enc.bytes().slice()], `${base}_edited.gif`, { type: 'image/gif' }));
+      } else {
+        const bufs: ArrayBuffer[] = [];
+        const delays: number[] = [];
+        for (let i = 0; i < order.length; i++) {
+          const img = renderFrame(order[i]);
+          bufs.push(img.data.slice().buffer);
+          delays.push(Math.round(frames[order[i]].delay / speed));
+          if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
+        }
+        const out = UPNG.encode(bufs, w, h, 0, delays);
+        onSave(item.id, new File([out], `${base}_edited.apng`, { type: 'image/apng' }));
+      }
     } finally {
       setBusy(false);
     }
@@ -260,7 +343,6 @@ export function GifEditor({ item, onSave, onClose }: Props) {
           <canvas ref={canvasRef} />
         </div>
 
-        {/* transport controls */}
         <div className="gif-transport">
           <button className="tool-btn" onClick={() => step(-1)} title={t('prevFrame')} disabled={!loaded}>
             <svg viewBox="0 0 24 24" width="15" height="15"><path d="M17 5v14L8 12zM6 5v14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -277,8 +359,11 @@ export function GifEditor({ item, onSave, onClose }: Props) {
           </button>
           <span className="gif-pos">#{cur + 1} / {n}</span>
           <span className="tb-sep" />
+          <button className="tool-btn" onClick={() => moveFrame(-1)} disabled={!loaded || cur === 0} title={t('moveLeft')}>←</button>
+          <button className="tool-btn" onClick={() => moveFrame(1)} disabled={!loaded || cur >= n - 1} title={t('moveRight')}>→</button>
           <button className="btn btn-ghost btn-sm" onClick={duplicateFrame} disabled={!loaded}>{t('dupFrame')}</button>
           <button className="btn btn-ghost btn-sm" onClick={deleteFrame} disabled={!loaded || n <= 1}>{t('delFrame')}</button>
+          <button className="btn btn-ghost btn-sm" onClick={dedupe} disabled={!loaded || n < 2}>{t('dedupe')}</button>
           <label className="gif-delay">
             <span>{t('frameDelay')}</span>
             <input
@@ -296,7 +381,6 @@ export function GifEditor({ item, onSave, onClose }: Props) {
           </label>
         </div>
 
-        {/* film strip */}
         <div className="strip">
           {frames.map((f, i) => (
             <button
@@ -311,7 +395,7 @@ export function GifEditor({ item, onSave, onClose }: Props) {
           ))}
         </div>
 
-        {truncated && <div className="banner warn">{t('gifTooLong', { n: String(FRAME_CAP) })}</div>}
+        {note && <div className="banner info">{note}</div>}
 
         <div className="ed-controls">
           <div className="ed-row">
@@ -350,28 +434,90 @@ export function GifEditor({ item, onSave, onClose }: Props) {
             </label>
 
             <label className="sp-field">
-              <span className="sp-label">{t('caption')}</span>
-              <input
-                type="text"
-                className="ed-input"
-                value={caption}
-                placeholder={t('textPlaceholder')}
-                onChange={(e) => setCaption(e.target.value)}
-              />
+              <span className="sp-label">{t('outFormat')}</span>
+              <select value={outFmt} onChange={(e) => setOutFmt(e.target.value as 'gif' | 'apng')}>
+                <option value="gif">GIF</option>
+                <option value="apng">APNG</option>
+              </select>
             </label>
 
-            <label className="sp-field">
-              <span className="sp-label">
-                {t('captionSize')} <span className="sp-val">{captionSize}px</span>
-              </span>
+            <label className="sp-field sp-check">
               <input
-                type="range"
-                min={14}
-                max={72}
-                value={captionSize}
-                onChange={(e) => setCaptionSize(Number(e.target.value))}
+                type="checkbox"
+                checked={flattenActive}
+                disabled={outFmt === 'gif'}
+                onChange={(e) => setFlatten(e.target.checked)}
               />
+              <span className="sp-label">{t('flatten')}</span>
             </label>
+
+            {flattenActive && (
+              <label className="sp-field">
+                <span className="sp-label">{t('matteColor')}</span>
+                <input type="color" className="tb-color" value={matte} onChange={(e) => setMatte(e.target.value)} />
+              </label>
+            )}
+          </div>
+
+          {/* caption layers */}
+          <div className="ed-row cap-panel">
+            <span className="sp-label">
+              {t('captions')}
+              <button className="btn btn-ghost btn-sm" onClick={addCap}>{t('addCaption')} +</button>
+            </span>
+            {caps.map((cap) => (
+              <div className="cap-row" key={cap.id}>
+                <input
+                  type="text"
+                  className="ed-input cap-text"
+                  value={cap.text}
+                  placeholder={t('textPlaceholder')}
+                  onChange={(e) => patchCap(cap.id, { text: e.target.value })}
+                />
+                <input
+                  type="number"
+                  className="num-sm"
+                  min={10}
+                  max={96}
+                  value={cap.size}
+                  title={t('captionSize')}
+                  onChange={(e) => patchCap(cap.id, { size: Number(e.target.value) })}
+                />
+                <input
+                  type="color"
+                  className="tb-color"
+                  value={cap.color}
+                  onChange={(e) => patchCap(cap.id, { color: e.target.value })}
+                />
+                <select
+                  value={cap.pos}
+                  onChange={(e) => patchCap(cap.id, { pos: e.target.value as 'top' | 'bottom' })}
+                >
+                  <option value="top">{t('posTop')}</option>
+                  <option value="bottom">{t('posBottom')}</option>
+                </select>
+                <input
+                  type="number"
+                  className="num-sm"
+                  min={1}
+                  max={n}
+                  value={cap.from + 1}
+                  title={t('fromF')}
+                  onChange={(e) => patchCap(cap.id, { from: Math.min(Number(e.target.value) - 1, cap.to) })}
+                />
+                <span className="cap-dash">–</span>
+                <input
+                  type="number"
+                  className="num-sm"
+                  min={1}
+                  max={n}
+                  value={cap.to + 1}
+                  title={t('toF')}
+                  onChange={(e) => patchCap(cap.id, { to: Math.max(Number(e.target.value) - 1, cap.from) })}
+                />
+                <button className="btn btn-ghost btn-sm" onClick={() => removeCap(cap.id)} aria-label={t('remove')}>×</button>
+              </div>
+            ))}
           </div>
         </div>
 

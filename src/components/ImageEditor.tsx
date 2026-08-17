@@ -6,8 +6,9 @@ import type { Item } from '../types';
    text is an editable object in a layers list; the canvas re-renders
    base bitmap + objects on every change. */
 
-type Tool = 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop';
-type ObjType = Exclude<Tool, 'select' | 'crop'>;
+type Tool = 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop' | 'wand';
+type ObjType = Exclude<Tool, 'select' | 'crop' | 'wand'>;
+type FontFam = 'sans' | 'serif' | 'mono';
 
 interface Pt { x: number; y: number }
 
@@ -23,6 +24,29 @@ interface Obj {
   b?: Pt;
   text?: string;
   pos?: Pt;
+  font?: FontFam;
+  weight?: number;
+  outline?: boolean;
+}
+
+export const FONT_MAP: Record<FontFam, string> = {
+  sans: "'IBM Plex Sans', 'Noto Sans TC', 'Microsoft JhengHei', 'Yu Gothic', sans-serif",
+  serif: "'Instrument Serif', 'Noto Serif TC', 'Yu Mincho', serif",
+  mono: "'IBM Plex Mono', ui-monospace, monospace",
+};
+
+function fontOf(o: Obj): string {
+  return `${o.weight ?? 600} ${o.size}px ${FONT_MAP[o.font ?? 'sans']}`;
+}
+
+/** Perceived luminance 0..1 of a #rrggbb colour. */
+function lumOf(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  if (Number.isNaN(n)) return 0;
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
 interface HistEntry { objects: Obj[]; baseBlob: Blob }
@@ -40,6 +64,7 @@ const TOOL_ICONS: Record<Tool, string> = {
   arrow: 'M5 19L18 6M18 6v6M18 6h-6',
   text: 'M6 6h12M12 6v13',
   crop: 'M7 3v14h14M3 7h14v14',
+  wand: 'M5 19L14 10m2.5-2.5L19 5M13 3l.8 2.2M21 11l-2.2-.8M15.5 14.5l1.8 1.3M8.5 6.2L9.8 8',
 };
 
 function cloneObjs(objs: Obj[]): Obj[] {
@@ -54,7 +79,7 @@ function cloneObjs(objs: Obj[]): Obj[] {
 
 function bboxOf(o: Obj, ctx: CanvasRenderingContext2D): { x: number; y: number; w: number; h: number } {
   if (o.type === 'text' && o.pos) {
-    ctx.font = `600 ${o.size}px 'IBM Plex Sans', sans-serif`;
+    ctx.font = fontOf(o);
     const m = ctx.measureText(o.text ?? '');
     return { x: o.pos.x, y: o.pos.y, w: m.width, h: o.size * 1.2 };
   }
@@ -81,8 +106,14 @@ function drawObj(ctx: CanvasRenderingContext2D, o: Obj) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   if (o.type === 'text' && o.pos) {
-    ctx.font = `600 ${o.size}px 'IBM Plex Sans', sans-serif`;
+    ctx.font = fontOf(o);
     ctx.textBaseline = 'top';
+    if (o.outline) {
+      ctx.lineWidth = Math.max(2, o.size / 10);
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = lumOf(o.color) > 0.55 ? '#000000' : '#ffffff';
+      ctx.strokeText(o.text ?? '', o.pos.x, o.pos.y);
+    }
     ctx.fillText(o.text ?? '', o.pos.x, o.pos.y);
     return;
   }
@@ -164,6 +195,10 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
   const [color, setColor] = useState('#c94f16');
   const [size, setSize] = useState(4);
   const [fontSize, setFontSize] = useState(32);
+  const [fontFam, setFontFam] = useState<FontFam>('sans');
+  const [bold, setBold] = useState(false);
+  const [outlineOn, setOutlineOn] = useState(false);
+  const [wandTol, setWandTol] = useState(30);
   const [zoom, setZoom] = useState(1);
   const [baseVer, setBaseVer] = useState(0);
   const [histVer, setHistVer] = useState(0);
@@ -311,9 +346,15 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
 
   const onDown = (e: PointerEvent<HTMLCanvasElement>) => {
     if (!ready) return;
+    // stop the canvas from stealing focus — this kept blurring the text input
+    e.preventDefault();
     const p = toPt(e);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
+    if (tool === 'wand') {
+      void wandRemove(p);
+      return;
+    }
     if (tool === 'select') {
       const hit = hitTest(p);
       if (hit) {
@@ -409,9 +450,58 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
     } else if (v) {
       setObjects((prev) => [...prev, {
         id: ++objId, type: 'text', color, size: fontSize, visible: true, text: v, pos: textEdit.pos,
+        font: fontFam, weight: bold ? 800 : 600, outline: outlineOn,
       }]);
     }
     setTextEdit(null);
+  };
+
+  /** Magic wand: flood-fill from the clicked pixel, clearing similar colours to alpha 0. */
+  const wandRemove = async (p: Pt) => {
+    const base = baseRef.current;
+    if (!base) return;
+    pushHist();
+    const W = base.bmp.width;
+    const H = base.bmp.height;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
+    ctx.drawImage(base.bmp, 0, 0);
+    const img = ctx.getImageData(0, 0, W, H);
+    const d = img.data;
+    const sx = Math.min(W - 1, Math.max(0, Math.round(p.x)));
+    const sy = Math.min(H - 1, Math.max(0, Math.round(p.y)));
+    const si = (sy * W + sx) * 4;
+    const r0 = d[si];
+    const g0 = d[si + 1];
+    const b0 = d[si + 2];
+    const tol = wandTol * 4.4;
+    const visited = new Uint8Array(W * H);
+    const stack = [sy * W + sx];
+    visited[sy * W + sx] = 1;
+    while (stack.length) {
+      const idx = stack.pop()!;
+      const i4 = idx * 4;
+      const dr = d[i4] - r0;
+      const dg = d[i4 + 1] - g0;
+      const db = d[i4 + 2] - b0;
+      if (Math.sqrt(dr * dr + dg * dg + db * db) > tol) continue;
+      d[i4 + 3] = 0;
+      const x = idx % W;
+      const y = (idx / W) | 0;
+      if (x > 0 && !visited[idx - 1]) { visited[idx - 1] = 1; stack.push(idx - 1); }
+      if (x < W - 1 && !visited[idx + 1]) { visited[idx + 1] = 1; stack.push(idx + 1); }
+      if (y > 0 && !visited[idx - W]) { visited[idx - W] = 1; stack.push(idx - W); }
+      if (y < H - 1 && !visited[idx + W]) { visited[idx + W] = 1; stack.push(idx + W); }
+    }
+    ctx.putImageData(img, 0, 0);
+    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+    if (!blob) return;
+    const bmp = await createImageBitmap(blob);
+    base.bmp.close();
+    baseRef.current = { blob, bmp };
+    setBaseVer((v) => v + 1);
   };
 
   // ---- geometry (bakes into base, transforms objects) ----
@@ -582,6 +672,50 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
               }}
             />
           </label>
+          {(tool === 'text' || selObj?.type === 'text') && (
+            <>
+              <select
+                className="tb-select"
+                value={selObj?.type === 'text' ? selObj.font ?? 'sans' : fontFam}
+                onChange={(e) => {
+                  const v = e.target.value as FontFam;
+                  if (selObj?.type === 'text') { pushHist(); updateSel({ font: v }); }
+                  else setFontFam(v);
+                }}
+                title={t('fontFamily')}
+              >
+                <option value="sans">{t('fontSans')}</option>
+                <option value="serif">{t('fontSerif')}</option>
+                <option value="mono">{t('fontMono')}</option>
+              </select>
+              <button
+                className={`tool-btn${(selObj?.type === 'text' ? selObj.weight === 800 : bold) ? ' active' : ''}`}
+                title={t('bold')}
+                onClick={() => {
+                  if (selObj?.type === 'text') { pushHist(); updateSel({ weight: selObj.weight === 800 ? 600 : 800 }); }
+                  else setBold((b) => !b);
+                }}
+              >
+                <strong>B</strong>
+              </button>
+              <button
+                className={`tool-btn${(selObj?.type === 'text' ? !!selObj.outline : outlineOn) ? ' active' : ''}`}
+                title={t('outline')}
+                onClick={() => {
+                  if (selObj?.type === 'text') { pushHist(); updateSel({ outline: !selObj.outline }); }
+                  else setOutlineOn((o) => !o);
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray="3 3" /></svg>
+              </button>
+            </>
+          )}
+          {tool === 'wand' && (
+            <label className="tb-slider" title={t('tolerance')}>
+              <input type="range" min={5} max={90} value={wandTol} onChange={(e) => setWandTol(Number(e.target.value))} />
+              <span className="zoom-val">{wandTol}</span>
+            </label>
+          )}
           {cropSel && (
             <button className="btn btn-accent btn-sm" onClick={applyCrop}>{t('applyCrop')}</button>
           )}
@@ -626,7 +760,9 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
                     left: textEdit.pos.x * cssScale(),
                     top: textEdit.pos.y * cssScale(),
                     fontSize: Math.max(12, (textEdit.id != null ? selObj?.size ?? fontSize : fontSize) * cssScale()),
-                    color: selObj?.color ?? color,
+                    color: textEdit.id != null ? selObj?.color ?? color : color,
+                    fontFamily: FONT_MAP[textEdit.id != null ? (selObj?.font ?? 'sans') : fontFam],
+                    fontWeight: (textEdit.id != null ? selObj?.weight === 800 : bold) ? 800 : 600,
                   }}
                   onChange={(e) => setTextEdit({ ...textEdit, value: e.target.value })}
                   onKeyDown={(e) => { if (e.key === 'Enter') commitText(); if (e.key === 'Escape') setTextEdit(null); }}

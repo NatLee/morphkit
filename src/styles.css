@@ -1661,6 +1661,68 @@ select optgroup {
 
 .thumb.dim { opacity: 0.35; }
 
+/* ---- toolbar select + caption layers ---- */
+
+.tb-select {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 7px 8px;
+  cursor: pointer;
+}
+
+.tb-select:hover { border-color: var(--ink); }
+
+.cap-panel .sp-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cap-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.cap-text { flex: 1; min-width: 140px; }
+
+.num-sm {
+  width: 58px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 6px 7px;
+}
+
+.cap-dash {
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+}
+
+.cap-row select {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 6px 7px;
+  cursor: pointer;
+}
+
 /* ============ footer ============ */
 
 .footer {
