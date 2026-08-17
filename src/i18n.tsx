@@ -203,6 +203,11 @@ const zh: Dict = {
   tipExportWav: '將整個混音離線渲染成 WAV（套用音量／靜音／獨奏）',
   tipFocusTrack: '點擊音軌即可選取（高亮）；「＋」與錄音都會加到選取的音軌，clip 可上下拖曳換軌',
   tipTabs: '混音＝多軌音訊時間軸；媒體＝瀏覽與編輯圖片、GIF、影片素材',
+  projectsTitle: '選擇專案',
+  backToProjects: '專案列表',
+  importProject: '匯入專案',
+  exportProject: '匯出專案',
+  filesCount: '{n} 個檔案',
 };
 
 const en: Dict = {
@@ -398,6 +403,11 @@ const en: Dict = {
   tipExportWav: 'Renders the whole mix offline to WAV (gain / mute / solo applied)',
   tipFocusTrack: 'Click a track to focus it — “＋” and recordings land there; drag clips up/down to change tracks',
   tipTabs: 'Mix = multi-track audio timeline; Media = browse & edit image, GIF and video assets',
+  projectsTitle: 'Choose a project',
+  backToProjects: 'Projects',
+  importProject: 'Import project',
+  exportProject: 'Export project',
+  filesCount: '{n} files',
 };
 
 const ja: Dict = {
@@ -593,6 +603,11 @@ const ja: Dict = {
   tipExportWav: 'ミックス全体をWAVへオフライン書き出し（音量／ミュート／ソロ適用）',
   tipFocusTrack: 'トラックをクリックでフォーカス。「＋」と録音はそこへ。クリップは上下ドラッグでトラック移動',
   tipTabs: 'ミックス＝マルチトラック音声タイムライン。メディア＝画像・GIF・動画の閲覧と編集',
+  projectsTitle: 'プロジェクトを選択',
+  backToProjects: 'プロジェクト一覧',
+  importProject: 'プロジェクト読み込み',
+  exportProject: 'プロジェクト書き出し',
+  filesCount: '{n} 件',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

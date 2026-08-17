@@ -12,8 +12,10 @@ import {
 } from '../lib/audioEngine';
 import { uid, type Clip, type MixerDoc, type Track } from '../lib/studioTypes';
 
-const ZOOMS = [40, 80, 160];
 const LANE_H = 72;
+const HEAD_W = 172;
+const ZOOM_MIN = 8;
+const ZOOM_MAX = 400;
 
 interface Props {
   doc: MixerDoc;
@@ -76,6 +78,8 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names, activeTrackId,
   const rafRef = useRef(0);
   const recRef = useRef<MediaRecorder | null>(null);
   const recTimerRef = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const fitDoneRef = useRef(false);
   const dragRef = useRef<{
     mode: 'move' | 'l' | 'r';
     clipId: string;
@@ -96,6 +100,25 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names, activeTrackId,
 
   const dur = Math.max(mixDuration(doc), 8);
   const laneW = Math.ceil((dur + 4) * zoom);
+
+  /** Fit the whole mix into the visible timeline width. */
+  const fit = () => {
+    const el = scrollRef.current;
+    const d = mixDuration(docRef.current);
+    if (!el || d <= 0) return;
+    const avail = el.clientWidth - HEAD_W - 24;
+    setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, avail / (d + 1))));
+  };
+
+  // auto-fit once content arrives (project load / first clip)
+  useEffect(() => {
+    if (fitDoneRef.current) return;
+    if (mixDuration(docRef.current) > 0) {
+      fit();
+      fitDoneRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bufVer, doc.tracks.length]);
 
   // ---- doc ops ----
   const patchTrack = (id: string, p: Partial<Track>) =>
@@ -345,9 +368,18 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names, activeTrackId,
         <button className="btn btn-ghost btn-sm" onClick={addTrack}>{t('addTrack')} +</button>
         <InfoTip text={t('tipFocusTrack')} />
         <button className="btn btn-ghost btn-sm" onClick={splitSelected} disabled={!sel}>{t('split')}</button>
-        <select className="tb-select" value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
-          {ZOOMS.map((z) => <option key={z} value={z}>{z} px/s</option>)}
-        </select>
+        <div className="zoom-ctrl">
+          <button className="tool-btn" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z / 1.4))} title="−">
+            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M15.5 15.5L20 20M8 10.5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+          </button>
+          <span className="zoom-val">{Math.round(zoom)}px/s</span>
+          <button className="tool-btn" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z * 1.4))} title="+">
+            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M15.5 15.5L20 20M8 10.5h5M10.5 8v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+          </button>
+          <button className="tool-btn" onClick={fit} title={t('zoomFit')}>
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        </div>
         <span className="opt-spacer" />
         <button className="btn btn-accent btn-sm" onClick={() => void exportWav()} disabled={busy || mixDuration(doc) <= 0}>
           {busy ? t('processing') : t('exportWav')}
@@ -358,8 +390,8 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names, activeTrackId,
       {err && <div className="banner danger">{err}</div>}
 
       {/* timeline */}
-      <div className="tl-scroll">
-        <div className="tl-inner" style={{ width: laneW + 172 }}>
+      <div className="tl-scroll" ref={scrollRef}>
+        <div className="tl-inner" style={{ width: laneW + HEAD_W }}>
           <div className="tl-row">
             <div className="trk-head tl-corner" />
             <div className="tl-ruler" style={{ width: laneW }} onPointerDown={seekFromRuler}>
@@ -427,7 +459,7 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names, activeTrackId,
               <p className="mix-empty">{t('emptyMix')}</p>
             )}
 
-            <div className="playhead" style={{ left: 172 + playPos * zoom }} />
+            <div className="playhead" style={{ left: HEAD_W + playPos * zoom }} />
           </div>
         </div>
       </div>

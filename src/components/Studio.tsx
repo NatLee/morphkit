@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { useI18n } from '../i18n';
 import { Mixer } from './Mixer';
 import { ImageEditor } from './ImageEditor';
@@ -76,7 +77,10 @@ export function Studio() {
   const [view, setView] = useState<'mix' | 'media'>('mix');
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
   const [editing, setEditing] = useState<AssetRec | null>(null);
+  const [entered, setEntered] = useState(false);
+  const [pjStats, setPjStats] = useState<Record<string, { n: number; bytes: number }>>({});
   const importRef = useRef<HTMLInputElement>(null);
+  const pjImportRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef(0);
   const curRef = useRef<ProjectRec | null>(null);
 
@@ -257,6 +261,77 @@ export function Studio() {
     void importFiles(Array.from(e.dataTransfer.files));
   };
 
+  // ---- launcher stats: per-project asset count + bytes ----
+  useEffect(() => {
+    if (entered || !projects.length) return;
+    void (async () => {
+      const stats: Record<string, { n: number; bytes: number }> = {};
+      for (const p of projects) {
+        const list = await listAssets(p.id);
+        stats[p.id] = { n: list.length, bytes: list.reduce((s, a) => s + a.blob.size, 0) };
+      }
+      setPjStats(stats);
+    })();
+  }, [entered, projects]);
+
+  // ---- project export / import (.zip: project.json + assets/) ----
+  const exportProjectZip = async (p: ProjectRec) => {
+    const list = await listAssets(p.id);
+    const entries: Record<string, Uint8Array> = {
+      'project.json': strToU8(JSON.stringify({
+        name: p.name,
+        mixer: p.mixer,
+        assets: list.map((a) => ({ id: a.id, name: a.name, kind: a.kind, addedAt: a.addedAt, type: a.blob.type })),
+      })),
+    };
+    for (const a of list) entries[`assets/${a.id}`] = new Uint8Array(await a.blob.arrayBuffer());
+    const zipped = zipSync(entries);
+    const url = URL.createObjectURL(new Blob([zipped.slice()], { type: 'application/zip' }));
+    const el = document.createElement('a');
+    el.href = url;
+    el.download = `${p.name.replace(/[\\/:*?"<>|]/g, '_') || 'project'}.morphkit.zip`;
+    el.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+
+  const importProjectZip = async (file: File) => {
+    try {
+      const unzipped = unzipSync(new Uint8Array(await file.arrayBuffer()));
+      const meta = JSON.parse(strFromU8(unzipped['project.json'])) as {
+        name: string;
+        mixer: MixerDoc;
+        assets: { id: string; name: string; kind: string; addedAt: number; type?: string }[];
+      };
+      const pid = uid();
+      const idMap: Record<string, string> = {};
+      for (const a of meta.assets) {
+        const data = unzipped[`assets/${a.id}`];
+        if (!data) continue;
+        const nid = uid();
+        idMap[a.id] = nid;
+        await putAsset({
+          id: nid, projectId: pid, name: a.name, kind: a.kind,
+          blob: new Blob([data.slice()], { type: a.type || 'application/octet-stream' }),
+          addedAt: a.addedAt,
+        });
+      }
+      const mixer: MixerDoc = {
+        tracks: (meta.mixer?.tracks ?? []).map((tr) => ({
+          ...tr,
+          id: uid(),
+          clips: tr.clips
+            .filter((c) => idMap[c.assetId])
+            .map((c) => ({ ...c, id: uid(), assetId: idMap[c.assetId] })),
+        })),
+      };
+      const p: ProjectRec = {
+        id: pid, name: meta.name || 'Imported', createdAt: Date.now(), updatedAt: Date.now(), mixer,
+      };
+      await putProject(p);
+      setProjects((prev) => [p, ...prev]);
+    } catch { /* not a valid project zip */ }
+  };
+
   const isGifAsset = (a: AssetRec) =>
     ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
 
@@ -272,25 +347,91 @@ export function Studio() {
 
   const names = Object.fromEntries(assets.map((a) => [a.id, a.name]));
   const mediaAssets = assets.filter((a) => a.kind !== 'audio');
+  const assetsBytes = assets.reduce((s, a) => s + a.blob.size, 0);
+
+  // ---- launcher: pick a project before entering the workspace ----
+  if (!entered) {
+    return (
+      <div className="studio st-launcher">
+        <div className="st-bar">
+          <h2 className="launcher-title">{t('projectsTitle')}</h2>
+          <InfoTip text={t('tipProjects')} />
+          <span className="opt-spacer" />
+          <button className="btn btn-ghost" onClick={() => pjImportRef.current?.click()}>
+            {t('importProject')}
+          </button>
+          <input
+            ref={pjImportRef}
+            type="file"
+            accept=".zip"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void importProjectZip(f);
+              e.target.value = '';
+            }}
+          />
+        </div>
+
+        <div className="pj-grid">
+          {projects.map((p) => (
+            <div className="pj-card" key={p.id}>
+              <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
+                <span className="pj-name">{p.name}</span>
+                <span className="pj-meta">
+                  {new Date(p.updatedAt).toLocaleDateString()} · {p.mixer.tracks.length} trk
+                </span>
+                <span className="pj-meta">
+                  {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
+                </span>
+              </button>
+              <div className="pj-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
+                  {t('exportProject')}
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    void idbDeleteProject(p.id).then(() =>
+                      setProjects((prev) => prev.filter((x) => x.id !== p.id))
+                    );
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            className="pj-card pj-new"
+            onClick={() => { void createProject().then(() => setEntered(true)); }}
+          >
+            <span className="pj-plus">＋</span>
+            <span className="pj-name">{t('newProject')}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="studio">
       <div className="st-bar">
-        <select className="tb-select" value={curId ?? ''} onChange={(e) => setCurId(e.target.value)}>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+        <button className="btn btn-ghost btn-sm" onClick={() => setEntered(false)}>
+          ← {t('backToProjects')}
+        </button>
         {cur && (
           <input className="st-name" value={cur.name} onChange={(e) => renameProject(e.target.value)} />
         )}
-        <button className="btn btn-ghost btn-sm" onClick={() => void createProject()}>
-          {t('newProject')} +
-        </button>
+        {cur && (
+          <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(cur)}>
+            {t('exportProject')}
+          </button>
+        )}
         <button className="btn btn-ghost btn-sm" onClick={() => void removeProject()}>
           {t('deleteProject')}
         </button>
-        <InfoTip text={t('tipProjects')} />
 
         <span className="opt-spacer" />
 
@@ -311,10 +452,14 @@ export function Studio() {
             <span className="mx-label">
               {t('assetsLabel')} <InfoTip text={t('tipAssets')} />
             </span>
-            <button className="btn btn-ghost btn-sm" onClick={() => importRef.current?.click()}>
-              {t('importFiles')}
-            </button>
-            <input
+            <span className="asset-size">
+              {t('filesCount', { n: String(assets.length) })} · {formatBytes(assetsBytes)}
+            </span>
+          </div>
+          <button className="btn btn-ghost btn-sm st-import" onClick={() => importRef.current?.click()}>
+            ↥ {t('importFiles')}
+          </button>
+          <input
               ref={importRef}
               type="file"
               multiple
@@ -325,7 +470,6 @@ export function Studio() {
                 e.target.value = '';
               }}
             />
-          </div>
 
           {assets.length === 0 && <p className="st-empty">{t('emptyAssets')}</p>}
 
@@ -352,32 +496,34 @@ export function Studio() {
         </aside>
 
         <main className="st-main">
-          {view === 'mix' ? (
-            <Mixer
-              doc={doc}
-              onChange={(d) => updateDoc(() => d)}
-              onRecorded={onRecorded}
-              bufVer={bufVer}
-              names={names}
-              activeTrackId={activeTrackId}
-              onActiveTrack={setActiveTrackId}
-            />
-          ) : (
-            <div className="media-view">
-              {mediaAssets.length === 0 && <p className="st-empty">{t('noMedia')}</p>}
-              <div className="media-grid">
-                {mediaAssets.map((a) => (
-                  <MediaCard
-                    key={`${a.id}-${a.blob.size}`}
-                    a={a}
-                    editable={a.kind === 'image'}
-                    onEdit={() => setEditing(a)}
-                    onRemove={() => void removeAsset(a)}
-                  />
-                ))}
+          <div className="view-anim" key={view}>
+            {view === 'mix' ? (
+              <Mixer
+                doc={doc}
+                onChange={(d) => updateDoc(() => d)}
+                onRecorded={onRecorded}
+                bufVer={bufVer}
+                names={names}
+                activeTrackId={activeTrackId}
+                onActiveTrack={setActiveTrackId}
+              />
+            ) : (
+              <div className="media-view">
+                {mediaAssets.length === 0 && <p className="st-empty">{t('noMedia')}</p>}
+                <div className="media-grid">
+                  {mediaAssets.map((a) => (
+                    <MediaCard
+                      key={`${a.id}-${a.blob.size}`}
+                      a={a}
+                      editable={a.kind === 'image'}
+                      onEdit={() => setEditing(a)}
+                      onRemove={() => void removeAsset(a)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </main>
       </div>
 

@@ -403,6 +403,8 @@ select optgroup {
   gap: 8px;
   text-decoration: none;
   transition: all 0.18s ease;
+  /* never wrap button labels — long ja/en strings must not break layout */
+  white-space: nowrap;
 }
 
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -1880,14 +1882,30 @@ kbd {
   color: var(--bg);
 }
 
-.studio { padding: 18px 0 40px; }
+/* studio goes full-bleed: professional tools use the whole viewport */
+.app.studio-mode {
+  max-width: none;
+  padding: 0 22px;
+}
+
+.app.studio-mode .footer { display: none; }
+
+.studio {
+  padding: 14px 0 16px;
+  /* fixed workspace height — panels scroll internally, the page never grows */
+  height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  animation: rise 0.4s ease both;
+}
 
 .st-bar {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .st-name {
@@ -1906,9 +1924,10 @@ kbd {
 
 .st-body {
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: 252px minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
+  flex: 1;
+  min-height: 0; /* required so children can scroll instead of growing */
 }
 
 @media (max-width: 760px) {
@@ -1920,9 +1939,44 @@ kbd {
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
   padding: 12px 14px;
-  min-height: 300px;
-  max-height: 70vh;
   overflow-y: auto;
+  min-height: 0;
+  animation: panelIn 0.4s 0.05s ease both;
+}
+
+.st-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: panelIn 0.4s 0.12s ease both;
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.view-anim {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: rise 0.3s ease both;
+}
+
+.mixer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.media-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .st-assets-head {
@@ -1930,6 +1984,13 @@ kbd {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.st-import {
+  width: 100%;
+  justify-content: center;
   margin-bottom: 10px;
 }
 
@@ -2004,7 +2065,9 @@ kbd {
 }
 
 .tl-scroll {
-  overflow-x: auto;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
@@ -2190,6 +2253,141 @@ kbd {
 
 .rec-time { color: var(--danger); font-weight: 600; }
 
+/* ---- themed scrollbars (professional: panels scroll, page doesn't grow) ---- */
+
+.tl-scroll::-webkit-scrollbar,
+.st-assets::-webkit-scrollbar,
+.media-view::-webkit-scrollbar,
+.editor::-webkit-scrollbar,
+.ie-viewport::-webkit-scrollbar,
+.layers-panel::-webkit-scrollbar,
+.strip::-webkit-scrollbar,
+.ed-toolbar::-webkit-scrollbar,
+.ed-options::-webkit-scrollbar,
+.gif-transport::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.tl-scroll::-webkit-scrollbar-thumb,
+.st-assets::-webkit-scrollbar-thumb,
+.media-view::-webkit-scrollbar-thumb,
+.editor::-webkit-scrollbar-thumb,
+.ie-viewport::-webkit-scrollbar-thumb,
+.layers-panel::-webkit-scrollbar-thumb,
+.strip::-webkit-scrollbar-thumb,
+.ed-toolbar::-webkit-scrollbar-thumb,
+.ed-options::-webkit-scrollbar-thumb,
+.gif-transport::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.tl-scroll::-webkit-scrollbar-track,
+.st-assets::-webkit-scrollbar-track,
+.media-view::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tl-scroll, .st-assets, .media-view, .editor, .ie-viewport, .layers-panel, .strip {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ---- project launcher ---- */
+
+.st-launcher { display: block; height: auto; min-height: calc(100vh - 96px); }
+
+.launcher-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 26px;
+  margin: 0;
+}
+
+.pj-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.pj-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: panelIn 0.4s ease both;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pj-card:nth-child(2) { animation-delay: 0.05s; }
+.pj-card:nth-child(3) { animation-delay: 0.1s; }
+.pj-card:nth-child(4) { animation-delay: 0.15s; }
+.pj-card:nth-child(5) { animation-delay: 0.2s; }
+.pj-card:nth-child(n+6) { animation-delay: 0.25s; }
+
+.pj-card:hover {
+  border-color: var(--ink);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+
+.pj-open {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 18px 18px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+}
+
+.pj-name {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--ink);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pj-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.pj-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.pj-new {
+  border-style: dashed;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 132px;
+  cursor: pointer;
+  color: var(--ink-dim);
+  padding: 18px;
+}
+
+.pj-new:hover { color: var(--accent); border-color: var(--accent); }
+
+.pj-new .pj-plus {
+  font-size: 28px;
+  line-height: 1;
+}
+
 /* ---- studio tabs ---- */
 
 .st-tabs {
@@ -2287,14 +2485,12 @@ kbd {
 
 .info-i:hover, .info-i:focus-visible { color: var(--accent); outline: none; }
 
-.info-i::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: 135%;
-  left: 50%;
-  transform: translateX(-50%) translateY(3px);
+/* portal tooltip — fixed position, never clipped by overflow containers */
+.tip-pop {
+  position: fixed;
+  transform: translate(-50%, -100%);
   width: max-content;
-  max-width: 240px;
+  max-width: 250px;
   background: var(--ink);
   color: var(--bg);
   font-family: var(--font-body);
@@ -2302,17 +2498,17 @@ kbd {
   line-height: 1.55;
   padding: 7px 11px;
   border-radius: 7px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-  z-index: 200;
+  z-index: 300;
   white-space: normal;
   text-align: left;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+  animation: tipIn 0.15s ease both;
 }
 
-.info-i:hover::after, .info-i:focus-visible::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+@keyframes tipIn {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)); }
+  to { opacity: 1; transform: translate(-50%, -100%); }
 }
 
 /* ============ footer ============ */

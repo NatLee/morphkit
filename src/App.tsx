@@ -314,7 +314,7 @@ export default function App() {
     : 0;
 
   return (
-    <div className="app">
+    <div className={`app${mode === 'studio' ? ' studio-mode' : ''}`}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
