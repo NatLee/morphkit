@@ -114,7 +114,12 @@ export default function App() {
     try {
       let blob: Blob;
       if (item.kind === 'image') {
-        blob = await convertImage(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality);
+        blob = await convertImage(
+          item.file,
+          item.target as 'png' | 'jpeg' | 'webp',
+          item.quality,
+          settingsRef.current.imageMaxDim
+        );
       } else {
         if (!isEngineReady()) setEngine('loading');
         try {

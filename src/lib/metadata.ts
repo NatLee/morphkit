@@ -1,11 +1,21 @@
 import exifr from 'exifr';
-import type { Kind } from './formats';
+import { extOf, type Kind } from './formats';
 
 export interface FileMeta {
   width?: number;
   height?: number;
   /** seconds */
   duration?: number;
+  /** e.g. "image/png" */
+  mime?: string;
+  /** file last-modified, localized */
+  modified?: string;
+  /** e.g. "12.2 MP" (images) */
+  mp?: string;
+  /** e.g. "16:9" */
+  aspect?: string;
+  /** e.g. "1,320 kbps" (audio/video, estimated from size) */
+  bitrate?: string;
   camera?: string;
   lens?: string;
   iso?: number;
@@ -20,12 +30,33 @@ function fmtExposure(sec: number): string {
   return sec >= 1 ? `${sec}s` : `1/${Math.round(1 / sec)}s`;
 }
 
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+function aspectOf(w: number, h: number): string {
+  const g = gcd(w, h);
+  const a = w / g;
+  const b = h / g;
+  if (a > 40 || b > 40) return `${(w / h).toFixed(2)}:1`;
+  return `${a}:${b}`;
+}
+
+function commonMeta(file: File): FileMeta {
+  return {
+    mime: file.type || extOf(file.name).toUpperCase(),
+    modified: new Date(file.lastModified).toLocaleString(),
+  };
+}
+
 async function imageMeta(file: File): Promise<FileMeta> {
-  const meta: FileMeta = {};
+  const meta = commonMeta(file);
   try {
     const bmp = await createImageBitmap(file);
     meta.width = bmp.width;
     meta.height = bmp.height;
+    meta.mp = `${(bmp.width * bmp.height / 1e6).toFixed(1)} MP`;
+    meta.aspect = aspectOf(bmp.width, bmp.height);
     bmp.close();
   } catch { /* undecodable in this browser — skip dims */ }
 
@@ -56,7 +87,7 @@ async function imageMeta(file: File): Promise<FileMeta> {
 
 function mediaMeta(file: File, kind: 'audio' | 'video'): Promise<FileMeta> {
   return new Promise((resolve) => {
-    const meta: FileMeta = {};
+    const meta = commonMeta(file);
     const el = document.createElement(kind) as HTMLVideoElement;
     const url = URL.createObjectURL(file);
     let settled = false;
@@ -68,10 +99,14 @@ function mediaMeta(file: File, kind: 'audio' | 'video'): Promise<FileMeta> {
     };
     el.preload = 'metadata';
     el.onloadedmetadata = () => {
-      if (Number.isFinite(el.duration)) meta.duration = el.duration;
+      if (Number.isFinite(el.duration) && el.duration > 0) {
+        meta.duration = el.duration;
+        meta.bitrate = `${Math.round(file.size * 8 / el.duration / 1000).toLocaleString()} kbps`;
+      }
       if (kind === 'video' && el.videoWidth) {
         meta.width = el.videoWidth;
         meta.height = el.videoHeight;
+        meta.aspect = aspectOf(el.videoWidth, el.videoHeight);
       }
       done();
     };

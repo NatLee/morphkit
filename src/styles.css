@@ -911,10 +911,37 @@ select optgroup {
   margin-bottom: 16px;
 }
 
+.sp-section + .sp-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.sp-sec-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  margin: 0 0 12px;
+}
+
 .sp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 18px 26px;
+  gap: 16px 26px;
+}
+
+.sp-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.sp-check input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .sp-field {

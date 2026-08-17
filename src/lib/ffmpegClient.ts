@@ -67,24 +67,44 @@ function releaseEngine(ff: FFmpeg): void {
   if (entry) entry.busy = false;
 }
 
+/** Shared audio-output options: sample rate + channel layout. */
+function audioOpts(s: Settings): string[] {
+  const a: string[] = [];
+  if (s.audioSampleRate > 0) a.push('-ar', String(s.audioSampleRate));
+  if (s.audioChannels > 0) a.push('-ac', String(s.audioChannels));
+  return a;
+}
+
+/** Shared video-output filters: resolution cap + fps cap. */
+function videoOpts(s: Settings): string[] {
+  const a: string[] = [];
+  if (s.videoMaxH > 0) a.push('-vf', `scale=-2:min(ih\\,${s.videoMaxH})`);
+  if (s.videoFps > 0) a.push('-r', String(s.videoFps));
+  return a;
+}
+
+function videoAudioTrack(s: Settings): string[] {
+  return s.videoMute ? ['-an'] : ['-c:a', 'aac', '-b:a', '128k'];
+}
+
 function buildArgs(target: string, input: string, output: string, s: Settings): string[] {
   switch (target) {
     // ---- audio ----
     case 'mp3':
-      return ['-i', input, '-vn', '-c:a', 'libmp3lame', '-b:a', s.audioBitrate, output];
+      return ['-i', input, '-vn', '-c:a', 'libmp3lame', '-b:a', s.audioBitrate, ...audioOpts(s), output];
     case 'wav':
-      return ['-i', input, '-vn', output];
+      return ['-i', input, '-vn', ...audioOpts(s), output];
     case 'ogg':
-      return ['-i', input, '-vn', '-c:a', 'libvorbis', '-q:a', '5', output];
+      return ['-i', input, '-vn', '-c:a', 'libvorbis', '-q:a', '5', ...audioOpts(s), output];
     case 'flac':
-      return ['-i', input, '-vn', '-c:a', 'flac', output];
+      return ['-i', input, '-vn', '-c:a', 'flac', ...audioOpts(s), output];
     case 'm4a':
-      return ['-i', input, '-vn', '-c:a', 'aac', '-b:a', s.audioBitrate, output];
+      return ['-i', input, '-vn', '-c:a', 'aac', '-b:a', s.audioBitrate, ...audioOpts(s), output];
     // ---- video ----
     case 'mp4':
-      return ['-i', input, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', output];
+      return ['-i', input, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...videoOpts(s), ...videoAudioTrack(s), output];
     case 'webm':
-      return ['-i', input, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', '-c:a', 'libvorbis', output];
+      return ['-i', input, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...videoOpts(s), ...(s.videoMute ? ['-an'] : ['-c:a', 'libvorbis']), output];
     case 'gif':
       return ['-i', input, '-vf', `fps=${s.gifFps},scale=${s.gifWidth}:-2:flags=lanczos`, '-loop', '0', output];
     default:

@@ -34,9 +34,22 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove }: Pro
   const large = !huge && item.file.size > LARGE_FILE_BYTES && item.kind !== 'image';
 
   const m = item.meta;
-  const hasDetails = !!m && !!(m.camera || m.lens || m.iso || m.exposure || m.aperture || m.focal || m.taken || m.gps);
+  const hasDetails = !!m;
   const detailRows: [string, string][] = [];
   if (m) {
+    // common file info
+    if (m.mime) detailRows.push([t('fileType'), m.mime]);
+    if (m.modified) detailRows.push([t('modified'), m.modified]);
+    // per-kind info: images get pixel stats, audio/video get stream stats
+    if (item.kind === 'image') {
+      if (m.mp) detailRows.push([t('megapixels'), m.mp]);
+      if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
+    } else {
+      if (m.duration != null) detailRows.push([t('duration'), fmtDuration(m.duration)]);
+      if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
+      if (m.bitrate) detailRows.push([t('bitrate'), `~${m.bitrate}`]);
+    }
+    // photo EXIF
     if (m.camera) detailRows.push([t('camera'), m.camera]);
     if (m.lens) detailRows.push([t('lens'), m.lens]);
     if (m.iso) detailRows.push([t('iso'), String(m.iso)]);
