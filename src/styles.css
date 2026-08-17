@@ -1367,8 +1367,87 @@ select optgroup {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  margin-bottom: 8px;
+  padding-bottom: 2px;
+}
+
+.ed-toolbar > * { flex-shrink: 0; }
+
+/* persistent options bar (Photoshop-style) — fixed height, canvas never moves */
+.ed-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  min-height: 50px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  padding: 6px 12px;
   margin-bottom: 12px;
+}
+
+.ed-options > * { flex-shrink: 0; }
+
+.opt-tool {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  min-width: 54px;
+  border-right: 1px solid var(--line);
+  padding-right: 10px;
+  margin-right: 2px;
+}
+
+.opt-spacer { flex: 1 1 auto; min-width: 8px; }
+
+/* keyboard hint chips */
+kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.7;
+}
+
+.kbd-hints {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.kbd-hints > span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.dz-kbd {
+  margin: 12px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
 }
 
 .tool-btn {
@@ -1588,9 +1667,18 @@ select optgroup {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  min-height: 50px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  padding: 6px 12px;
   margin-bottom: 12px;
 }
+
+.gif-transport > * { flex-shrink: 0; }
 
 .play-btn {
   background: var(--ink);

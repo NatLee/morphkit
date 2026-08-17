@@ -31,6 +31,9 @@ export function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
       </div>
       <p className="dz-title">{t('dropTitle')}</p>
       <p className="dz-hint">{t('dropHint')}</p>
+      <p className="dz-kbd">
+        <kbd>Ctrl</kbd>+<kbd>V</kbd> {t('dzPasteHint')}
+      </p>
       <input
         ref={inputRef}
         type="file"

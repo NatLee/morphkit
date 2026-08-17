@@ -168,6 +168,10 @@ const zh: Dict = {
   copyResult: '複製結果',
   copied: '已複製',
   capDragHint: '直接在預覽畫面拖曳字幕即可移動位置',
+  dzPasteHint: '貼上圖片／截圖直接加入',
+  kbdCopyImg: '複製圖片',
+  kbdPasteText: '貼上文字',
+  kbdDelete: '刪除選取',
 };
 
 const en: Dict = {
@@ -328,6 +332,10 @@ const en: Dict = {
   copyResult: 'Copy result',
   copied: 'Copied',
   capDragHint: 'Drag captions on the preview to reposition them',
+  dzPasteHint: 'paste an image / screenshot to add it',
+  kbdCopyImg: 'copy image',
+  kbdPasteText: 'paste text',
+  kbdDelete: 'delete selection',
 };
 
 const ja: Dict = {
@@ -488,6 +496,10 @@ const ja: Dict = {
   copyResult: '結果をコピー',
   copied: 'コピーしました',
   capDragHint: 'プレビュー上でキャプションをドラッグして移動できます',
+  dzPasteHint: '画像やスクショを貼り付けて追加',
+  kbdCopyImg: '画像をコピー',
+  kbdPasteText: 'テキストを貼り付け',
+  kbdDelete: '選択を削除',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

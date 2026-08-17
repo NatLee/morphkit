@@ -717,8 +717,11 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
               <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
             )}
           </button>
-          <span className="tb-sep" />
-          {/* contextual properties: edit selection, or set defaults for new objects */}
+        </div>
+
+        {/* options bar — always rendered at a fixed height so the canvas never shifts */}
+        <div className="ed-options">
+          <span className="opt-tool">{t(`tool_${tool}`)}</span>
           <input
             type="color"
             className="tb-color"
@@ -803,7 +806,7 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
           {cropSel && (
             <button className="btn btn-accent btn-sm" onClick={applyCrop}>{t('applyCrop')}</button>
           )}
-          <span className="tb-sep" />
+          <span className="opt-spacer" />
           <div className="zoom-ctrl">
             <button className="tool-btn" onClick={() => setZoom((z) => Math.max(0.05, z / 1.25))} title="−">−</button>
             <span className="zoom-val">{Math.round(zoom * 100)}%</span>
@@ -891,7 +894,11 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
         </div>
 
         <div className="ed-foot">
-          <span className="ed-hint">{t('imageEditorHint2')}</span>
+          <span className="kbd-hints">
+            <span><kbd>Ctrl</kbd>+<kbd>C</kbd> {t('kbdCopyImg')}</span>
+            <span><kbd>Ctrl</kbd>+<kbd>V</kbd> {t('kbdPasteText')}</span>
+            <span><kbd>Del</kbd> {t('kbdDelete')}</span>
+          </span>
           <div className="ed-foot-main">
             <button className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>
             <button className="btn btn-accent" onClick={save} disabled={!ready}>{t('save')}</button>
