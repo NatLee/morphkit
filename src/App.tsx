@@ -6,6 +6,7 @@ import { FileCard } from './components/FileCard';
 import { SettingsPanel } from './components/SettingsPanel';
 import { FormatMatrix } from './components/FormatMatrix';
 import { MediaEditor } from './components/MediaEditor';
+import { Studio } from './components/Studio';
 import { ImageEditor } from './components/ImageEditor';
 import { GifEditor } from './components/GifEditor';
 import { LANGS, useI18n } from './i18n';
@@ -44,6 +45,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'convert' | 'studio'>('convert');
 
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -325,6 +327,13 @@ export default function App() {
         </div>
 
         <div className="topbar-actions">
+          <button
+            className={`studio-toggle${mode === 'studio' ? ' active' : ''}`}
+            onClick={() => setMode((m) => (m === 'studio' ? 'convert' : 'studio'))}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            {mode === 'studio' ? t('backLabel') : 'Studio'}
+          </button>
           <div className="lang-switch" role="group">
             {LANGS.map((l) => (
               <button
@@ -354,6 +363,11 @@ export default function App() {
         </div>
       </header>
 
+      {mode === 'studio' ? (
+        <main>
+          <Studio />
+        </main>
+      ) : (
       <main>
         <Hero />
 
@@ -433,6 +447,7 @@ export default function App() {
 
         <FormatMatrix />
       </main>
+      )}
 
       {editingItem && (
         isGifItem(editingItem) ? (
