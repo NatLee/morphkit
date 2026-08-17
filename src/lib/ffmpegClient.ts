@@ -2,6 +2,7 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { extOf, mimeFor } from './formats';
 import type { Settings } from './settings';
+import type { MediaEdit } from '../types';
 
 // Single-thread core: works everywhere (incl. GitHub Pages) — no COOP/COEP headers needed.
 const CORE_URL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
@@ -75,40 +76,66 @@ function audioOpts(s: Settings): string[] {
   return a;
 }
 
-/** Shared video-output filters: resolution cap + fps cap. */
-function videoOpts(s: Settings): string[] {
+/** Trim options — placed BEFORE -i for fast, re-encode-accurate seeking. */
+function trimOpts(e?: MediaEdit): string[] {
   const a: string[] = [];
-  if (s.videoMaxH > 0) a.push('-vf', `scale=-2:min(ih\\,${s.videoMaxH})`);
-  if (s.videoFps > 0) a.push('-r', String(s.videoFps));
+  const start = e?.trimStart ?? 0;
+  if (start > 0) a.push('-ss', start.toFixed(3));
+  if (e?.trimEnd != null && e.trimEnd > start) a.push('-t', (e.trimEnd - start).toFixed(3));
   return a;
 }
 
-function videoAudioTrack(s: Settings): string[] {
-  return s.videoMute ? ['-an'] : ['-c:a', 'aac', '-b:a', '128k'];
+/** Video filter chain: rotate + speed + resolution cap. */
+function vfChain(s: Settings, e?: MediaEdit, extra: string[] = []): string[] {
+  const f: string[] = [];
+  if (e?.rotate === 90) f.push('transpose=1');
+  else if (e?.rotate === 180) f.push('hflip', 'vflip');
+  else if (e?.rotate === 270) f.push('transpose=2');
+  if (e?.speed && e.speed !== 1) f.push(`setpts=PTS/${e.speed}`);
+  f.push(...extra);
+  if (s.videoMaxH > 0) f.push(`scale=-2:min(ih\\,${s.videoMaxH})`);
+  return f.length ? ['-vf', f.join(',')] : [];
 }
 
-function buildArgs(target: string, input: string, output: string, s: Settings): string[] {
+/** Audio filter chain: volume + tempo. */
+function afChain(e?: MediaEdit): string[] {
+  const f: string[] = [];
+  if (e?.volume != null && e.volume !== 1) f.push(`volume=${e.volume.toFixed(2)}`);
+  if (e?.speed && e.speed !== 1) f.push(`atempo=${e.speed}`);
+  return f.length ? ['-af', f.join(',')] : [];
+}
+
+function fpsOpt(s: Settings): string[] {
+  return s.videoFps > 0 ? ['-r', String(s.videoFps)] : [];
+}
+
+function videoAudioTrack(s: Settings, e?: MediaEdit): string[] {
+  return s.videoMute ? ['-an'] : ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)];
+}
+
+function buildArgs(target: string, input: string, output: string, s: Settings, e?: MediaEdit): string[] {
+  const trim = trimOpts(e);
   switch (target) {
     // ---- audio ----
     case 'mp3':
-      return ['-i', input, '-vn', '-c:a', 'libmp3lame', '-b:a', s.audioBitrate, ...audioOpts(s), output];
+      return [...trim, '-i', input, '-vn', '-c:a', 'libmp3lame', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), output];
     case 'wav':
-      return ['-i', input, '-vn', ...audioOpts(s), output];
+      return [...trim, '-i', input, '-vn', ...audioOpts(s), ...afChain(e), output];
     case 'ogg':
-      return ['-i', input, '-vn', '-c:a', 'libvorbis', '-q:a', '5', ...audioOpts(s), output];
+      return [...trim, '-i', input, '-vn', '-c:a', 'libvorbis', '-q:a', '5', ...audioOpts(s), ...afChain(e), output];
     case 'flac':
-      return ['-i', input, '-vn', '-c:a', 'flac', ...audioOpts(s), output];
+      return [...trim, '-i', input, '-vn', '-c:a', 'flac', ...audioOpts(s), ...afChain(e), output];
     case 'm4a':
-      return ['-i', input, '-vn', '-c:a', 'aac', '-b:a', s.audioBitrate, ...audioOpts(s), output];
+      return [...trim, '-i', input, '-vn', '-c:a', 'aac', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), output];
     // ---- video ----
     case 'mp4':
-      return ['-i', input, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...videoOpts(s), ...videoAudioTrack(s), output];
+      return [...trim, '-i', input, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...videoAudioTrack(s, e), output];
     case 'webm':
-      return ['-i', input, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...videoOpts(s), ...(s.videoMute ? ['-an'] : ['-c:a', 'libvorbis']), output];
+      return [...trim, '-i', input, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...vfChain(s, e), ...fpsOpt(s), ...(s.videoMute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), output];
     case 'gif':
-      return ['-i', input, '-vf', `fps=${s.gifFps},scale=${s.gifWidth}:-2:flags=lanczos`, '-loop', '0', output];
+      return [...trim, '-i', input, ...vfChain(s, e, [`fps=${s.gifFps}`, `scale=${s.gifWidth}:-2:flags=lanczos`]), '-loop', '0', output];
     default:
-      return ['-i', input, output];
+      return [...trim, '-i', input, output];
   }
 }
 
@@ -117,6 +144,7 @@ export async function convertMedia(
   file: File,
   target: string,
   settings: Settings,
+  edit: MediaEdit | undefined,
   onProgress: (p: number) => void,
   onDownload?: DownloadProgress
 ): Promise<Blob> {
@@ -132,7 +160,7 @@ export async function convertMedia(
   try {
     await ff.writeFile(inName, await fetchFile(file));
     ff.on('progress', handler);
-    const code = await ff.exec(buildArgs(target, inName, outName, settings));
+    const code = await ff.exec(buildArgs(target, inName, outName, settings, edit));
     if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
     const data = await ff.readFile(outName);
     if (typeof data === 'string') throw new Error('unexpected output');

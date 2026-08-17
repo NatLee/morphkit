@@ -5,13 +5,16 @@ import { DropZone } from './components/DropZone';
 import { FileCard } from './components/FileCard';
 import { SettingsPanel } from './components/SettingsPanel';
 import { FormatMatrix } from './components/FormatMatrix';
+import { MediaEditor } from './components/MediaEditor';
+import { ImageEditor } from './components/ImageEditor';
+import { GifEditor } from './components/GifEditor';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, formatBytes, outputFileName, type Kind } from './lib/formats';
+import { defaultTarget, detectKind, extOf, formatBytes, outputFileName, type Kind } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
-import type { Item } from './types';
+import type { Item, MediaEdit } from './types';
 
 let uid = 0;
 type EngineState = 'idle' | 'loading' | 'ready' | 'error';
@@ -39,6 +42,7 @@ export default function App() {
   const [skipped, setSkipped] = useState('');
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -127,6 +131,7 @@ export default function App() {
             item.file,
             item.target,
             settingsRef.current,
+            item.edit,
             (p) => patch(id, { progress: p }),
             (received, total) => setEngineDl({ received, total })
           );
@@ -213,6 +218,43 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [showSettings]);
+
+  // ---- editors ----
+  const editingItem = editingId ? items.find((i) => i.id === editingId) ?? null : null;
+  const isGifItem = (it: Item) =>
+    it.kind === 'image' && (extOf(it.file.name) === 'gif' || it.file.type === 'image/gif');
+
+  const saveMediaEdit = (id: string, edit: MediaEdit | undefined) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    patch(id, { edit, status: 'ready', outUrl: undefined, progress: 0 });
+    setEditingId(null);
+  };
+
+  const saveEditedImage = (id: string, file: File) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
+    extractMeta(file, 'image').then((meta) => patch(id, { meta }));
+    setEditingId(null);
+  };
+
+  const saveEditedGif = (id: string, file: File) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    // edited GIF is itself the deliverable — mark done with a ready download
+    patch(id, {
+      file,
+      edited: true,
+      status: 'done',
+      progress: 1,
+      outUrl: URL.createObjectURL(file),
+      outName: file.name,
+      outSize: file.size,
+    });
+    extractMeta(file, 'image').then((meta) => patch(id, { meta }));
+    setEditingId(null);
+  };
 
   const hasVideo = items.some((i) => i.kind === 'video');
   const pending = items.filter((i) => i.status === 'ready' || i.status === 'error').length;
@@ -341,6 +383,7 @@ export default function App() {
                     onQuality={(id, quality) => patch(id, { quality })}
                     onConvert={schedule}
                     onRemove={remove}
+                    onEdit={setEditingId}
                   />
                 ))}
               </div>
@@ -350,6 +393,16 @@ export default function App() {
 
         <FormatMatrix />
       </main>
+
+      {editingItem && (
+        isGifItem(editingItem) ? (
+          <GifEditor item={editingItem} onSave={saveEditedGif} onClose={() => setEditingId(null)} />
+        ) : editingItem.kind === 'image' ? (
+          <ImageEditor item={editingItem} onSave={saveEditedImage} onClose={() => setEditingId(null)} />
+        ) : (
+          <MediaEditor item={editingItem} onSave={saveMediaEdit} onClose={() => setEditingId(null)} />
+        )
+      )}
 
       {showSettings && (
         <div className="drawer-overlay" onClick={() => setShowSettings(false)}>

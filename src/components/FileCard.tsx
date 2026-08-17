@@ -8,6 +8,7 @@ import {
   type Kind,
 } from '../lib/formats';
 import { fmtDuration } from '../lib/metadata';
+import { extOf } from '../lib/formats';
 import type { Item } from '../types';
 
 const KIND_ICONS: Record<Kind, string> = {
@@ -22,9 +23,16 @@ interface Props {
   onQuality: (id: string, q: number) => void;
   onConvert: (id: string) => void;
   onRemove: (id: string) => void;
+  onEdit: (id: string) => void;
 }
 
-export function FileCard({ item, onTarget, onQuality, onConvert, onRemove }: Props) {
+const EDIT_ICONS = {
+  media: 'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.5 7.5L20 19M8.5 16.5L20 5',
+  image: 'M4 20l1-4L16 5l3 3L8 19l-4 1zM14.5 6.5l3 3',
+  gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
+};
+
+export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit }: Props) {
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
   const busy = item.status === 'converting' || item.status === 'queued';
@@ -32,6 +40,19 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove }: Pro
     item.kind === 'image' && (item.target === 'jpeg' || item.target === 'webp');
   const huge = item.file.size > HUGE_FILE_BYTES;
   const large = !huge && item.file.size > LARGE_FILE_BYTES && item.kind !== 'image';
+  const isGif = item.kind === 'image' && (extOf(item.file.name) === 'gif' || item.file.type === 'image/gif');
+  const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : EDIT_ICONS.media;
+
+  const editSummary: string[] = [];
+  if (item.edit) {
+    const e = item.edit;
+    if (e.trimStart != null || e.trimEnd != null) {
+      editSummary.push(`${fmtDuration(e.trimStart ?? 0)}–${e.trimEnd != null ? fmtDuration(e.trimEnd) : '…'}`);
+    }
+    if (e.speed) editSummary.push(`${e.speed}×`);
+    if (e.volume != null) editSummary.push(`${Math.round(e.volume * 100)}%`);
+    if (e.rotate) editSummary.push(`${e.rotate}°`);
+  }
 
   const m = item.meta;
   const hasDetails = !!m;
@@ -75,10 +96,23 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove }: Pro
               <span className="fc-size">{m.width}×{m.height}</span>
             )}
             {m?.duration != null && <span className="fc-size">{fmtDuration(m.duration)}</span>}
+            {(editSummary.length > 0 || item.edited) && (
+              <span className="fc-edited">
+                {editSummary.length ? editSummary.join(' · ') : t('edited')}
+              </span>
+            )}
           </p>
         </div>
 
         <div className="fc-controls">
+          <button
+            className="btn btn-ghost btn-sm fc-edit"
+            disabled={busy}
+            onClick={() => onEdit(item.id)}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d={editIcon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            {t('edit')}
+          </button>
           {hasDetails && (
             <button
               className={`btn btn-ghost fc-detail-btn${showDetails ? ' active' : ''}`}
