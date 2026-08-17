@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useI18n } from '../i18n';
+import { InfoTip } from './InfoTip';
 import {
   audioCtx,
   getCachedBuffer,
@@ -12,6 +13,7 @@ import {
 import { uid, type Clip, type MixerDoc, type Track } from '../lib/studioTypes';
 
 const ZOOMS = [40, 80, 160];
+const LANE_H = 72;
 
 interface Props {
   doc: MixerDoc;
@@ -21,6 +23,9 @@ interface Props {
   bufVer: number;
   /** assetId → display name */
   names: Record<string, string>;
+  /** BandLab-style focused track: "+" and recordings land here */
+  activeTrackId: string | null;
+  onActiveTrack: (id: string) => void;
 }
 
 function fmtClock(sec: number): string {
@@ -56,78 +61,106 @@ function ClipWave({ assetId, offset, duration, zoom, ver }: {
   return <canvas ref={ref} className="clip-wave" />;
 }
 
-export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
+export function Mixer({ doc, onChange, onRecorded, bufVer, names, activeTrackId, onActiveTrack }: Props) {
   const { t } = useI18n();
   const [zoom, setZoom] = useState(80);
   const [sel, setSel] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playPos, setPlayPos] = useState(0);
   const [recording, setRecording] = useState(false);
+  const [recElapsed, setRecElapsed] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const handleRef = useRef<PlayHandle | null>(null);
   const rafRef = useRef(0);
   const recRef = useRef<MediaRecorder | null>(null);
+  const recTimerRef = useRef(0);
   const dragRef = useRef<{
     mode: 'move' | 'l' | 'r';
-    trackId: string;
     clipId: string;
     startX: number;
+    startY: number;
+    origTrackIdx: number;
     orig: Clip;
   } | null>(null);
   const docRef = useRef(doc);
   useEffect(() => { docRef.current = doc; }, [doc]);
+
+  /** All mutations go through the ref — pointermove bursts stay consistent. */
+  const commit = (fn: (d: MixerDoc) => MixerDoc) => {
+    const next = fn(docRef.current);
+    docRef.current = next;
+    onChange(next);
+  };
 
   const dur = Math.max(mixDuration(doc), 8);
   const laneW = Math.ceil((dur + 4) * zoom);
 
   // ---- doc ops ----
   const patchTrack = (id: string, p: Partial<Track>) =>
-    onChange({ tracks: doc.tracks.map((tr) => (tr.id === id ? { ...tr, ...p } : tr)) });
+    commit((d) => ({ tracks: d.tracks.map((tr) => (tr.id === id ? { ...tr, ...p } : tr)) }));
 
   const removeTrack = (id: string) =>
-    onChange({ tracks: doc.tracks.filter((tr) => tr.id !== id) });
+    commit((d) => ({ tracks: d.tracks.filter((tr) => tr.id !== id) }));
 
-  const addTrack = () =>
-    onChange({
-      tracks: [...doc.tracks, {
-        id: uid(), name: t('trackName', { n: String(doc.tracks.length + 1) }),
+  const addTrack = () => {
+    const id = uid();
+    commit((d) => ({
+      tracks: [...d.tracks, {
+        id, name: t('trackName', { n: String(d.tracks.length + 1) }),
         gain: 1, muted: false, solo: false, clips: [],
       }],
-    });
+    }));
+    onActiveTrack(id);
+  };
 
-  const patchClip = (trackId: string, clipId: string, p: Partial<Clip>) =>
-    onChange({
-      tracks: doc.tracks.map((tr) =>
-        tr.id !== trackId
-          ? tr
-          : { ...tr, clips: tr.clips.map((c) => (c.id === clipId ? { ...c, ...p } : c)) }
-      ),
+  const patchClipById = (clipId: string, p: Partial<Clip>) =>
+    commit((d) => ({
+      tracks: d.tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) => (c.id === clipId ? { ...c, ...p } : c)),
+      })),
+    }));
+
+  const relocateClip = (clipId: string, targetTrackId: string, start: number) =>
+    commit((d) => {
+      let moved: Clip | null = null;
+      const stripped = d.tracks.map((tr) => {
+        const c = tr.clips.find((x) => x.id === clipId);
+        if (!c) return tr;
+        moved = { ...c, start };
+        return { ...tr, clips: tr.clips.filter((x) => x.id !== clipId) };
+      });
+      if (!moved) return d;
+      return {
+        tracks: stripped.map((tr) =>
+          tr.id === targetTrackId ? { ...tr, clips: [...tr.clips, moved!] } : tr
+        ),
+      };
     });
 
   const removeClip = (clipId: string) =>
-    onChange({
-      tracks: doc.tracks.map((tr) => ({ ...tr, clips: tr.clips.filter((c) => c.id !== clipId) })),
-    });
+    commit((d) => ({
+      tracks: d.tracks.map((tr) => ({ ...tr, clips: tr.clips.filter((c) => c.id !== clipId) })),
+    }));
 
   const splitSelected = () => {
     if (!sel) return;
-    for (const tr of doc.tracks) {
+    const d = docRef.current;
+    for (const tr of d.tracks) {
       const c = tr.clips.find((x) => x.id === sel);
       if (!c) continue;
       const at = playPos;
       if (at <= c.start + 0.05 || at >= c.start + c.duration - 0.05) return;
       const cut = at - c.start;
       const left: Clip = { ...c, duration: cut };
-      const right: Clip = {
-        ...c, id: uid(), start: at, offset: c.offset + cut, duration: c.duration - cut,
-      };
-      onChange({
-        tracks: doc.tracks.map((x) =>
+      const right: Clip = { ...c, id: uid(), start: at, offset: c.offset + cut, duration: c.duration - cut };
+      commit((cur) => ({
+        tracks: cur.tracks.map((x) =>
           x.id !== tr.id ? x : { ...x, clips: [...x.clips.filter((y) => y.id !== c.id), left, right] }
         ),
-      });
+      }));
       setSel(left.id);
       return;
     }
@@ -162,9 +195,12 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
     rafRef.current = window.requestAnimationFrame(tick);
   };
 
-  useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => {
+    stop();
+    window.clearInterval(recTimerRef.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- recording ----
+  // ---- recording (with live clock) ----
   const toggleRecord = async () => {
     if (recording) {
       recRef.current?.stop();
@@ -175,15 +211,23 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
       const mr = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       const at = playPos;
+      const t0 = performance.now();
       mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
       mr.onstop = () => {
         stream.getTracks().forEach((tk) => tk.stop());
+        window.clearInterval(recTimerRef.current);
         setRecording(false);
+        setRecElapsed(0);
         onRecorded(new Blob(chunks, { type: mr.mimeType || 'audio/webm' }), at);
       };
       recRef.current = mr;
       mr.start();
       setRecording(true);
+      setRecElapsed(0);
+      recTimerRef.current = window.setInterval(
+        () => setRecElapsed((performance.now() - t0) / 1000),
+        100
+      );
     } catch {
       setErr(t('micDenied'));
       window.setTimeout(() => setErr(''), 4000);
@@ -192,10 +236,10 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
 
   // ---- export ----
   const exportWav = async () => {
-    if (busy || mixDuration(doc) <= 0) return;
+    if (busy || mixDuration(docRef.current) <= 0) return;
     setBusy(true);
     try {
-      const blob = await renderMixWav(doc);
+      const blob = await renderMixWav(docRef.current);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -207,13 +251,16 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
     }
   };
 
-  // ---- clip dragging ----
-  const clipDown = (mode: 'move' | 'l' | 'r', trackId: string, c: Clip) =>
+  // ---- clip dragging (horizontal = time, vertical = track) ----
+  const clipDown = (mode: 'move' | 'l' | 'r', trackIdx: number, c: Clip) =>
     (e: PointerEvent<HTMLDivElement>) => {
       e.stopPropagation();
       e.preventDefault();
       setSel(c.id);
-      dragRef.current = { mode, trackId, clipId: c.id, startX: e.clientX, orig: { ...c } };
+      onActiveTrack(docRef.current.tracks[trackIdx].id);
+      dragRef.current = {
+        mode, clipId: c.id, startX: e.clientX, startY: e.clientY, origTrackIdx: trackIdx, orig: { ...c },
+      };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     };
 
@@ -224,16 +271,22 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
     const buf = getCachedBuffer(d.orig.assetId);
     const srcDur = buf?.duration ?? d.orig.offset + d.orig.duration;
     if (d.mode === 'move') {
-      patchClip(d.trackId, d.clipId, { start: Math.max(0, d.orig.start + dx) });
+      const tracks = docRef.current.tracks;
+      const idxDelta = Math.round((e.clientY - d.startY) / LANE_H);
+      const targetIdx = Math.min(tracks.length - 1, Math.max(0, d.origTrackIdx + idxDelta));
+      const target = tracks[targetIdx];
+      const newStart = Math.max(0, d.orig.start + dx);
+      relocateClip(d.clipId, target.id, newStart);
+      if (target.id !== activeTrackId) onActiveTrack(target.id);
     } else if (d.mode === 'l') {
       const shift = Math.max(-d.orig.offset, Math.min(dx, d.orig.duration - 0.1));
-      patchClip(d.trackId, d.clipId, {
+      patchClipById(d.clipId, {
         start: d.orig.start + shift,
         offset: d.orig.offset + shift,
         duration: d.orig.duration - shift,
       });
     } else {
-      patchClip(d.trackId, d.clipId, {
+      patchClipById(d.clipId, {
         duration: Math.max(0.1, Math.min(d.orig.duration + dx, srcDur - d.orig.offset)),
       });
     }
@@ -254,7 +307,7 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel, doc]);
+  }, [sel]);
 
   const seekFromRuler = (e: PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -282,9 +335,15 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
         >
           <svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="6" fill="currentColor" /></svg>
         </button>
-        <span className="gif-pos">{fmtClock(playPos)}</span>
+        <InfoTip text={t('tipRecord')} />
+        {recording ? (
+          <span className="gif-pos rec-time">● {fmtClock(recElapsed)}</span>
+        ) : (
+          <span className="gif-pos">{fmtClock(playPos)}</span>
+        )}
         <span className="tb-sep" />
         <button className="btn btn-ghost btn-sm" onClick={addTrack}>{t('addTrack')} +</button>
+        <InfoTip text={t('tipFocusTrack')} />
         <button className="btn btn-ghost btn-sm" onClick={splitSelected} disabled={!sel}>{t('split')}</button>
         <select className="tb-select" value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
           {ZOOMS.map((z) => <option key={z} value={z}>{z} px/s</option>)}
@@ -293,6 +352,7 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
         <button className="btn btn-accent btn-sm" onClick={() => void exportWav()} disabled={busy || mixDuration(doc) <= 0}>
           {busy ? t('processing') : t('exportWav')}
         </button>
+        <InfoTip text={t('tipExportWav')} />
       </div>
 
       {err && <div className="banner danger">{err}</div>}
@@ -300,7 +360,6 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
       {/* timeline */}
       <div className="tl-scroll">
         <div className="tl-inner" style={{ width: laneW + 172 }}>
-          {/* ruler */}
           <div className="tl-row">
             <div className="trk-head tl-corner" />
             <div className="tl-ruler" style={{ width: laneW }} onPointerDown={seekFromRuler}>
@@ -313,9 +372,9 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
           </div>
 
           <div className="tl-body">
-            {doc.tracks.map((tr) => (
-              <div className="tl-row" key={tr.id}>
-                <div className="trk-head">
+            {doc.tracks.map((tr, trIdx) => (
+              <div className={`tl-row${activeTrackId === tr.id ? ' active' : ''}`} key={tr.id}>
+                <div className="trk-head" onClick={() => onActiveTrack(tr.id)}>
                   <input
                     className="trk-name"
                     value={tr.name}
@@ -324,15 +383,15 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
                   <div className="trk-btns">
                     <button
                       className={tr.muted ? 'active' : ''}
-                      onClick={() => patchTrack(tr.id, { muted: !tr.muted })}
+                      onClick={(e) => { e.stopPropagation(); patchTrack(tr.id, { muted: !tr.muted }); }}
                       title="Mute"
                     >M</button>
                     <button
                       className={tr.solo ? 'active' : ''}
-                      onClick={() => patchTrack(tr.id, { solo: !tr.solo })}
+                      onClick={(e) => { e.stopPropagation(); patchTrack(tr.id, { solo: !tr.solo }); }}
                       title="Solo"
                     >S</button>
-                    <button onClick={() => removeTrack(tr.id)} title={t('remove')}>×</button>
+                    <button onClick={(e) => { e.stopPropagation(); removeTrack(tr.id); }} title={t('remove')}>×</button>
                   </div>
                   <input
                     type="range"
@@ -344,20 +403,20 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
                     onChange={(e) => patchTrack(tr.id, { gain: Number(e.target.value) })}
                   />
                 </div>
-                <div className="lane" style={{ width: laneW }}>
+                <div className="lane" style={{ width: laneW }} onPointerDown={() => onActiveTrack(tr.id)}>
                   {tr.clips.map((c) => (
                     <div
                       key={c.id}
                       className={`clip${sel === c.id ? ' sel' : ''}`}
                       style={{ left: c.start * zoom, width: Math.max(6, c.duration * zoom) }}
-                      onPointerDown={clipDown('move', tr.id, c)}
+                      onPointerDown={clipDown('move', trIdx, c)}
                       onPointerMove={clipMove}
                       onPointerUp={clipUp}
                     >
                       <ClipWave assetId={c.assetId} offset={c.offset} duration={c.duration} zoom={zoom} ver={bufVer} />
                       <span className="clip-name">{names[c.assetId] ?? ''}</span>
-                      <div className="clip-edge l" onPointerDown={clipDown('l', tr.id, c)} onPointerMove={clipMove} onPointerUp={clipUp} />
-                      <div className="clip-edge r" onPointerDown={clipDown('r', tr.id, c)} onPointerMove={clipMove} onPointerUp={clipUp} />
+                      <div className="clip-edge l" onPointerDown={clipDown('l', trIdx, c)} onPointerMove={clipMove} onPointerUp={clipUp} />
+                      <div className="clip-edge r" onPointerDown={clipDown('r', trIdx, c)} onPointerMove={clipMove} onPointerUp={clipUp} />
                     </div>
                   ))}
                 </div>
@@ -368,7 +427,6 @@ export function Mixer({ doc, onChange, onRecorded, bufVer, names }: Props) {
               <p className="mix-empty">{t('emptyMix')}</p>
             )}
 
-            {/* playhead */}
             <div className="playhead" style={{ left: 172 + playPos * zoom }} />
           </div>
         </div>

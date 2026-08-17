@@ -2179,6 +2179,142 @@ kbd {
   z-index: 4;
 }
 
+/* focused track (BandLab-style) */
+.tl-row.active .trk-head {
+  border-left: 3px solid var(--accent);
+  padding-left: 7px;
+  background: var(--accent-soft);
+}
+
+.tl-row.active .lane { background-color: var(--accent-soft); }
+
+.rec-time { color: var(--danger); font-weight: 600; }
+
+/* ---- studio tabs ---- */
+
+.st-tabs {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 2px;
+  background: var(--bg-raised);
+}
+
+.st-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.st-tabs button.active {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* ---- media view ---- */
+
+.media-view { min-width: 0; }
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.media-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.media-card:hover { border-color: var(--ink); }
+
+.media-thumb {
+  height: 140px;
+  background:
+    repeating-conic-gradient(var(--bg-sunken) 0% 25%, var(--bg-raised) 0% 50%) 0 0 / 16px 16px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+
+.media-thumb img,
+.media-thumb video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.media-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 8px 10px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+/* ---- info tooltip ---- */
+
+.info-i {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-faint);
+  cursor: help;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.info-i:hover, .info-i:focus-visible { color: var(--accent); outline: none; }
+
+.info-i::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 135%;
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  width: max-content;
+  max-width: 240px;
+  background: var(--ink);
+  color: var(--bg);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  line-height: 1.55;
+  padding: 7px 11px;
+  border-radius: 7px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 200;
+  white-space: normal;
+  text-align: left;
+}
+
+.info-i:hover::after, .info-i:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ============ footer ============ */
 
 .footer {

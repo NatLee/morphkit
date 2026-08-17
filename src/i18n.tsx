@@ -194,6 +194,15 @@ const zh: Dict = {
   micDenied: '無法取得麥克風權限',
   trackName: '軌道 {n}',
   emptyMix: '從左側素材庫按「＋」把音訊加入時間軸，或直接按錄音鍵開始',
+  tabMix: '混音',
+  tabMedia: '媒體',
+  noMedia: '尚無圖片／GIF／影片素材，從左側匯入',
+  tipProjects: '專案自動儲存在你的瀏覽器（IndexedDB），不會上傳任何檔案',
+  tipAssets: '素材庫是專案的檔案池：音訊丟進混音器，圖片／GIF 可直接編輯',
+  tipRecord: '錄音完成後會存成素材，並放到目前選取（高亮）的音軌',
+  tipExportWav: '將整個混音離線渲染成 WAV（套用音量／靜音／獨奏）',
+  tipFocusTrack: '點擊音軌即可選取（高亮）；「＋」與錄音都會加到選取的音軌，clip 可上下拖曳換軌',
+  tipTabs: '混音＝多軌音訊時間軸；媒體＝瀏覽與編輯圖片、GIF、影片素材',
 };
 
 const en: Dict = {
@@ -380,6 +389,15 @@ const en: Dict = {
   micDenied: 'Microphone permission denied',
   trackName: 'Track {n}',
   emptyMix: 'Add audio from the asset panel with “＋”, or hit record to start',
+  tabMix: 'Mix',
+  tabMedia: 'Media',
+  noMedia: 'No image / GIF / video assets yet — import from the left panel',
+  tipProjects: 'Projects auto-save in your browser (IndexedDB) — nothing is uploaded',
+  tipAssets: 'Assets are the project file pool: audio goes to the mixer, images/GIFs open in editors',
+  tipRecord: 'Recordings are saved as assets and placed on the focused (highlighted) track',
+  tipExportWav: 'Renders the whole mix offline to WAV (gain / mute / solo applied)',
+  tipFocusTrack: 'Click a track to focus it — “＋” and recordings land there; drag clips up/down to change tracks',
+  tipTabs: 'Mix = multi-track audio timeline; Media = browse & edit image, GIF and video assets',
 };
 
 const ja: Dict = {
@@ -566,6 +584,15 @@ const ja: Dict = {
   micDenied: 'マイクの権限が取得できません',
   trackName: 'トラック {n}',
   emptyMix: '左のアセットから「＋」で音声を追加するか、録音ボタンで開始',
+  tabMix: 'ミックス',
+  tabMedia: 'メディア',
+  noMedia: '画像／GIF／動画アセットはまだありません。左から読み込んでください',
+  tipProjects: 'プロジェクトはブラウザ（IndexedDB）に自動保存。アップロードは一切ありません',
+  tipAssets: 'アセットはプロジェクトのファイル置き場。音声はミキサーへ、画像／GIFは編集へ',
+  tipRecord: '録音はアセットとして保存され、フォーカス中（ハイライト）のトラックに配置されます',
+  tipExportWav: 'ミックス全体をWAVへオフライン書き出し（音量／ミュート／ソロ適用）',
+  tipFocusTrack: 'トラックをクリックでフォーカス。「＋」と録音はそこへ。クリップは上下ドラッグでトラック移動',
+  tipTabs: 'ミックス＝マルチトラック音声タイムライン。メディア＝画像・GIF・動画の閲覧と編集',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
