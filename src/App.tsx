@@ -11,6 +11,7 @@ import { GifEditor } from './components/GifEditor';
 import { LANGS, useI18n } from './i18n';
 import { defaultTarget, detectKind, extOf, formatBytes, outputFileName, type Kind } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
+import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
@@ -118,12 +119,17 @@ export default function App() {
     try {
       let blob: Blob;
       if (item.kind === 'image') {
-        blob = await convertImage(
-          item.file,
-          item.target as 'png' | 'jpeg' | 'webp',
-          item.quality,
-          settingsRef.current.imageMaxDim
-        );
+        if (item.target === 'apng' || item.target === 'gif') {
+          // animated pipeline — keeps every frame; APNG preserves alpha
+          blob = await convertAnimImage(item.file, item.target);
+        } else {
+          blob = await convertImage(
+            item.file,
+            item.target as 'png' | 'jpeg' | 'webp',
+            item.quality,
+            settingsRef.current.imageMaxDim
+          );
+        }
       } else {
         if (!isEngineReady()) setEngine('loading');
         try {
@@ -230,7 +236,11 @@ export default function App() {
   // ---- editors ----
   const editingItem = editingId ? items.find((i) => i.id === editingId) ?? null : null;
   const isGifItem = (it: Item) =>
-    it.kind === 'image' && (extOf(it.file.name) === 'gif' || it.file.type === 'image/gif');
+    it.kind === 'image' && (
+      ['gif', 'apng'].includes(extOf(it.file.name)) ||
+      it.file.type === 'image/gif' ||
+      it.file.type === 'image/apng'
+    );
 
   const saveMediaEdit = (id: string, edit: MediaEdit | undefined) => {
     const it = itemsRef.current.find((i) => i.id === id);

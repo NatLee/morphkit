@@ -5,8 +5,8 @@ const MATRIX = [
     key: 'kindImage',
     editKey: 'mxEditImage',
     icon: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6zm2.5-7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z',
-    ins: ['PNG', 'JPG', 'WEBP', 'BMP', 'GIF', 'AVIF'],
-    outs: ['WEBP', 'PNG', 'JPG'],
+    ins: ['PNG', 'JPG', 'WEBP', 'BMP', 'GIF', 'APNG', 'AVIF'],
+    outs: ['WEBP', 'PNG', 'JPG', 'APNG', 'GIF'],
   },
   {
     key: 'kindAudio',

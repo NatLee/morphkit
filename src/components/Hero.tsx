@@ -3,7 +3,7 @@ import { useI18n } from '../i18n';
 import { outputsFor, type Kind } from '../lib/formats';
 
 export const FORMAT_GROUPS: { kind: Kind; labelKey: string; formats: string[] }[] = [
-  { kind: 'image', labelKey: 'kindImage', formats: ['png', 'jpg', 'webp', 'bmp', 'gif', 'avif'] },
+  { kind: 'image', labelKey: 'kindImage', formats: ['png', 'jpg', 'webp', 'bmp', 'gif', 'apng', 'avif'] },
   { kind: 'audio', labelKey: 'kindAudio', formats: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus'] },
   { kind: 'video', labelKey: 'kindVideo', formats: ['mp4', 'webm', 'mov', 'avi', 'mkv'] },
 ];

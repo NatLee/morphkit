@@ -9,6 +9,20 @@ declare module 'gifuct-js' {
   export function decompressFrames(gif: unknown, buildPatch: boolean): GifFrame[];
 }
 
+declare module 'upng-js' {
+  interface UPNGImage {
+    width: number;
+    height: number;
+    frames: { delay: number }[];
+  }
+  const UPNG: {
+    decode(buf: ArrayBuffer): UPNGImage;
+    toRGBA8(img: UPNGImage): ArrayBuffer[];
+    encode(imgs: ArrayBuffer[], w: number, h: number, cnum: number, dels?: number[]): ArrayBuffer;
+  };
+  export default UPNG;
+}
+
 declare module 'gifenc' {
   export function GIFEncoder(): {
     writeFrame: (

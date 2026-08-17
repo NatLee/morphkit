@@ -1,10 +1,10 @@
 export type Kind = 'image' | 'audio' | 'video';
 
-export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg'] as const;
+export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif'] as const;
 export const AUDIO_OUTPUTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a'] as const;
 export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', 'mp3'] as const;
 
-const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'avif', 'ico', 'svg'];
+const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'apng', 'avif', 'ico', 'svg'];
 const AUDIO_EXT = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'wma', 'aiff', 'amr'];
 const VIDEO_EXT = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', '3gp'];
 
@@ -40,6 +40,9 @@ export function outputsFor(kind: Kind): readonly string[] {
 export function defaultTarget(kind: Kind, file: File): string {
   const ext = extOf(file.name);
   const outs = outputsFor(kind);
+  // animated sources default to the animation-preserving twin format
+  if (kind === 'image' && ext === 'gif') return 'apng';
+  if (kind === 'image' && ext === 'apng') return 'gif';
   const preferred = kind === 'image' ? 'webp' : kind === 'audio' ? 'mp3' : 'mp4';
   const same = (o: string) => o === ext || (o === 'jpeg' && (ext === 'jpg' || ext === 'jpeg'));
   if (!same(preferred)) return preferred;
@@ -57,6 +60,7 @@ export function mimeFor(target: string): string {
     png: 'image/png',
     jpeg: 'image/jpeg',
     webp: 'image/webp',
+    apng: 'image/apng',
     mp3: 'audio/mpeg',
     wav: 'audio/wav',
     ogg: 'audio/ogg',
