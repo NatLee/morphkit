@@ -43,7 +43,8 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 | `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
-| `components/Studio.tsx` | Project workspace (App `mode==='studio'`): project CRUD (IndexedDB), asset panel (import/drop, per-kind actions), hosts Mixer + reuses Image/Gif editors on assets via pseudo-Item |
+| `components/Studio.tsx` | **Typed projects** (App `mode==='studio'`): launcher (type picker at creation — type is immutable; storage stats; zip import/export w/ id remap), 4-way workspace routing (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace), primary-asset pickers (◎), blank canvas, new-project-from-asset |
+| `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
 | `lib/studioTypes.ts` | `Clip`/`Track`/`MixerDoc`/`ProjectRec`/`AssetRec`, `uid()` |
 | `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
@@ -66,6 +67,9 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 11. **Studio persistence**: mixer doc saves to IndexedDB debounced 500ms via `persist()`; clips reference assets by id — deleting an asset must strip its clips AND `dropAssetBuffer`.
 12. **AudioContext** is created lazily (user gesture) — never at module load. Buffers must be decoded (cache warm) before `playMix`/`renderMixWav`; Studio warms the cache on project load.
 13. **MediaEdit trim preview**: never seek-back on reaching trim end (causes visible shake); trim handles scrub `currentTime` instead.
+14. **Typed projects**: `ProjectRec.type` is set at creation and immutable; legacy records without `type` are 'audio'. `savePatch` updates `curRef` synchronously — required for rapid patch bursts (trim drags, `onObjectsChange`).
+15. **ImageEditor inline mode**: `initialObjects` consumed once at mount (key by base asset id); `objId` must be bumped past loaded ids. Pseudo-Items passed to inline editors MUST be memoized or the init effect loops.
+16. **muxVideo**: audio timeline aligns to the TRIMMED video start; wav is rendered by OfflineAudioContext first, then mapped `-map 0:v -map 1:a -shortest`.
 
 ## Design language ("Drafting Table")
 
