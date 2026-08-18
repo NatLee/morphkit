@@ -4,7 +4,7 @@ import { GIFEncoder } from 'gifenc';
 import { writeGifFrame } from '../lib/animImage';
 import { useI18n } from '../i18n';
 import { Mixer } from './Mixer';
-import { ImageEditor, type Layer, type Obj } from './ImageEditor';
+import { ImageEditor, type Layer } from './ImageEditor';
 import { GifEditor } from './GifEditor';
 import { VideoWorkspace } from './VideoWorkspace';
 import { FramePicker } from './FramePicker';
@@ -928,7 +928,6 @@ export function Studio() {
                   key={imgBase.id}
                   item={imgItem}
                   initialLayers={(cur?.imageDoc?.layers ?? []) as Layer[]}
-                  initialObjects={(cur?.imageDoc?.objects ?? []) as Obj[]}
                   bg={cur?.imageDoc?.bg ?? null}
                   onLayersChange={(ls) =>
                     savePatch({

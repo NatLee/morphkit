@@ -4,93 +4,48 @@ import { useI18n } from '../i18n';
 import { Overlay } from './Overlay';
 import type { Item } from '../types';
 
-/* Graphite-inspired: non-destructive object model — every stroke, shape and
-   text is an editable object in a layers list; the canvas re-renders
-   base bitmap + objects on every change. */
+/* Raster layer model (Photoshop-style): a LAYER *is* the drawing surface.
+   Every tool paints straight into the active layer's pixels — there are no
+   sub-objects. Layers stack with opacity / blend mode / mask. */
 
 type Tool =
-  | 'pan' | 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
+  | 'pan' | 'move' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
   | 'wand' | 'rectsel' | 'lasso' | 'fill';
-type ObjType = Exclude<Tool, 'pan' | 'select' | 'crop' | 'wand' | 'rectsel' | 'lasso' | 'fill'> | 'image';
-
-/** runtime bitmap cache for image-layer objects (src dataURL is the persisted form) */
-const imgBmpCache = new Map<number, ImageBitmap>();
 type FontFam = 'sans' | 'serif' | 'mono';
 type Brush = 'pen' | 'marker' | 'highlight';
 
 interface Pt { x: number; y: number }
 
-export interface Obj {
-  id: number;
-  type: ObjType;
-  color: string;
-  /** stroke width, or font size for text */
-  size: number;
-  visible: boolean;
-  points?: Pt[];
-  a?: Pt;
-  b?: Pt;
-  text?: string;
-  pos?: Pt;
-  font?: FontFam;
-  weight?: number;
-  outline?: boolean;
-  brush?: Brush;
-  /** image layers: persisted dataURL */
-  src?: string;
-}
-
-/** Blend modes offered in the layer panel (canvas composite operations). */
 export const BLEND_MODES = [
   'normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten',
   'color-dodge', 'color-burn', 'soft-light', 'hard-light', 'difference', 'exclusion',
 ] as const;
 export type Blend = typeof BLEND_MODES[number];
 
-/** A layer holds many objects and has its own opacity / blend / mask. */
+/** Persisted layer record — `src` holds the layer's pixels as a PNG dataURL. */
 export interface Layer {
   id: string;
   name: string;
   visible: boolean;
   locked: boolean;
-  /** 0..1 */
   opacity: number;
   blend: Blend;
-  objects: Obj[];
-  /** alpha mask as a dataURL (opaque = visible); null = no mask */
+  /** alpha mask dataURL (opaque = visible); null = none */
   mask: string | null;
   maskEnabled: boolean;
+  /** pixels; empty string = blank layer */
+  src: string;
 }
 
 let layerSeq = 0;
+const newLayerId = () => `L${Date.now().toString(36)}${(layerSeq++).toString(36)}`;
+
 export const newLayer = (name: string): Layer => ({
-  id: `L${Date.now().toString(36)}${(layerSeq++).toString(36)}`,
-  name, visible: true, locked: false, opacity: 1, blend: 'normal',
-  objects: [], mask: null, maskEnabled: true,
+  id: newLayerId(), name, visible: true, locked: false, opacity: 1, blend: 'normal',
+  mask: null, maskEnabled: true, src: '',
 });
 
-/** decoded masks, keyed by dataURL */
 const maskBmpCache = new Map<string, ImageBitmap>();
-
-/** Small preview of a layer's contents for the panel row. */
-function LayerThumb({ layer, w, h }: { layer: Layer; w: number; h: number }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const c = ref.current;
-    if (!c || !w || !h) return;
-    const TW = 36;
-    const TH = Math.max(10, Math.round((h / w) * TW));
-    c.width = TW;
-    c.height = TH;
-    const g = c.getContext('2d')!;
-    g.clearRect(0, 0, TW, TH);
-    g.save();
-    g.scale(TW / w, TH / h);
-    for (const o of layer.objects) drawObj(g, o);
-    g.restore();
-  }, [layer, w, h]);
-  return <canvas ref={ref} className="lp-thumb" />;
-}
 
 export const FONT_MAP: Record<FontFam, string> = {
   sans: "'IBM Plex Sans', 'Noto Sans TC', 'Microsoft JhengHei', 'Yu Gothic', sans-serif",
@@ -98,29 +53,18 @@ export const FONT_MAP: Record<FontFam, string> = {
   mono: "'IBM Plex Mono', ui-monospace, monospace",
 };
 
-function fontOf(o: Obj): string {
-  return `${o.weight ?? 600} ${o.size}px ${FONT_MAP[o.font ?? 'sans']}`;
-}
-
-/** Perceived luminance 0..1 of a #rrggbb colour. */
 function lumOf(hex: string): number {
   const n = parseInt(hex.slice(1), 16);
   if (Number.isNaN(n)) return 0;
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
 }
 
-interface HistEntry { layers: Layer[]; baseBlob: Blob }
-
 const MAX_DIM = 4096;
-const HIST_CAP = 40;
-let objId = 0;
+const HIST_CAP = 14;
 
 const TOOL_ICONS: Record<Tool, string> = {
   pan: 'M12 2v20M2 12h20M12 2l-2.5 2.5M12 2l2.5 2.5M12 22l-2.5-2.5M12 22l2.5-2.5M2 12l2.5-2.5M2 12l2.5 2.5M22 12l-2.5-2.5M22 12l-2.5 2.5',
-  select: 'M6 3l12 9-6 1 3 6-3 1.5L9 14l-3 4z',
+  move: 'M6 3l12 9-6 1 3 6-3 1.5L9 14l-3 4z',
   pen: 'M4 20l1-4L16 5l3 3L8 19l-4 1zM14.5 6.5l3 3',
   line: 'M5 19L19 5',
   rect: 'M5 6h14v12H5z',
@@ -134,200 +78,69 @@ const TOOL_ICONS: Record<Tool, string> = {
   fill: 'M8 3l9 9-6.5 6.5L4 12zM4 12h11M19 15c1 1.4 1.6 2.6 1 3.6-.6 1-2 1-2.8 0-.6-.9-.2-2.3 1.8-3.6z',
 };
 
-function cloneObjs(objs: Obj[]): Obj[] {
-  return objs.map((o) => ({
-    ...o,
-    points: o.points?.map((p) => ({ ...p })),
-    a: o.a && { ...o.a },
-    b: o.b && { ...o.b },
-    pos: o.pos && { ...o.pos },
-  }));
+interface HistEntry {
+  meta: Layer[];
+  /** layer id → pixels dataURL */
+  pixels: Record<string, string>;
+  baseBlob: Blob;
 }
 
-function bboxOf(o: Obj, ctx: CanvasRenderingContext2D): { x: number; y: number; w: number; h: number } {
-  if (o.type === 'text' && o.pos) {
-    ctx.font = fontOf(o);
-    const m = ctx.measureText(o.text ?? '');
-    return { x: o.pos.x, y: o.pos.y, w: m.width, h: o.size * 1.2 };
-  }
-  if (o.type === 'pen' && o.points?.length) {
-    const xs = o.points.map((p) => p.x);
-    const ys = o.points.map((p) => p.y);
-    const x = Math.min(...xs);
-    const y = Math.min(...ys);
-    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
-  }
-  if (o.a && o.b) {
-    const x = Math.min(o.a.x, o.b.x);
-    const y = Math.min(o.a.y, o.b.y);
-    return { x, y, w: Math.abs(o.b.x - o.a.x), h: Math.abs(o.b.y - o.a.y) };
-  }
-  return { x: 0, y: 0, w: 0, h: 0 };
-}
-
-function drawObj(ctx: CanvasRenderingContext2D, o: Obj) {
-  if (!o.visible) return;
-  if (o.type === 'image' && o.a && o.b) {
-    const bmp = imgBmpCache.get(o.id);
-    if (bmp) {
-      ctx.drawImage(
-        bmp,
-        Math.min(o.a.x, o.b.x), Math.min(o.a.y, o.b.y),
-        Math.abs(o.b.x - o.a.x), Math.abs(o.b.y - o.a.y)
-      );
-    }
-    return;
-  }
-  ctx.strokeStyle = o.color;
-  ctx.fillStyle = o.color;
-  ctx.lineWidth = o.size;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  if (o.type === 'text' && o.pos) {
-    ctx.font = fontOf(o);
-    ctx.textBaseline = 'top';
-    if (o.outline) {
-      ctx.lineWidth = Math.max(2, o.size / 10);
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = lumOf(o.color) > 0.55 ? '#000000' : '#ffffff';
-      ctx.strokeText(o.text ?? '', o.pos.x, o.pos.y);
-    }
-    ctx.fillText(o.text ?? '', o.pos.x, o.pos.y);
-    return;
-  }
-  if (o.type === 'pen' && o.points?.length) {
-    ctx.save();
-    if (o.brush === 'marker') {
-      ctx.globalAlpha = 0.7;
-      ctx.lineWidth = o.size * 1.8;
-    } else if (o.brush === 'highlight') {
-      ctx.globalAlpha = 0.32;
-      ctx.lineWidth = o.size * 3;
-      ctx.lineCap = 'butt';
-    }
-    ctx.beginPath();
-    ctx.moveTo(o.points[0].x, o.points[0].y);
-    for (const p of o.points) ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    ctx.restore();
-    return;
-  }
-  if (!o.a || !o.b) return;
-  const { a, b } = o;
-  ctx.beginPath();
-  if (o.type === 'line' || o.type === 'arrow') {
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-    if (o.type === 'arrow') {
-      const ang = Math.atan2(b.y - a.y, b.x - a.x);
-      const len = Math.max(12, o.size * 3.5);
-      ctx.beginPath();
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x - len * Math.cos(ang - 0.45), b.y - len * Math.sin(ang - 0.45));
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x - len * Math.cos(ang + 0.45), b.y - len * Math.sin(ang + 0.45));
-      ctx.stroke();
-    }
-  } else if (o.type === 'rect') {
-    ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-  } else if (o.type === 'ellipse') {
-    ctx.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2, Math.abs(b.y - a.y) / 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-}
-
-function translateObj(o: Obj, dx: number, dy: number) {
-  if (o.points) o.points.forEach((p) => { p.x += dx; p.y += dy; });
-  if (o.a) { o.a.x += dx; o.a.y += dy; }
-  if (o.b) { o.b.x += dx; o.b.y += dy; }
-  if (o.pos) { o.pos.x += dx; o.pos.y += dy; }
-}
-
-function mapObj(o: Obj, fn: (p: Pt) => Pt): Obj {
-  return {
-    ...o,
-    points: o.points?.map(fn),
-    a: o.a && fn(o.a),
-    b: o.b && fn(o.b),
-    pos: o.pos && fn(o.pos),
-  };
+/** Thumbnail of a layer's pixels for the panel row. */
+function LayerThumb({ src, ratio }: { src: string; ratio: number }) {
+  const h = Math.max(10, Math.round(36 / (ratio || 1)));
+  return (
+    <span className="lp-thumb" style={{ height: h }}>
+      {src ? <img src={src} alt="" draggable={false} /> : null}
+    </span>
+  );
 }
 
 interface Props {
   item: Item;
   onSave?: (id: string, file: File) => void;
   onClose?: () => void;
-  /** workspace mode: no overlay chrome, fills its container */
   inline?: boolean;
-  /** persisted layer stack (image projects) */
   initialLayers?: Layer[];
-  /** legacy flat object list — migrated into a single layer */
-  initialObjects?: Obj[];
-  /** reported on every change so the project can persist layers */
   onLayersChange?: (layers: Layer[]) => void;
-  /** bottom background layer colour (null = transparent) */
   bg?: string | null;
   onBgChange?: (c: string | null) => void;
-  /** raster edits (fill / erase / crop / rotate / resize) bake into the base —
-      the host must persist it or they are lost on reload */
   onBaseChange?: (blob: Blob) => void;
-  /** drop this blob onto the canvas as a movable image layer (GIF → first frame) */
   importBlob?: Blob | null;
   onImportDone?: () => void;
 }
 
-export function ImageEditor({ item, onSave, onClose, inline, initialLayers, initialObjects, onLayersChange, bg, onBgChange, onBaseChange, importBlob, onImportDone }: Props) {
+export function ImageEditor({
+  item, onSave, onClose, inline, initialLayers, onLayersChange,
+  bg, onBgChange, onBaseChange, importBlob, onImportDone,
+}: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<{ blob: Blob; bmp: ImageBitmap } | null>(null);
   const histRef = useRef<HistEntry[]>([]);
   const redoRef = useRef<HistEntry[]>([]);
+  const scratchRef = useRef<HTMLCanvasElement | null>(null);
+  const previewRef = useRef<HTMLCanvasElement | null>(null); // live shape preview
+  /** runtime pixels per layer */
+  const pixRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+
   const dragRef = useRef<
-    | { mode: 'draw'; id: number }
-    | { mode: 'move'; id: number; last: Pt }
+    | { mode: 'paint'; last: Pt }
+    | { mode: 'shape'; a: Pt }
+    | { mode: 'movepx'; last: Pt }
     | { mode: 'crop'; a: Pt }
     | { mode: 'rectsel'; a: Pt }
     | { mode: 'lasso' }
     | { mode: 'pan'; sx: number; sy: number; sl: number; st: number }
     | null
   >(null);
-  const [panning, setPanning] = useState(false);
-  const [cursor, setCursor] = useState<Pt | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  /** layers whose object list is expanded (collapsed by default) */
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // ---- layer stack (objects live inside layers) ----
-  const [layers, setLayers] = useState<Layer[]>(() => [newLayer('Layer 1')]);
+  const [layers, setLayers] = useState<Layer[]>([]);
   const [activeId, setActiveId] = useState<string>('');
   const layersRef = useRef<Layer[]>([]);
   useEffect(() => { layersRef.current = layers; }, [layers]);
-  useEffect(() => {
-    if (!layers.some((l) => l.id === activeId)) setActiveId(layers[layers.length - 1]?.id ?? '');
-  }, [layers, activeId]);
+  const activeLayer = layers.find((l) => l.id === activeId) ?? null;
 
-  const activeLayer = layers.find((l) => l.id === activeId) ?? layers[layers.length - 1] ?? null;
-  const objects = activeLayer?.objects ?? [];
-  const objectsRef = useRef<Obj[]>([]);
-  useEffect(() => { objectsRef.current = objects; }, [objects]);
-
-  /** Mutate the ACTIVE layer's objects (drop-in replacement for the old setObjects). */
-  const setObjects = (updater: Obj[] | ((prev: Obj[]) => Obj[])) =>
-    setLayers((prev) => prev.map((l) => {
-      if (l.id !== (activeId || prev[prev.length - 1]?.id)) return l;
-      return { ...l, objects: typeof updater === 'function' ? updater(l.objects) : updater };
-    }));
-
-  /** Mutate objects in EVERY layer (geometry ops: crop / rotate / resize). */
-  const mapAllObjects = (fn: (o: Obj) => Obj) =>
-    setLayers((prev) => prev.map((l) => ({ ...l, objects: l.objects.map(fn) })));
-
-  const patchLayer = (id: string, p: Partial<Layer>) =>
-    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...p } : l)));
-
-  const [sel, setSel] = useState<number | null>(null);
   const [tool, setTool] = useState<Tool>('pan');
   const [color, setColor] = useState('#c94f16');
   const [size, setSize] = useState(4);
@@ -339,17 +152,20 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
   const [brushType, setBrushType] = useState<Brush>('pen');
   const [zoom, setZoom] = useState(1);
   const [baseVer, setBaseVer] = useState(0);
+  const [pixVer, setPixVer] = useState(0);
   const [histVer, setHistVer] = useState(0);
-  const [cropSel, setCropSel] = useState<{ a: Pt; b: Pt } | null>(null);
-  const [textEdit, setTextEdit] = useState<{ id?: number; pos: Pt; value: string } | null>(null);
-  const [ready, setReady] = useState(false);
-  const [copied, setCopied] = useState(false);
-  // background is a permanent bottom "layer": colour + visibility
-  const [bgColor, setBgColor] = useState<string>(bg ?? '#ffffff');
-  const [bgOn, setBgOn] = useState<boolean>(bg != null);
   const [selVer, setSelVer] = useState(0);
+  const [cropSel, setCropSel] = useState<{ a: Pt; b: Pt } | null>(null);
   const [selDraft, setSelDraft] = useState<{ a: Pt; b: Pt } | null>(null);
   const [lassoPts, setLassoPts] = useState<Pt[] | null>(null);
+  const [textEdit, setTextEdit] = useState<{ pos: Pt; value: string } | null>(null);
+  const [ready, setReady] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [panning, setPanning] = useState(false);
+  const [cursor, setCursor] = useState<Pt | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [bgColor, setBgColor] = useState<string>(bg ?? '#ffffff');
+  const [bgOn, setBgOn] = useState<boolean>(bg != null);
   const [resizeOpen, setResizeOpen] = useState(false);
   const [rzMode, setRzMode] = useState<'pct' | 'abs'>('pct');
   const [rzPct, setRzPct] = useState(50);
@@ -359,38 +175,54 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
   const tintRef = useRef<HTMLCanvasElement | null>(null);
   const maskBBoxRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const antsRef = useRef(0);
-  const scratchRef = useRef<HTMLCanvasElement | null>(null);
 
-  const applyBg = (color: string, on: boolean) => {
-    setBgColor(color);
+  const W = () => baseRef.current?.bmp.width ?? 0;
+  const H = () => baseRef.current?.bmp.height ?? 0;
+
+  // ---- layer pixel helpers ----
+  const layerCanvas = (id: string): HTMLCanvasElement => {
+    let c = pixRef.current.get(id);
+    if (!c) {
+      c = document.createElement('canvas');
+      c.width = W() || 1;
+      c.height = H() || 1;
+      pixRef.current.set(id, c);
+    }
+    if (c.width !== W() && W()) {
+      // canvas size changed under us — grow while keeping content
+      const old = c;
+      const n = document.createElement('canvas');
+      n.width = W();
+      n.height = H();
+      n.getContext('2d')!.drawImage(old, 0, 0);
+      pixRef.current.set(id, n);
+      c = n;
+    }
+    return c;
+  };
+
+  const activeCtx = (): CanvasRenderingContext2D | null => {
+    if (!activeLayer || activeLayer.locked) return null;
+    return layerCanvas(activeLayer.id).getContext('2d');
+  };
+
+  /** Persist the active layer's pixels back into state (debounced by caller). */
+  const commitPixels = (id: string) => {
+    const c = pixRef.current.get(id);
+    if (!c) return;
+    const src = c.toDataURL('image/png');
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, src } : l)));
+    setPixVer((v) => v + 1);
+  };
+
+  const applyBg = (colour: string, on: boolean) => {
+    setBgColor(colour);
     setBgOn(on);
-    onBgChange?.(on ? color : null);
+    onBgChange?.(on ? colour : null);
   };
 
-  const buildTint = () => {
-    const m = maskRef.current;
-    if (!m) { tintRef.current = null; return; }
-    const c = document.createElement('canvas');
-    c.width = m.width;
-    c.height = m.height;
-    const g = c.getContext('2d')!;
-    g.drawImage(m, 0, 0);
-    g.globalCompositeOperation = 'source-in';
-    g.fillStyle = '#c94f16';
-    g.fillRect(0, 0, c.width, c.height);
-    tintRef.current = c;
-  };
-
-  const deselect = () => {
-    maskRef.current = null;
-    tintRef.current = null;
-    maskBBoxRef.current = null;
-    setSelVer((v) => v + 1);
-  };
-
-  const selObj = sel != null
-    ? layers.flatMap((l) => l.objects).find((o) => o.id === sel) ?? null
-    : null;
+  const patchLayer = (id: string, p: Partial<Layer>) =>
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...p } : l)));
 
   // ---- init ----
   useEffect(() => {
@@ -409,20 +241,27 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
       const bmp = await createImageBitmap(blob);
       if (cancelled) { bmp.close(); return; }
       baseRef.current = { blob, bmp };
-      // restore persisted layers (image projects) and avoid id collisions
-      // restore layers (or migrate a legacy flat object list into one layer)
-      const restored: Layer[] = initialLayers?.length
-        ? initialLayers.map((l) => ({ ...l, objects: cloneObjs(l.objects) }))
-        : initialObjects?.length
-          ? [{ ...newLayer('Layer 1'), objects: cloneObjs(initialObjects) }]
-          : [];
-      if (restored.length) {
-        const ids = restored.flatMap((l) => l.objects.map((o) => o.id));
-        if (ids.length) objId = Math.max(objId, ...ids);
-        setLayers(restored);
-        setActiveId(restored[restored.length - 1].id);
+
+      const restored = initialLayers?.length ? initialLayers : [newLayer('Layer 1')];
+      pixRef.current.clear();
+      for (const l of restored) {
+        const lc = document.createElement('canvas');
+        lc.width = bmp.width;
+        lc.height = bmp.height;
+        if (l.src) {
+          try {
+            const b = await (await fetch(l.src)).blob();
+            const lb = await createImageBitmap(b);
+            lc.getContext('2d')!.drawImage(lb, 0, 0);
+            lb.close();
+          } catch { /* unreadable layer */ }
+        }
+        pixRef.current.set(l.id, lc);
       }
-      // fit zoom
+      if (cancelled) return;
+      setLayers(restored);
+      setActiveId(restored[restored.length - 1].id);
+
       const vp = viewportRef.current;
       if (vp) {
         const fit = Math.min(1, (vp.clientWidth - 28) / bmp.width, (window.innerHeight * 0.5) / bmp.height);
@@ -435,14 +274,11 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.file]);
 
-  // report layer changes for project persistence
   useEffect(() => {
     if (ready) onLayersChange?.(layersRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, ready]);
 
-  // persist raster edits: every base swap (fill / erase / crop / rotate / resize
-  // / undo) writes the new bitmap back to the host
   const firstBaseRef = useRef(true);
   useEffect(() => {
     if (!ready || !baseRef.current) return;
@@ -451,7 +287,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseVer, ready]);
 
-  // decode layer masks
+  // decode masks
   useEffect(() => {
     let stale = false;
     void (async () => {
@@ -459,8 +295,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
       for (const l of layers) {
         if (l.mask && !maskBmpCache.has(l.mask)) {
           try {
-            const blob = await (await fetch(l.mask)).blob();
-            const bmp = await createImageBitmap(blob);
+            const b = await (await fetch(l.mask)).blob();
+            const bmp = await createImageBitmap(b);
             if (stale) { bmp.close(); return; }
             maskBmpCache.set(l.mask, bmp);
             got = true;
@@ -472,82 +308,23 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     return () => { stale = true; };
   }, [layers]);
 
-  /** Place a blob on the canvas as a movable image layer. */
-  const importImageBlob = async (blob: Blob) => {
-    const cv = canvasRef.current;
-    if (!cv || !ready) return;
-    const bmp = await createImageBitmap(blob); // animated sources → first frame
-    const maxW = cv.width * 0.6;
-    const maxH = cv.height * 0.6;
-    const s = Math.min(1, maxW / bmp.width, maxH / bmp.height);
-    const w2 = Math.max(1, Math.round(bmp.width * s));
-    const h2 = Math.max(1, Math.round(bmp.height * s));
-    // persisted form capped at 1024px so project docs stay reasonable
-    const capS = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
-    const tc = document.createElement('canvas');
-    tc.width = Math.max(1, Math.round(bmp.width * capS));
-    tc.height = Math.max(1, Math.round(bmp.height * capS));
-    tc.getContext('2d')!.drawImage(bmp, 0, 0, tc.width, tc.height);
-    const src = tc.toDataURL('image/png');
-    bmp.close();
-    pushHist();
-    const id = ++objId;
-    const cx = cv.width / 2;
-    const cy = cv.height / 2;
-    setObjects((prev) => [...prev, {
-      id, type: 'image', color: '#000000', size: 1, visible: true, src,
-      a: { x: cx - w2 / 2, y: cy - h2 / 2 }, b: { x: cx + w2 / 2, y: cy + h2 / 2 },
-    }]);
-    setSel(id);
-    setTool('select');
-  };
-
-  // consume import requests from the workspace (asset panel ↧ / frame picker)
-  useEffect(() => {
-    if (!importBlob || !ready) return;
-    void importImageBlob(importBlob).finally(() => onImportDone?.());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [importBlob, ready]);
-
-  // decode bitmaps for image layers (restored from persistence or freshly added)
-  useEffect(() => {
-    let stale = false;
-    void (async () => {
-      let decoded = false;
-      for (const o of objects) {
-        if (o.type === 'image' && o.src && !imgBmpCache.has(o.id)) {
-          try {
-            const blob = await (await fetch(o.src)).blob();
-            const bmp = await createImageBitmap(blob);
-            if (stale) { bmp.close(); return; }
-            imgBmpCache.set(o.id, bmp);
-            decoded = true;
-          } catch { /* corrupt src */ }
-        }
-      }
-      if (decoded && !stale) setSelVer((v) => v + 1);
-    })();
-    return () => { stale = true; };
-  }, [layers]);
-
-  /** Composite every visible layer (objects → mask → opacity/blend) onto ctx. */
-  const paintLayers = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  // ---- rendering ----
+  const paintLayers = (ctx: CanvasRenderingContext2D, w: number, h: number, withPreview: boolean) => {
     let scratch = scratchRef.current;
-    if (!scratch) {
-      scratch = document.createElement('canvas');
-      scratchRef.current = scratch;
-    }
-    if (scratch.width !== w || scratch.height !== h) {
-      scratch.width = w;
-      scratch.height = h;
-    }
+    if (!scratch) { scratch = document.createElement('canvas'); scratchRef.current = scratch; }
+    if (scratch.width !== w || scratch.height !== h) { scratch.width = w; scratch.height = h; }
     const sctx = scratch.getContext('2d')!;
+
     for (const l of layersRef.current) {
       if (!l.visible || l.opacity <= 0) continue;
+      const lc = pixRef.current.get(l.id);
+      if (!lc) continue;
       sctx.clearRect(0, 0, w, h);
-      sctx.save();
-      for (const o of l.objects) drawObj(sctx, o);
-      sctx.restore();
+      sctx.drawImage(lc, 0, 0);
+      // live shape preview belongs to the active layer
+      if (withPreview && previewRef.current && l.id === activeId) {
+        sctx.drawImage(previewRef.current, 0, 0);
+      }
       if (l.mask && l.maskEnabled) {
         const mb = maskBmpCache.get(l.mask);
         if (mb) {
@@ -565,7 +342,91 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     }
   };
 
-  // wheel over the canvas = zoom (anchored at the cursor), never scroll
+  const render = useCallback(() => {
+    const base = baseRef.current;
+    const c = canvasRef.current;
+    if (!base || !c) return;
+    if (c.width !== base.bmp.width || c.height !== base.bmp.height) {
+      c.width = base.bmp.width;
+      c.height = base.bmp.height;
+    }
+    const ctx = c.getContext('2d')!;
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (bgOn) {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, c.width, c.height);
+    }
+    ctx.drawImage(base.bmp, 0, 0);
+    paintLayers(ctx, c.width, c.height, true);
+
+    const drawAnts = (path: () => void) => {
+      ctx.save();
+      const lw = Math.max(1.25, 1.5 / zoom);
+      const dash = Math.max(4, 6 / zoom);
+      ctx.lineWidth = lw;
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath(); path(); ctx.stroke();
+      ctx.setLineDash([dash, dash]);
+      ctx.lineDashOffset = -antsRef.current * dash * 2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+      ctx.beginPath(); path(); ctx.stroke();
+      ctx.restore();
+    };
+
+    if (tintRef.current) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.drawImage(tintRef.current, 0, 0);
+      ctx.restore();
+      const bb = maskBBoxRef.current;
+      if (bb) drawAnts(() => ctx.rect(bb.x, bb.y, bb.w, bb.h));
+    }
+    if (selDraft) {
+      drawAnts(() => ctx.rect(
+        Math.min(selDraft.a.x, selDraft.b.x), Math.min(selDraft.a.y, selDraft.b.y),
+        Math.abs(selDraft.b.x - selDraft.a.x), Math.abs(selDraft.b.y - selDraft.a.y)
+      ));
+    }
+    if (lassoPts && lassoPts.length > 1) {
+      drawAnts(() => {
+        ctx.moveTo(lassoPts[0].x, lassoPts[0].y);
+        for (const p of lassoPts) ctx.lineTo(p.x, p.y);
+      });
+    }
+    if (cropSel) {
+      const { a, b } = cropSel;
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w2 = Math.abs(b.x - a.x);
+      const h2 = Math.abs(b.y - a.y);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.clearRect(x, y, w2, h2);
+      ctx.drawImage(base.bmp, x, y, w2, h2, x, y, w2, h2);
+      ctx.restore();
+      drawAnts(() => ctx.rect(x, y, w2, h2));
+    }
+  }, [zoom, bgColor, bgOn, selDraft, lassoPts, cropSel, activeId]);
+
+  useEffect(() => { render(); }, [layers, baseVer, pixVer, selVer, render]);
+
+  // marching-ants loop
+  useEffect(() => {
+    const active = !!maskRef.current || !!selDraft || !!(lassoPts && lassoPts.length > 1) || !!cropSel;
+    if (!active) return;
+    let raf = 0;
+    const loop = () => {
+      antsRef.current = (performance.now() / 400) % 1;
+      render();
+      raf = window.requestAnimationFrame(loop);
+    };
+    raf = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(raf);
+  }, [selVer, selDraft, lassoPts, cropSel, render]);
+
+  // wheel zoom anchored at the cursor
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -591,104 +452,21 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     return () => vp.removeEventListener('wheel', onWheel);
   }, []);
 
-  // ---- render ----
-  const render = useCallback(() => {
-    const base = baseRef.current;
-    const c = canvasRef.current;
-    if (!base || !c) return;
-    if (c.width !== base.bmp.width || c.height !== base.bmp.height) {
-      c.width = base.bmp.width;
-      c.height = base.bmp.height;
+  // ---- history (pixels + metadata) ----
+  const snapshot = (): HistEntry | null => {
+    if (!baseRef.current) return null;
+    const pixels: Record<string, string> = {};
+    for (const l of layersRef.current) {
+      const c = pixRef.current.get(l.id);
+      if (c) pixels[l.id] = c.toDataURL('image/png');
     }
-    const ctx = c.getContext('2d')!;
-    ctx.clearRect(0, 0, c.width, c.height);
-    if (bgOn) {
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(0, 0, c.width, c.height);
-    }
-    ctx.drawImage(base.bmp, 0, 0);
-    paintLayers(ctx, c.width, c.height);
-
-    // "marching ants": white underlay + animated black dashes — readable on any
-    // image content, and the motion makes clear it's UI, not pixels
-    const drawAnts = (path: () => void) => {
-      ctx.save();
-      const lw = Math.max(1.25, 1.5 / zoom);
-      const dash = Math.max(4, 6 / zoom);
-      ctx.lineWidth = lw;
-      ctx.setLineDash([]);
-      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-      ctx.beginPath();
-      path();
-      ctx.stroke();
-      ctx.setLineDash([dash, dash]);
-      ctx.lineDashOffset = -antsRef.current * dash * 2;
-      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
-      ctx.beginPath();
-      path();
-      ctx.stroke();
-      ctx.restore();
-    };
-
-    // selection tint + boundary ants
-    if (tintRef.current) {
-      ctx.save();
-      ctx.globalAlpha = 0.28;
-      ctx.drawImage(tintRef.current, 0, 0);
-      ctx.restore();
-      const bb = maskBBoxRef.current;
-      if (bb) drawAnts(() => ctx.rect(bb.x, bb.y, bb.w, bb.h));
-    }
-    // marquee / lasso drafts
-    if (selDraft) {
-      drawAnts(() => ctx.rect(
-        Math.min(selDraft.a.x, selDraft.b.x), Math.min(selDraft.a.y, selDraft.b.y),
-        Math.abs(selDraft.b.x - selDraft.a.x), Math.abs(selDraft.b.y - selDraft.a.y)
-      ));
-    }
-    if (lassoPts && lassoPts.length > 1) {
-      drawAnts(() => {
-        ctx.moveTo(lassoPts[0].x, lassoPts[0].y);
-        for (const p of lassoPts) ctx.lineTo(p.x, p.y);
-      });
-    }
-    // selected-object outline
-    if (sel != null) {
-      const o = layersRef.current.flatMap((l) => l.objects).find((x) => x.id === sel);
-      if (o) {
-        const bb = bboxOf(o, ctx);
-        drawAnts(() => ctx.rect(bb.x - 6, bb.y - 6, bb.w + 12, bb.h + 12));
-      }
-    }
-    // crop marquee
-    if (cropSel) {
-      const { a, b } = cropSel;
-      ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.fillRect(0, 0, c.width, c.height);
-      ctx.clearRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-      ctx.drawImage(base.bmp,
-        Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y),
-        Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-      for (const o of objectsRef.current) drawObj(ctx, o);
-      ctx.setLineDash([8, 6]);
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-      ctx.restore();
-    }
-  }, [sel, cropSel, zoom, bgColor, bgOn, selDraft, lassoPts, selVer]);
-
-  // belt & braces: every visual input is an explicit dep so no repaint is missed
-  useEffect(() => { render(); }, [layers, baseVer, bgColor, bgOn, selVer, selDraft, lassoPts, sel, cropSel, zoom, render]);
-
-  // ---- history (whole layer stack) ----
-  const snapLayers = (): Layer[] =>
-    layersRef.current.map((l) => ({ ...l, objects: cloneObjs(l.objects) }));
+    return { meta: layersRef.current.map((l) => ({ ...l })), pixels, baseBlob: baseRef.current.blob };
+  };
 
   const pushHist = () => {
-    if (!baseRef.current) return;
-    histRef.current.push({ layers: snapLayers(), baseBlob: baseRef.current.blob });
+    const s = snapshot();
+    if (!s) return;
+    histRef.current.push(s);
     if (histRef.current.length > HIST_CAP) histRef.current.shift();
     redoRef.current = [];
     setHistVer((v) => v + 1);
@@ -701,344 +479,160 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
       baseRef.current = { blob: e.baseBlob, bmp };
       setBaseVer((v) => v + 1);
     }
-    setLayers(e.layers);
-    setSel(null);
+    pixRef.current.clear();
+    for (const l of e.meta) {
+      const c = document.createElement('canvas');
+      c.width = W() || 1;
+      c.height = H() || 1;
+      const src = e.pixels[l.id];
+      if (src) {
+        try {
+          const b = await (await fetch(src)).blob();
+          const bmp = await createImageBitmap(b);
+          c.getContext('2d')!.drawImage(bmp, 0, 0);
+          bmp.close();
+        } catch { /* ignore */ }
+      }
+      pixRef.current.set(l.id, c);
+    }
+    setLayers(e.meta);
+    if (!e.meta.some((l) => l.id === activeId)) setActiveId(e.meta[e.meta.length - 1]?.id ?? '');
     setCropSel(null);
+    deselect();
+    setPixVer((v) => v + 1);
   };
 
   const undo = async () => {
     const e = histRef.current.pop();
-    if (!e || !baseRef.current) return;
-    redoRef.current.push({ layers: snapLayers(), baseBlob: baseRef.current.blob });
+    if (!e) return;
+    const cur = snapshot();
+    if (cur) redoRef.current.push(cur);
     await applyHist(e);
     setHistVer((v) => v + 1);
   };
 
   const redo = async () => {
     const e = redoRef.current.pop();
-    if (!e || !baseRef.current) return;
-    histRef.current.push({ layers: snapLayers(), baseBlob: baseRef.current.blob });
+    if (!e) return;
+    const cur = snapshot();
+    if (cur) histRef.current.push(cur);
     await applyHist(e);
     setHistVer((v) => v + 1);
   };
 
-  // ---- pointer ----
-  const toPt = (e: PointerEvent): Pt => {
-    const c = canvasRef.current!;
-    const rect = c.getBoundingClientRect();
-    return {
-      x: ((e.clientX - rect.left) / rect.width) * c.width,
-      y: ((e.clientY - rect.top) / rect.height) * c.height,
-    };
+  // ---- selection helpers ----
+  const buildTint = () => {
+    const m = maskRef.current;
+    if (!m) { tintRef.current = null; return; }
+    const c = document.createElement('canvas');
+    c.width = m.width;
+    c.height = m.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(m, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = '#c94f16';
+    g.fillRect(0, 0, c.width, c.height);
+    tintRef.current = c;
   };
 
-  /** Hit-test across all visible, unlocked layers (top layer first). */
-  const hitTest = (p: Pt): { obj: Obj; layerId: string } | null => {
-    const ctx = canvasRef.current!.getContext('2d')!;
-    const stack = layersRef.current;
-    for (let li = stack.length - 1; li >= 0; li--) {
-      const l = stack[li];
-      if (!l.visible || l.locked) continue;
-      for (let i = l.objects.length - 1; i >= 0; i--) {
-        const o = l.objects[i];
-        if (!o.visible) continue;
-        const bb = bboxOf(o, ctx);
-        const pad = Math.max(8, o.size);
-        if (p.x >= bb.x - pad && p.x <= bb.x + bb.w + pad && p.y >= bb.y - pad && p.y <= bb.y + bb.h + pad) {
-          return { obj: o, layerId: l.id };
-        }
+  const deselect = () => {
+    maskRef.current = null;
+    tintRef.current = null;
+    maskBBoxRef.current = null;
+    setSelVer((v) => v + 1);
+  };
+
+  // ---- painting ----
+  const strokeStyleFor = (ctx: CanvasRenderingContext2D) => {
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    if (brushType === 'marker') { ctx.globalAlpha = 0.7; ctx.lineWidth = size * 1.8; }
+    else if (brushType === 'highlight') { ctx.globalAlpha = 0.32; ctx.lineWidth = size * 3; ctx.lineCap = 'butt'; }
+  };
+
+  const drawShape = (ctx: CanvasRenderingContext2D, a: Pt, b: Pt, kind: Tool) => {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (kind === 'line' || kind === 'arrow') {
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      if (kind === 'arrow') {
+        const ang = Math.atan2(b.y - a.y, b.x - a.x);
+        const len = Math.max(12, size * 3.5);
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x - len * Math.cos(ang - 0.45), b.y - len * Math.sin(ang - 0.45));
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x - len * Math.cos(ang + 0.45), b.y - len * Math.sin(ang + 0.45));
+        ctx.stroke();
       }
+    } else if (kind === 'rect') {
+      ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    } else if (kind === 'ellipse') {
+      ctx.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2, Math.abs(b.y - a.y) / 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
-    return null;
+    ctx.restore();
   };
 
-  const startPan = (e: PointerEvent<HTMLCanvasElement>) => {
-    const vp = viewportRef.current;
-    if (!vp) return;
-    dragRef.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, sl: vp.scrollLeft, st: vp.scrollTop };
-    setPanning(true);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  const preview = (): CanvasRenderingContext2D | null => {
+    let p = previewRef.current;
+    if (!p) { p = document.createElement('canvas'); previewRef.current = p; }
+    if (p.width !== W() || p.height !== H()) { p.width = W(); p.height = H(); }
+    return p.getContext('2d');
   };
 
-  const onDown = (e: PointerEvent<HTMLCanvasElement>) => {
-    if (!ready) return;
-    // stop the canvas from stealing focus — this kept blurring the text input
-    e.preventDefault();
-    // pan tool, or middle mouse button with any tool
-    if (tool === 'pan' || e.button === 1) {
-      startPan(e);
-      return;
-    }
-    const p = toPt(e);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-
-    if (tool === 'wand') {
-      wandSelect(p);
-      return;
-    }
-    if (tool === 'fill') {
-      void bucketFill(p);
-      return;
-    }
-    if (tool === 'rectsel') {
-      dragRef.current = { mode: 'rectsel', a: p };
-      setSelDraft(null);
-      return;
-    }
-    if (tool === 'lasso') {
-      dragRef.current = { mode: 'lasso' };
-      setLassoPts([p]);
-      return;
-    }
-    if (tool === 'select') {
-      const hit = hitTest(p);
-      if (hit) {
-        setSel(hit.obj.id);
-        setActiveId(hit.layerId); // selecting also focuses the owning layer
-        pushHist();
-        dragRef.current = { mode: 'move', id: hit.obj.id, last: p };
-      } else {
-        setSel(null);
-      }
-      return;
-    }
-    if (activeLayer?.locked) return; // locked layer: no drawing
-    if (tool === 'crop') {
-      dragRef.current = { mode: 'crop', a: p };
-      setCropSel(null);
-      return;
-    }
-    if (tool === 'text') {
-      setTextEdit({ pos: p, value: '' });
-      return;
-    }
-    // draw a new object
-    pushHist();
-    const id = ++objId;
-    const base: Obj = { id, type: tool, color, size, visible: true };
-    const obj: Obj = tool === 'pen'
-      ? { ...base, points: [p], brush: brushType }
-      : { ...base, a: p, b: p };
-    setObjects((prev) => [...prev, obj]);
-    dragRef.current = { mode: 'draw', id };
+  const clearPreview = () => {
+    const p = previewRef.current;
+    if (p) p.getContext('2d')!.clearRect(0, 0, p.width, p.height);
   };
 
-  const onMove = (e: PointerEvent<HTMLCanvasElement>) => {
-    // live cursor readout (canvas pixel coords)
-    {
-      const c = canvasRef.current;
-      if (c) {
-        const p0 = toPt(e);
-        setCursor({
-          x: Math.min(c.width, Math.max(0, Math.round(p0.x))),
-          y: Math.min(c.height, Math.max(0, Math.round(p0.y))),
-        });
-      }
-    }
-    const d = dragRef.current;
-    if (!d) return;
-    if (d.mode === 'pan') {
-      const vp = viewportRef.current;
-      if (vp) {
-        vp.scrollLeft = d.sl - (e.clientX - d.sx);
-        vp.scrollTop = d.st - (e.clientY - d.sy);
-      }
-      return;
-    }
-    const p = toPt(e);
-    if (d.mode === 'rectsel') {
-      setSelDraft({ a: d.a, b: p });
-      return;
-    }
-    if (d.mode === 'lasso') {
-      setLassoPts((prev) => (prev ? [...prev, p] : [p]));
-      return;
-    }
-    if (d.mode === 'crop') {
-      setCropSel({ a: d.a, b: p });
-      return;
-    }
-    if (d.mode === 'move') {
-      const dx = p.x - d.last.x;
-      const dy = p.y - d.last.y;
-      d.last = p;
-      setObjects((prev) => prev.map((o) => {
-        if (o.id !== d.id) return o;
-        const copy = cloneObjs([o])[0];
-        translateObj(copy, dx, dy);
-        return copy;
-      }));
-      return;
-    }
-    // draw
-    setObjects((prev) => prev.map((o) => {
-      if (o.id !== d.id) return o;
-      if (o.type === 'pen') return { ...o, points: [...(o.points ?? []), p] };
-      return { ...o, b: p };
-    }));
-  };
-
-  const onUp = (e: PointerEvent<HTMLCanvasElement>) => {
-    const d = dragRef.current;
-    dragRef.current = null;
-    if (d?.mode === 'pan') {
-      setPanning(false);
-      return;
-    }
-    if (d?.mode === 'rectsel') {
-      const p = toPt(e);
-      if (Math.abs(p.x - d.a.x) > 3 && Math.abs(p.y - d.a.y) > 3) commitRectSel(d.a, p);
-      else deselect(); // plain click clears the previous selection
-      setSelDraft(null);
-      return;
-    }
-    if (d?.mode === 'lasso') {
-      if (lassoPts) commitLasso(lassoPts);
-      else deselect();
-      setLassoPts(null);
-    }
-  };
-
-  const onDblClick = (e: PointerEvent<HTMLCanvasElement>) => {
-    if (tool !== 'select') return;
-    const hit = hitTest(toPt(e));
-    if (hit?.obj.type === 'text' && hit.obj.pos) {
-      setSel(hit.obj.id);
-      setActiveId(hit.layerId);
-      setTextEdit({ id: hit.obj.id, pos: hit.obj.pos, value: hit.obj.text ?? '' });
-    }
-  };
-
-  /** Composite base + objects into a fresh canvas (used by save & copy). */
+  // ---- composite (for export / sampling) ----
   const composite = (): HTMLCanvasElement | null => {
     const base = baseRef.current;
     if (!base) return null;
     const out = document.createElement('canvas');
     out.width = base.bmp.width;
     out.height = base.bmp.height;
-    const ctx = out.getContext('2d')!;
+    const ctx = out.getContext('2d', { willReadFrequently: true })!;
     if (bgOn) {
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, out.width, out.height);
     }
     ctx.drawImage(base.bmp, 0, 0);
-    paintLayers(ctx, out.width, out.height);
+    paintLayers(ctx, out.width, out.height, false);
     return out;
   };
 
-  const copyCanvas = async () => {
-    const out = composite();
-    if (!out) return;
-    const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
-    if (!blob) return;
-    try {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch { /* clipboard write not permitted */ }
-  };
-
-  // keyboard: Delete removes selection, Ctrl+C copies the composited image
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (textEdit) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        void copyCanvas();
-        return;
-      }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        // a live selection area wins over an object selection
-        if (maskRef.current) {
-          e.preventDefault();
-          void applyToSelection('clear');
-          return;
-        }
-        if (sel != null) {
-          e.preventDefault();
-          pushHist();
-          setObjects((prev) => prev.filter((o) => o.id !== sel));
-          setSel(null);
-          return;
-        }
-      }
-      if (e.key === 'Escape') { setCropSel(null); setSel(null); deselect(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel, textEdit, selVer, color]);
-
-  // Ctrl+V: pasted image → image layer; pasted text → text object
-  useEffect(() => {
-    const onPaste = (e: ClipboardEvent) => {
-      if (textEdit) return;
-      for (const it of Array.from(e.clipboardData?.items ?? [])) {
-        if (it.kind === 'file' && it.type.startsWith('image/')) {
-          const f = it.getAsFile();
-          if (f) {
-            e.preventDefault();
-            void importImageBlob(f);
-            return;
-          }
-        }
-      }
-      const txt = e.clipboardData?.getData('text');
-      if (!txt?.trim()) return;
-      e.preventDefault();
-      pushHist();
-      const c = canvasRef.current;
-      setObjects((prev) => [...prev, {
-        id: ++objId, type: 'text', color, size: fontSize, visible: true,
-        text: txt.trim(), pos: { x: (c?.width ?? 200) / 2, y: (c?.height ?? 200) / 2 },
-        font: fontFam, weight: bold ? 800 : 600, outline: outlineOn,
-      }]);
-      setTool('select');
-    };
-    window.addEventListener('paste', onPaste);
-    return () => window.removeEventListener('paste', onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [textEdit, color, fontSize, fontFam, bold, outlineOn]);
-
-  const commitText = () => {
-    if (!textEdit) return;
-    const v = textEdit.value.trim();
-    pushHist();
-    if (textEdit.id != null) {
-      setObjects((prev) => v
-        ? prev.map((o) => (o.id === textEdit.id ? { ...o, text: v } : o))
-        : prev.filter((o) => o.id !== textEdit.id));
-    } else if (v) {
-      setObjects((prev) => [...prev, {
-        id: ++objId, type: 'text', color, size: fontSize, visible: true, text: v, pos: textEdit.pos,
-        font: fontFam, weight: bold ? 800 : 600, outline: outlineOn,
-      }]);
-    }
-    setTextEdit(null);
-  };
-
-  /**
-   * Flood from p over what the user actually sees (base + layers), so fills and
-   * the wand respect strokes drawn on top. Calls apply(i4) for each hit pixel.
-   */
-  const floodRegion = (p: Pt, apply: (data: Uint8ClampedArray, i4: number) => void): ImageData | null => {
+  /** Flood from p over the composited view; apply(i4) marks matched pixels. */
+  const floodRegion = (p: Pt, apply: (i4: number) => void): boolean => {
     const c = composite();
-    if (!c) return null;
-    const W = c.width;
-    const H = c.height;
-    const ctx = c.getContext('2d', { willReadFrequently: true })!;
-    const img = ctx.getImageData(0, 0, W, H);
-    const d = img.data;
-    const sx = Math.min(W - 1, Math.max(0, Math.round(p.x)));
-    const sy = Math.min(H - 1, Math.max(0, Math.round(p.y)));
-    const si = (sy * W + sx) * 4;
+    if (!c) return false;
+    const w = c.width;
+    const h = c.height;
+    const d = c.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, w, h).data;
+    const sx = Math.min(w - 1, Math.max(0, Math.round(p.x)));
+    const sy = Math.min(h - 1, Math.max(0, Math.round(p.y)));
+    const si = (sy * w + sx) * 4;
     const r0 = d[si];
     const g0 = d[si + 1];
     const b0 = d[si + 2];
     const tol = wandTol * 4.4;
-    const visited = new Uint8Array(W * H);
-    const stack = [sy * W + sx];
-    visited[sy * W + sx] = 1;
+    const visited = new Uint8Array(w * h);
+    const stack = [sy * w + sx];
+    visited[sy * w + sx] = 1;
+    let any = false;
     while (stack.length) {
       const idx = stack.pop()!;
       const i4 = idx * 4;
@@ -1046,112 +640,70 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
       const dg = d[i4 + 1] - g0;
       const db = d[i4 + 2] - b0;
       if (Math.sqrt(dr * dr + dg * dg + db * db) > tol) continue;
-      apply(d, i4);
-      const x = idx % W;
-      const y = (idx / W) | 0;
+      apply(i4);
+      any = true;
+      const x = idx % w;
+      const y = (idx / w) | 0;
       if (x > 0 && !visited[idx - 1]) { visited[idx - 1] = 1; stack.push(idx - 1); }
-      if (x < W - 1 && !visited[idx + 1]) { visited[idx + 1] = 1; stack.push(idx + 1); }
-      if (y > 0 && !visited[idx - W]) { visited[idx - W] = 1; stack.push(idx - W); }
-      if (y < H - 1 && !visited[idx + W]) { visited[idx + W] = 1; stack.push(idx + W); }
+      if (x < w - 1 && !visited[idx + 1]) { visited[idx + 1] = 1; stack.push(idx + 1); }
+      if (y > 0 && !visited[idx - w]) { visited[idx - w] = 1; stack.push(idx - w); }
+      if (y < h - 1 && !visited[idx + w]) { visited[idx + w] = 1; stack.push(idx + w); }
     }
-    return img;
+    return any;
   };
 
-  const swapBase = async (c: HTMLCanvasElement) => {
-    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
-    if (!blob || !baseRef.current) return;
-    const bmp = await createImageBitmap(blob);
-    baseRef.current.bmp.close();
-    baseRef.current = { blob, bmp };
-    setBaseVer((v) => v + 1);
-  };
-
-  /** Turn a pixel patch into an editable image object on the active layer. */
-  const addPatchObject = async (patch: HTMLCanvasElement, x: number, y: number) => {
-    const src = patch.toDataURL('image/png');
-    const bmp = await createImageBitmap(patch);
-    const id = ++objId;
-    imgBmpCache.set(id, bmp);
+  /** Paint bucket — fills the clicked region INTO the active layer. */
+  const bucketFill = (p: Pt) => {
+    const ctx = activeCtx();
+    if (!ctx || !activeLayer) return;
     pushHist();
-    setObjects((prev) => [...prev, {
-      id, type: 'image', color, size: 1, visible: true, src,
-      a: { x, y }, b: { x: x + patch.width, y: y + patch.height },
-    }]);
-    setSel(id);
-  };
-
-  /**
-   * Paint-bucket — a normal, undoable ACTION: the filled region becomes an
-   * object on the active layer (never baked into the base bitmap).
-   */
-  const bucketFill = async (p: Pt) => {
-    const base = baseRef.current;
-    if (!base) return;
-    const W = base.bmp.width;
-    const H = base.bmp.height;
+    const w = W();
+    const h = H();
     const n = parseInt(color.slice(1), 16);
     const fr = (n >> 16) & 255;
     const fg = (n >> 8) & 255;
     const fb = n & 255;
-    const full = document.createElement('canvas');
-    full.width = W;
-    full.height = H;
-    const fctx = full.getContext('2d')!;
-    const patch = fctx.createImageData(W, H);
-    let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
-    const hit = floodRegion(p, (_d, i4) => {
+    const patch = ctx.createImageData(w, h);
+    const ok = floodRegion(p, (i4) => {
       patch.data[i4] = fr;
       patch.data[i4 + 1] = fg;
       patch.data[i4 + 2] = fb;
       patch.data[i4 + 3] = 255;
-      const idx = i4 / 4;
-      const x = idx % W;
-      const y = (idx / W) | 0;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
     });
-    if (!hit || maxX < 0) return;
-    fctx.putImageData(patch, 0, 0);
-    // crop to the filled bounds so the stored object stays small
-    const bw = maxX - minX + 1;
-    const bh = maxY - minY + 1;
-    const cropped = document.createElement('canvas');
-    cropped.width = bw;
-    cropped.height = bh;
-    cropped.getContext('2d')!.drawImage(full, minX, minY, bw, bh, 0, 0, bw, bh);
-    await addPatchObject(cropped, minX, minY);
+    if (!ok) return;
+    const tmp = document.createElement('canvas');
+    tmp.width = w;
+    tmp.height = h;
+    tmp.getContext('2d')!.putImageData(patch, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(tmp, 0, 0);
+    ctx.restore();
+    commitPixels(activeLayer.id);
   };
 
-  const ensureMask = (): HTMLCanvasElement => {
-    const base = baseRef.current!;
-    const m = document.createElement('canvas');
-    m.width = base.bmp.width;
-    m.height = base.bmp.height;
-    return m;
-  };
-
-  /** Magic wand: flood → selection mask (tracks the bounding box for the ants). */
   const wandSelect = (p: Pt) => {
-    const base = baseRef.current;
-    if (!base) return;
-    const m = ensureMask();
+    const w = W();
+    const h = H();
+    if (!w) return;
+    const m = document.createElement('canvas');
+    m.width = w;
+    m.height = h;
     const mctx = m.getContext('2d')!;
-    const mimg = mctx.createImageData(m.width, m.height);
-    const W = m.width;
+    const mimg = mctx.createImageData(w, h);
     let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
-    const img = floodRegion(p, (_d, i4) => {
+    const ok = floodRegion(p, (i4) => {
       mimg.data[i4] = 255; mimg.data[i4 + 1] = 255; mimg.data[i4 + 2] = 255; mimg.data[i4 + 3] = 255;
       const idx = i4 / 4;
-      const x = idx % W;
-      const y = (idx / W) | 0;
+      const x = idx % w;
+      const y = (idx / w) | 0;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
     });
-    if (!img || maxX < 0) return;
+    if (!ok || maxX < 0) return;
     mctx.putImageData(mimg, 0, 0);
     maskRef.current = m;
     maskBBoxRef.current = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
@@ -1160,7 +712,9 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
   };
 
   const commitRectSel = (a: Pt, b: Pt) => {
-    const m = ensureMask();
+    const m = document.createElement('canvas');
+    m.width = W();
+    m.height = H();
     const g = m.getContext('2d')!;
     const x = Math.min(a.x, b.x);
     const y = Math.min(a.y, b.y);
@@ -1176,7 +730,9 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
 
   const commitLasso = (pts: Pt[]) => {
     if (pts.length < 3) { deselect(); return; }
-    const m = ensureMask();
+    const m = document.createElement('canvas');
+    m.width = W();
+    m.height = H();
     const g = m.getContext('2d')!;
     g.fillStyle = '#fff';
     g.beginPath();
@@ -1194,32 +750,17 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     setSelVer((v) => v + 1);
   };
 
-  // marching-ants animation loop — only runs while something is selected
-  useEffect(() => {
-    const active = !!maskRef.current || !!selDraft || !!(lassoPts && lassoPts.length > 1) || sel != null;
-    if (!active) return;
-    let raf = 0;
-    const loop = () => {
-      antsRef.current = (performance.now() / 400) % 1;
-      render();
-      raf = window.requestAnimationFrame(loop);
-    };
-    raf = window.requestAnimationFrame(loop);
-    return () => window.cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selVer, selDraft, lassoPts, sel, render]);
-
-  /**
-   * Selection fill → an object on the active layer (non-destructive).
-   * Selection clear → erases pixels, which can only happen on the base.
-   */
-  const applyToSelection = async (mode: 'fill' | 'clear') => {
-    const base = baseRef.current;
+  /** Fill or erase the selection — both happen inside the active layer. */
+  const applyToSelection = (mode: 'fill' | 'clear') => {
+    const ctx = activeCtx();
     const m = maskRef.current;
-    if (!base || !m) return;
-
-    if (mode === 'fill') {
-      const bb = maskBBoxRef.current ?? { x: 0, y: 0, w: m.width, h: m.height };
+    if (!ctx || !m || !activeLayer) return;
+    pushHist();
+    ctx.save();
+    if (mode === 'clear') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.drawImage(m, 0, 0);
+    } else {
       const tinted = document.createElement('canvas');
       tinted.width = m.width;
       tinted.height = m.height;
@@ -1228,175 +769,139 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
       tg.globalCompositeOperation = 'source-in';
       tg.fillStyle = color;
       tg.fillRect(0, 0, tinted.width, tinted.height);
-      const bw = Math.max(1, Math.round(bb.w));
-      const bh = Math.max(1, Math.round(bb.h));
-      const cropped = document.createElement('canvas');
-      cropped.width = bw;
-      cropped.height = bh;
-      cropped.getContext('2d')!.drawImage(tinted, bb.x, bb.y, bw, bh, 0, 0, bw, bh);
-      await addPatchObject(cropped, bb.x, bb.y);
-      deselect();
-      return;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(tinted, 0, 0);
     }
-
-    pushHist();
-    const c = document.createElement('canvas');
-    c.width = base.bmp.width;
-    c.height = base.bmp.height;
-    const ctx = c.getContext('2d')!;
-    ctx.drawImage(base.bmp, 0, 0);
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.drawImage(m, 0, 0);
-    await swapBase(c);
+    ctx.restore();
+    commitPixels(activeLayer.id);
     deselect();
   };
 
-  /** Resample the whole canvas (base + object coordinates). */
-  const applyResize = async (nw: number, nh: number) => {
-    const base = baseRef.current;
-    if (!base) return;
-    const w = Math.min(4096, Math.max(8, Math.round(nw)));
-    const h = Math.min(4096, Math.max(8, Math.round(nh)));
-    pushHist();
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext('2d')!;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(base.bmp, 0, 0, w, h);
-    const sx = w / base.bmp.width;
-    const sy = h / base.bmp.height;
-    mapAllObjects((o) => ({
-      ...mapObj(o, (p) => ({ x: p.x * sx, y: p.y * sy })),
-      size: Math.max(1, o.size * (sx + sy) / 2),
+  // ---- geometry (base + every layer) ----
+  const swapBase = async (c: HTMLCanvasElement) => {
+    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+    if (!blob || !baseRef.current) return;
+    const bmp = await createImageBitmap(blob);
+    baseRef.current.bmp.close();
+    baseRef.current = { blob, bmp };
+    setBaseVer((v) => v + 1);
+  };
+
+  /** Apply a canvas transform to every layer's pixels. */
+  const transformLayers = (nw: number, nh: number, draw: (ctx: CanvasRenderingContext2D, src: HTMLCanvasElement) => void) => {
+    for (const l of layersRef.current) {
+      const src = pixRef.current.get(l.id);
+      if (!src) continue;
+      const n = document.createElement('canvas');
+      n.width = nw;
+      n.height = nh;
+      const g = n.getContext('2d')!;
+      g.imageSmoothingQuality = 'high';
+      draw(g, src);
+      pixRef.current.set(l.id, n);
+    }
+    setLayers((prev) => prev.map((l) => {
+      const c = pixRef.current.get(l.id);
+      return c ? { ...l, src: c.toDataURL('image/png') } : l;
     }));
-    await swapBase(c);
-    deselect();
-    setResizeOpen(false);
+    setPixVer((v) => v + 1);
   };
 
-  // ---- geometry (bakes into base, transforms objects) ----
   const applyCrop = async () => {
     if (!cropSel || !baseRef.current) return;
     pushHist();
     const { a, b } = cropSel;
     const x = Math.round(Math.min(a.x, b.x));
     const y = Math.round(Math.min(a.y, b.y));
-    const w = Math.max(1, Math.round(Math.abs(b.x - a.x)));
-    const h = Math.max(1, Math.round(Math.abs(b.y - a.y)));
+    const w2 = Math.max(1, Math.round(Math.abs(b.x - a.x)));
+    const h2 = Math.max(1, Math.round(Math.abs(b.y - a.y)));
     const tmp = document.createElement('canvas');
-    tmp.width = w;
-    tmp.height = h;
-    tmp.getContext('2d')!.drawImage(baseRef.current.bmp, x, y, w, h, 0, 0, w, h);
-    const blob = await new Promise<Blob | null>((r) => tmp.toBlob(r, 'image/png'));
-    if (!blob) return;
-    const bmp = await createImageBitmap(blob);
-    baseRef.current.bmp.close();
-    baseRef.current = { blob, bmp };
-    mapAllObjects((o) => mapObj(o, (p) => ({ x: p.x - x, y: p.y - y })));
+    tmp.width = w2;
+    tmp.height = h2;
+    tmp.getContext('2d')!.drawImage(baseRef.current.bmp, x, y, w2, h2, 0, 0, w2, h2);
+    transformLayers(w2, h2, (g, src) => g.drawImage(src, x, y, w2, h2, 0, 0, w2, h2));
+    await swapBase(tmp);
     setCropSel(null);
-    setBaseVer((v) => v + 1);
   };
 
   const transform = async (kind: 'rot' | 'flip') => {
     if (!baseRef.current) return;
     pushHist();
     const src = baseRef.current.bmp;
-    const W = src.width;
-    const H = src.height;
+    const w0 = src.width;
+    const h0 = src.height;
+    const nw = kind === 'rot' ? h0 : w0;
+    const nh = kind === 'rot' ? w0 : h0;
     const tmp = document.createElement('canvas');
+    tmp.width = nw;
+    tmp.height = nh;
     const ctx = tmp.getContext('2d')!;
-    if (kind === 'rot') {
-      tmp.width = H;
-      tmp.height = W;
-      ctx.translate(H, 0);
-      ctx.rotate(Math.PI / 2);
-    } else {
-      tmp.width = W;
-      tmp.height = H;
-      ctx.translate(W, 0);
-      ctx.scale(-1, 1);
-    }
+    const setup = (g: CanvasRenderingContext2D) => {
+      if (kind === 'rot') { g.translate(h0, 0); g.rotate(Math.PI / 2); }
+      else { g.translate(w0, 0); g.scale(-1, 1); }
+    };
+    setup(ctx);
     ctx.drawImage(src, 0, 0);
-    const blob = await new Promise<Blob | null>((r) => tmp.toBlob(r, 'image/png'));
-    if (!blob) return;
-    const bmp = await createImageBitmap(blob);
-    baseRef.current.bmp.close();
-    baseRef.current = { blob, bmp };
-    mapAllObjects((o) => mapObj(o, kind === 'rot'
-      ? (p) => ({ x: H - p.y, y: p.x })
-      : (p) => ({ x: W - p.x, y: p.y })));
+    transformLayers(nw, nh, (g, s) => { setup(g); g.drawImage(s, 0, 0); });
+    await swapBase(tmp);
     setCropSel(null);
-    setBaseVer((v) => v + 1);
   };
 
-  /** Reveal the selected object's row when it is picked on canvas. */
-  useEffect(() => {
-    if (sel == null) return;
-    const owner = layersRef.current.find((l) => l.objects.some((o) => o.id === sel));
-    if (owner) setExpanded((prev) => (prev.has(owner.id) ? prev : new Set(prev).add(owner.id)));
-  }, [sel]);
-
-  // ---- object ops (inside the active layer) ----
-  const objMove = (id: number, dir: 1 | -1) => {
+  const applyResize = async (nwIn: number, nhIn: number) => {
+    const base = baseRef.current;
+    if (!base) return;
+    const nw = Math.min(4096, Math.max(8, Math.round(nwIn)));
+    const nh = Math.min(4096, Math.max(8, Math.round(nhIn)));
     pushHist();
-    setObjects((prev) => {
-      const i = prev.findIndex((o) => o.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
-  };
-
-  const objToggle = (id: number) => {
-    pushHist();
-    setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, visible: !o.visible } : o)));
-  };
-
-  const objDelete = (id: number) => {
-    pushHist();
-    setObjects((prev) => prev.filter((o) => o.id !== id));
-    if (sel === id) setSel(null);
+    const c = document.createElement('canvas');
+    c.width = nw;
+    c.height = nh;
+    const ctx = c.getContext('2d')!;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(base.bmp, 0, 0, nw, nh);
+    transformLayers(nw, nh, (g, s) => g.drawImage(s, 0, 0, nw, nh));
+    await swapBase(c);
+    deselect();
+    setResizeOpen(false);
   };
 
   // ---- layer ops ----
   const addLayer = () => {
     pushHist();
     const l = newLayer(`Layer ${layers.length + 1}`);
+    const c = document.createElement('canvas');
+    c.width = W() || 1;
+    c.height = H() || 1;
+    pixRef.current.set(l.id, c);
     setLayers((prev) => [...prev, l]);
     setActiveId(l.id);
-    setSel(null);
   };
 
   const duplicateLayer = (id: string) => {
     pushHist();
+    const src = pixRef.current.get(id);
+    const meta = layersRef.current.find((l) => l.id === id);
+    if (!src || !meta) return;
+    const copy: Layer = { ...meta, id: newLayerId(), name: `${meta.name} copy` };
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    c.getContext('2d')!.drawImage(src, 0, 0);
+    pixRef.current.set(copy.id, c);
     setLayers((prev) => {
       const i = prev.findIndex((l) => l.id === id);
-      if (i < 0) return prev;
-      const src = prev[i];
-      const copy: Layer = {
-        ...src, id: newLayer('').id, name: `${src.name} copy`,
-        objects: cloneObjs(src.objects).map((o) => {
-          const nid = ++objId;
-          const bmp = imgBmpCache.get(o.id);
-          if (bmp) imgBmpCache.set(nid, bmp);
-          return { ...o, id: nid };
-        }),
-      };
       const next = [...prev];
       next.splice(i + 1, 0, copy);
-      window.setTimeout(() => setActiveId(copy.id), 0);
       return next;
     });
+    setActiveId(copy.id);
   };
 
   const deleteLayer = (id: string) => {
     if (layers.length <= 1) return;
     pushHist();
+    pixRef.current.delete(id);
     setLayers((prev) => prev.filter((l) => l.id !== id));
-    setSel(null);
   };
 
   const moveLayer = (id: string, dir: 1 | -1) => {
@@ -1411,23 +916,46 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     });
   };
 
-  /** Merge a layer into the one below (objects concatenated, effects baked off). */
+  /** Flatten a layer onto the one below it. */
   const mergeDown = (id: string) => {
-    setLayers((prev) => {
-      const i = prev.findIndex((l) => l.id === id);
-      if (i <= 0) return prev;
-      pushHist();
-      const upper = prev[i];
-      const lower = prev[i - 1];
-      const merged: Layer = { ...lower, objects: [...lower.objects, ...upper.objects] };
-      const next = [...prev];
-      next.splice(i - 1, 2, merged);
-      window.setTimeout(() => setActiveId(merged.id), 0);
-      return next;
-    });
+    const stack = layersRef.current;
+    const i = stack.findIndex((l) => l.id === id);
+    if (i <= 0) return;
+    pushHist();
+    const upper = stack[i];
+    const lower = stack[i - 1];
+    const uc = pixRef.current.get(upper.id);
+    const lc = pixRef.current.get(lower.id);
+    if (!uc || !lc) return;
+    const g = lc.getContext('2d')!;
+    g.save();
+    g.globalAlpha = upper.opacity;
+    if (upper.blend !== 'normal') g.globalCompositeOperation = upper.blend as GlobalCompositeOperation;
+    // bake the upper layer's mask before merging
+    if (upper.mask && upper.maskEnabled) {
+      const mb = maskBmpCache.get(upper.mask);
+      if (mb) {
+        const masked = document.createElement('canvas');
+        masked.width = uc.width;
+        masked.height = uc.height;
+        const mg = masked.getContext('2d')!;
+        mg.drawImage(uc, 0, 0);
+        mg.globalCompositeOperation = 'destination-in';
+        mg.drawImage(mb, 0, 0, masked.width, masked.height);
+        g.drawImage(masked, 0, 0);
+      } else g.drawImage(uc, 0, 0);
+    } else {
+      g.drawImage(uc, 0, 0);
+    }
+    g.restore();
+    pixRef.current.delete(upper.id);
+    setLayers((prev) => prev
+      .filter((l) => l.id !== upper.id)
+      .map((l) => (l.id === lower.id ? { ...l, src: lc.toDataURL('image/png') } : l)));
+    setActiveId(lower.id);
+    setPixVer((v) => v + 1);
   };
 
-  /** Turn the live selection into the active layer's mask. */
   const maskFromSelection = () => {
     const m = maskRef.current;
     if (!m || !activeLayer) return;
@@ -1439,12 +967,11 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
   const invertMask = () => {
     if (!activeLayer?.mask) return;
     const bmp = maskBmpCache.get(activeLayer.mask);
-    const base = baseRef.current;
-    if (!bmp || !base) return;
+    if (!bmp) return;
     pushHist();
     const c = document.createElement('canvas');
-    c.width = base.bmp.width;
-    c.height = base.bmp.height;
+    c.width = W();
+    c.height = H();
     const g = c.getContext('2d')!;
     g.fillStyle = '#fff';
     g.fillRect(0, 0, c.width, c.height);
@@ -1459,10 +986,261 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     patchLayer(activeLayer.id, { mask: null });
   };
 
-  const updateSel = (patch: Partial<Obj>) => {
-    if (sel == null) return;
-    setObjects((prev) => prev.map((o) => (o.id === sel ? { ...o, ...patch } : o)));
+  // ---- imports ----
+  const importImageBlob = async (blob: Blob) => {
+    if (!ready || !baseRef.current) return;
+    const bmp = await createImageBitmap(blob);
+    pushHist();
+    const l = newLayer(`Image ${layers.length + 1}`);
+    const c = document.createElement('canvas');
+    c.width = W();
+    c.height = H();
+    const g = c.getContext('2d')!;
+    const s = Math.min(1, (W() * 0.8) / bmp.width, (H() * 0.8) / bmp.height);
+    const dw = bmp.width * s;
+    const dh = bmp.height * s;
+    g.drawImage(bmp, (W() - dw) / 2, (H() - dh) / 2, dw, dh);
+    bmp.close();
+    pixRef.current.set(l.id, c);
+    setLayers((prev) => [...prev, { ...l, src: c.toDataURL('image/png') }]);
+    setActiveId(l.id);
+    setPixVer((v) => v + 1);
   };
+
+  useEffect(() => {
+    if (!importBlob || !ready) return;
+    void importImageBlob(importBlob).finally(() => onImportDone?.());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importBlob, ready]);
+
+  // ---- pointer ----
+  const toPt = (e: PointerEvent): Pt => {
+    const c = canvasRef.current!;
+    const rect = c.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * c.width,
+      y: ((e.clientY - rect.top) / rect.height) * c.height,
+    };
+  };
+
+  const startPan = (e: PointerEvent<HTMLCanvasElement>) => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    dragRef.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, sl: vp.scrollLeft, st: vp.scrollTop };
+    setPanning(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onDown = (e: PointerEvent<HTMLCanvasElement>) => {
+    if (!ready) return;
+    e.preventDefault();
+    if (tool === 'pan' || e.button === 1) { startPan(e); return; }
+    const p = toPt(e);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+
+    if (tool === 'wand') { wandSelect(p); return; }
+    if (tool === 'rectsel') { dragRef.current = { mode: 'rectsel', a: p }; setSelDraft(null); return; }
+    if (tool === 'lasso') { dragRef.current = { mode: 'lasso' }; setLassoPts([p]); return; }
+    if (tool === 'crop') { dragRef.current = { mode: 'crop', a: p }; setCropSel(null); return; }
+    if (tool === 'fill') { bucketFill(p); return; }
+    if (tool === 'move') {
+      if (!activeLayer?.locked) { pushHist(); dragRef.current = { mode: 'movepx', last: p }; }
+      return;
+    }
+    if (tool === 'text') { setTextEdit({ pos: p, value: '' }); return; }
+
+    const ctx = activeCtx();
+    if (!ctx) return; // locked layer
+    pushHist();
+    if (tool === 'pen') {
+      ctx.save();
+      strokeStyleFor(ctx);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      dragRef.current = { mode: 'paint', last: p };
+    } else {
+      dragRef.current = { mode: 'shape', a: p };
+    }
+  };
+
+  const onMove = (e: PointerEvent<HTMLCanvasElement>) => {
+    const c = canvasRef.current;
+    if (c) {
+      const p0 = toPt(e);
+      setCursor({
+        x: Math.min(c.width, Math.max(0, Math.round(p0.x))),
+        y: Math.min(c.height, Math.max(0, Math.round(p0.y))),
+      });
+    }
+    const d = dragRef.current;
+    if (!d) return;
+    if (d.mode === 'pan') {
+      const vp = viewportRef.current;
+      if (vp) {
+        vp.scrollLeft = d.sl - (e.clientX - d.sx);
+        vp.scrollTop = d.st - (e.clientY - d.sy);
+      }
+      return;
+    }
+    const p = toPt(e);
+    if (d.mode === 'rectsel') { setSelDraft({ a: d.a, b: p }); return; }
+    if (d.mode === 'lasso') { setLassoPts((prev) => (prev ? [...prev, p] : [p])); return; }
+    if (d.mode === 'crop') { setCropSel({ a: d.a, b: p }); return; }
+    if (d.mode === 'paint') {
+      const ctx = activeCtx();
+      if (!ctx) return;
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      d.last = p;
+      setPixVer((v) => v + 1);
+      return;
+    }
+    if (d.mode === 'shape') {
+      const pctx = preview();
+      if (!pctx) return;
+      pctx.clearRect(0, 0, W(), H());
+      drawShape(pctx, d.a, p, tool);
+      setPixVer((v) => v + 1);
+      return;
+    }
+    if (d.mode === 'movepx') {
+      const src = activeLayer && pixRef.current.get(activeLayer.id);
+      if (!src) return;
+      const dx = p.x - d.last.x;
+      const dy = p.y - d.last.y;
+      d.last = p;
+      const tmp = document.createElement('canvas');
+      tmp.width = src.width;
+      tmp.height = src.height;
+      tmp.getContext('2d')!.drawImage(src, dx, dy);
+      const g = src.getContext('2d')!;
+      g.clearRect(0, 0, src.width, src.height);
+      g.drawImage(tmp, 0, 0);
+      setPixVer((v) => v + 1);
+    }
+  };
+
+  const onUp = (e: PointerEvent<HTMLCanvasElement>) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    if (d.mode === 'pan') { setPanning(false); return; }
+    if (d.mode === 'rectsel') {
+      const p = toPt(e);
+      if (Math.abs(p.x - d.a.x) > 3 && Math.abs(p.y - d.a.y) > 3) commitRectSel(d.a, p);
+      else deselect();
+      setSelDraft(null);
+      return;
+    }
+    if (d.mode === 'lasso') {
+      if (lassoPts) commitLasso(lassoPts);
+      setLassoPts(null);
+      return;
+    }
+    if (d.mode === 'crop') return;
+    if (!activeLayer) return;
+    if (d.mode === 'paint') {
+      activeCtx()?.restore();
+      commitPixels(activeLayer.id);
+      return;
+    }
+    if (d.mode === 'shape') {
+      const ctx = activeCtx();
+      if (ctx) drawShape(ctx, d.a, toPt(e), tool);
+      clearPreview();
+      commitPixels(activeLayer.id);
+      return;
+    }
+    if (d.mode === 'movepx') commitPixels(activeLayer.id);
+  };
+
+  const commitText = () => {
+    if (!textEdit) { return; }
+    const v = textEdit.value.trim();
+    const ctx = activeCtx();
+    if (v && ctx && activeLayer) {
+      pushHist();
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.font = `${bold ? 800 : 600} ${fontSize}px ${FONT_MAP[fontFam]}`;
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = color;
+      if (outlineOn) {
+        ctx.lineWidth = Math.max(2, fontSize / 10);
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = lumOf(color) > 0.55 ? '#000000' : '#ffffff';
+        ctx.strokeText(v, textEdit.pos.x, textEdit.pos.y);
+      }
+      ctx.fillText(v, textEdit.pos.x, textEdit.pos.y);
+      ctx.restore();
+      commitPixels(activeLayer.id);
+    }
+    setTextEdit(null);
+  };
+
+  // ---- clipboard & keys ----
+  const copyCanvas = async () => {
+    const out = composite();
+    if (!out) return;
+    const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
+    if (!blob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard blocked */ }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (textEdit) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        void copyCanvas();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        void (e.shiftKey ? redo() : undo());
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (maskRef.current) {
+          e.preventDefault();
+          applyToSelection('clear');
+        }
+        return;
+      }
+      if (e.key === 'Escape') { setCropSel(null); deselect(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textEdit, selVer, color, activeId]);
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (textEdit) return;
+      for (const it of Array.from(e.clipboardData?.items ?? [])) {
+        if (it.kind === 'file' && it.type.startsWith('image/')) {
+          const f = it.getAsFile();
+          if (f) { e.preventDefault(); void importImageBlob(f); return; }
+        }
+      }
+      const txt = e.clipboardData?.getData('text');
+      if (txt?.trim()) {
+        e.preventDefault();
+        setTextEdit({ pos: { x: W() / 2, y: H() / 2 }, value: txt.trim() });
+        setTool('text');
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textEdit, ready, activeId]);
 
   // ---- save ----
   const save = () => {
@@ -1472,9 +1250,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
       if (!b) return;
       const baseName = item.file.name.replace(/\.[^.]+$/, '');
       const file = new File([b], `${baseName}_edited.png`, { type: 'image/png' });
-      if (onSave) {
-        onSave(item.id, file);
-      } else {
+      if (onSave) onSave(item.id, file);
+      else {
         const url = URL.createObjectURL(file);
         const a = document.createElement('a');
         a.href = url;
@@ -1492,14 +1269,13 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
   };
 
   void histVer;
-  void selVer;
-  const w = baseRef.current?.bmp.width ?? 0;
+  const w = W();
+  const h = H();
+  const ratio = w && h ? w / h : 1;
+  const isTextish = tool === 'text';
 
   const body = (
-    <div
-      className={inline ? 'ie-inline-wrap' : 'editor-overlay'}
-      onClick={inline ? undefined : onClose}
-    >
+    <div className={inline ? 'ie-inline-wrap' : 'editor-overlay'} onClick={inline ? undefined : onClose}>
       <div
         className={`editor editor-wide${inline ? ' ie-inline' : ''}`}
         role={inline ? undefined : 'dialog'}
@@ -1523,8 +1299,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
               onClick={() => {
                 setTool(tl);
                 setCropSel(null);
-                // switching to a drawing tool dismisses the selection
-                if (!['pan', 'select', 'wand', 'rectsel', 'lasso'].includes(tl)) deselect();
+                if (!['pan', 'move', 'wand', 'rectsel', 'lasso'].includes(tl)) deselect();
               }}
               title={t(`tool_${tl}`)}
             >
@@ -1532,28 +1307,24 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
             </button>
           ))}
           <span className="tb-sep" />
-          <button className="tool-btn" onClick={() => transform('rot')} title={t('rotate')}>
+          <button className="tool-btn" onClick={() => void transform('rot')} title={t('rotate')}>
             <svg viewBox="0 0 24 24"><path d="M20 8a8 8 0 1 0 2 6M20 3v5h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
-          <button className="tool-btn" onClick={() => transform('flip')} title={t('flipH')}>
+          <button className="tool-btn" onClick={() => void transform('flip')} title={t('flipH')}>
             <svg viewBox="0 0 24 24"><path d="M12 3v18M8 7L4 12l4 5M16 7l4 5-4 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
           <button
             className="tool-btn"
-            onClick={() => {
-              const b = baseRef.current;
-              if (b) { setRzW(b.bmp.width); setRzH(b.bmp.height); }
-              setResizeOpen(true);
-            }}
+            onClick={() => { setRzW(w); setRzH(h); setResizeOpen(true); }}
             title={t('resizeCanvas')}
           >
             <svg viewBox="0 0 24 24"><path d="M4 20L20 4M4 20v-5m0 5h5M20 4v5m0-5h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
           <span className="tb-sep" />
-          <button className="tool-btn" onClick={undo} disabled={histRef.current.length === 0} title={t('undo')}>
+          <button className="tool-btn" onClick={() => void undo()} disabled={histRef.current.length === 0} title={t('undo')}>
             <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
-          <button className="tool-btn" onClick={redo} disabled={redoRef.current.length === 0} title={t('redo')}>
+          <button className="tool-btn" onClick={() => void redo()} disabled={redoRef.current.length === 0} title={t('redo')}>
             <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
           <button className="tool-btn" onClick={() => void copyCanvas()} title={copied ? t('copied') : `${t('copyResult')} (Ctrl+C)`}>
@@ -1565,112 +1336,70 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
           </button>
         </div>
 
-        {/* options bar — always rendered at a fixed height so the canvas never shifts */}
+        {/* options bar — fixed height, canvas never shifts */}
         <div className="ed-options">
           <span className="opt-tool">{t(`tool_${tool}`)}</span>
-          <input
-            type="color"
-            className="tb-color"
-            value={selObj?.color ?? color}
-            onChange={(e) => { if (selObj) { pushHist(); updateSel({ color: e.target.value }); } else setColor(e.target.value); }}
-            title={t('colorLabel')}
-          />
-          <label className="tb-slider" title={selObj?.type === 'text' || tool === 'text' ? t('fontSizeLabel') : t('strokeW')}>
+          <input type="color" className="tb-color" value={color} onChange={(e) => setColor(e.target.value)} title={t('colorLabel')} />
+          <label className="tb-slider" title={isTextish ? t('fontSizeLabel') : t('strokeW')}>
             <input
               type="range"
               min={1}
-              max={selObj?.type === 'text' || tool === 'text' ? 120 : 24}
-              value={selObj ? selObj.size : tool === 'text' ? fontSize : size}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (selObj) updateSel({ size: v });
-                else if (tool === 'text') setFontSize(v);
-                else setSize(v);
-              }}
+              max={isTextish ? 120 : 40}
+              value={isTextish ? fontSize : size}
+              onChange={(e) => (isTextish ? setFontSize(Number(e.target.value)) : setSize(Number(e.target.value)))}
             />
+            <span className="zoom-val">{isTextish ? fontSize : size}</span>
           </label>
-          {(tool === 'pen' || selObj?.type === 'pen') && (
-            <select
-              className="tb-select"
-              value={selObj?.type === 'pen' ? selObj.brush ?? 'pen' : brushType}
-              onChange={(e) => {
-                const v = e.target.value as Brush;
-                if (selObj?.type === 'pen') { pushHist(); updateSel({ brush: v }); }
-                else setBrushType(v);
-              }}
-              title={t('brush')}
-            >
+
+          {tool === 'pen' && (
+            <select className="tb-select" value={brushType} onChange={(e) => setBrushType(e.target.value as Brush)} title={t('brush')}>
               <option value="pen">{t('brushPen')}</option>
               <option value="marker">{t('brushMarker')}</option>
               <option value="highlight">{t('brushHighlight')}</option>
             </select>
           )}
-          {(tool === 'text' || selObj?.type === 'text') && (
+
+          {isTextish && (
             <>
-              <select
-                className="tb-select"
-                value={selObj?.type === 'text' ? selObj.font ?? 'sans' : fontFam}
-                onChange={(e) => {
-                  const v = e.target.value as FontFam;
-                  if (selObj?.type === 'text') { pushHist(); updateSel({ font: v }); }
-                  else setFontFam(v);
-                }}
-                title={t('fontFamily')}
-              >
+              <select className="tb-select" value={fontFam} onChange={(e) => setFontFam(e.target.value as FontFam)} title={t('fontFamily')}>
                 <option value="sans">{t('fontSans')}</option>
                 <option value="serif">{t('fontSerif')}</option>
                 <option value="mono">{t('fontMono')}</option>
               </select>
-              <button
-                className={`tool-btn${(selObj?.type === 'text' ? selObj.weight === 800 : bold) ? ' active' : ''}`}
-                title={t('bold')}
-                onClick={() => {
-                  if (selObj?.type === 'text') { pushHist(); updateSel({ weight: selObj.weight === 800 ? 600 : 800 }); }
-                  else setBold((b) => !b);
-                }}
-              >
-                <strong>B</strong>
-              </button>
-              <button
-                className={`tool-btn${(selObj?.type === 'text' ? !!selObj.outline : outlineOn) ? ' active' : ''}`}
-                title={t('outline')}
-                onClick={() => {
-                  if (selObj?.type === 'text') { pushHist(); updateSel({ outline: !selObj.outline }); }
-                  else setOutlineOn((o) => !o);
-                }}
-              >
+              <button className={`tool-btn${bold ? ' active' : ''}`} onClick={() => setBold((b) => !b)} title={t('bold')}><strong>B</strong></button>
+              <button className={`tool-btn${outlineOn ? ' active' : ''}`} onClick={() => setOutlineOn((o) => !o)} title={t('outline')}>
                 <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray="3 3" /></svg>
               </button>
             </>
           )}
-          {tool === 'wand' && (
+
+          {(tool === 'wand' || tool === 'fill') && (
             <label className="tb-slider" title={t('tolerance')}>
               <input type="range" min={5} max={90} value={wandTol} onChange={(e) => setWandTol(Number(e.target.value))} />
               <span className="zoom-val">{wandTol}</span>
             </label>
           )}
-          {cropSel && (
-            <button className="btn btn-accent btn-sm" onClick={applyCrop}>{t('applyCrop')}</button>
-          )}
+
+          {cropSel && <button className="btn btn-accent btn-sm" onClick={() => void applyCrop()}>{t('applyCrop')}</button>}
           {maskRef.current && (
             <>
-              <button className="btn btn-accent btn-sm" onClick={() => void applyToSelection('fill')}>{t('fillSel')}</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => void applyToSelection('clear')}>{t('clearSel')}</button>
+              <button className="btn btn-accent btn-sm" onClick={() => applyToSelection('fill')}>{t('fillSel')}</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => applyToSelection('clear')}>{t('clearSel')}</button>
               <button className="btn btn-ghost btn-sm" onClick={deselect}>{t('deselect')}</button>
             </>
           )}
+
           <span className="opt-spacer" />
           <div className="zoom-ctrl">
             <button className="tool-btn" onClick={() => setZoom((z) => Math.max(0.05, z / 1.25))} title="−">−</button>
             <span className="zoom-val">{Math.round(zoom * 100)}%</span>
             <button className="tool-btn" onClick={() => setZoom((z) => Math.min(6, z * 1.25))} title="+">+</button>
             <button
-              className="tool-btn zoom-fit"
+              className="tool-btn"
               title={t('zoomFit')}
               onClick={() => {
                 const vp = viewportRef.current;
-                const bmp = baseRef.current?.bmp;
-                if (vp && bmp) setZoom(Math.max(0.05, Math.min(1, (vp.clientWidth - 28) / bmp.width, (window.innerHeight * 0.5) / bmp.height)));
+                if (vp && w) setZoom(Math.max(0.05, Math.min(1, (vp.clientWidth - 28) / w, (window.innerHeight * 0.5) / h)));
               }}
             >
               <svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -1680,49 +1409,48 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
 
         <div className="ie-layout">
           <div className="ie-vpwrap">
-          <div className="ie-viewport" ref={viewportRef}>
-            <div className="ie-inner" style={{ width: w * zoom || undefined }}>
-              <canvas
-                ref={canvasRef}
-                className="ie-canvas2"
-                style={{
-                  width: w * zoom || undefined,
-                  cursor: panning ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'select' ? 'default' : 'crosshair',
-                }}
-                onPointerDown={onDown}
-                onPointerMove={onMove}
-                onPointerUp={onUp}
-                onPointerLeave={() => setCursor(null)}
-                onDoubleClick={onDblClick as never}
-              />
-              {textEdit && (
-                <input
-                  className="ie-textinput"
-                  autoFocus
-                  value={textEdit.value}
-                  placeholder={t('textPlaceholder')}
+            <div className="ie-viewport" ref={viewportRef}>
+              <div className="ie-inner" style={{ width: w * zoom || undefined }}>
+                <canvas
+                  ref={canvasRef}
+                  className="ie-canvas2"
                   style={{
-                    left: textEdit.pos.x * cssScale(),
-                    top: textEdit.pos.y * cssScale(),
-                    fontSize: Math.max(12, (textEdit.id != null ? selObj?.size ?? fontSize : fontSize) * cssScale()),
-                    color: textEdit.id != null ? selObj?.color ?? color : color,
-                    fontFamily: FONT_MAP[textEdit.id != null ? (selObj?.font ?? 'sans') : fontFam],
-                    fontWeight: (textEdit.id != null ? selObj?.weight === 800 : bold) ? 800 : 600,
+                    width: w * zoom || undefined,
+                    cursor: panning ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'move' ? 'move' : 'crosshair',
                   }}
-                  onChange={(e) => setTextEdit({ ...textEdit, value: e.target.value })}
-                  onKeyDown={(e) => { if (e.key === 'Enter') commitText(); if (e.key === 'Escape') setTextEdit(null); }}
-                  onBlur={commitText}
+                  onPointerDown={onDown}
+                  onPointerMove={onMove}
+                  onPointerUp={onUp}
+                  onPointerLeave={() => setCursor(null)}
                 />
-              )}
+                {textEdit && (
+                  <input
+                    className="ie-textinput"
+                    autoFocus
+                    value={textEdit.value}
+                    placeholder={t('textPlaceholder')}
+                    style={{
+                      left: textEdit.pos.x * cssScale(),
+                      top: textEdit.pos.y * cssScale(),
+                      fontSize: Math.max(12, fontSize * cssScale()),
+                      color,
+                      fontFamily: FONT_MAP[fontFam],
+                      fontWeight: bold ? 800 : 600,
+                    }}
+                    onChange={(e) => setTextEdit({ ...textEdit, value: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitText(); if (e.key === 'Escape') setTextEdit(null); }}
+                    onBlur={commitText}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-          <span className="zoom-float">
-            {w}×{baseRef.current?.bmp.height ?? 0}px
-            <span className="zf-sep">·</span>
-            {cursor ? `${cursor.x}, ${cursor.y}` : '–, –'}
-            <span className="zf-sep">·</span>
-            {Math.round(zoom * 100)}%
-          </span>
+            <span className="zoom-float">
+              {w}×{h}px
+              <span className="zf-sep">·</span>
+              {cursor ? `${cursor.x}, ${cursor.y}` : '–, –'}
+              <span className="zf-sep">·</span>
+              {Math.round(zoom * 100)}%
+            </span>
           </div>
 
           <aside className="layers-panel">
@@ -1732,24 +1460,16 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                 <button onClick={addLayer} title={t('addLayer')}>＋</button>
                 <button onClick={() => activeLayer && duplicateLayer(activeLayer.id)} title={t('dupLayer')}>⧉</button>
                 <button onClick={() => activeLayer && mergeDown(activeLayer.id)} title={t('mergeDown')}>⤓</button>
-                <button
-                  onClick={() => activeLayer && deleteLayer(activeLayer.id)}
-                  disabled={layers.length <= 1}
-                  title={t('remove')}
-                >×</button>
+                <button onClick={() => activeLayer && deleteLayer(activeLayer.id)} disabled={layers.length <= 1} title={t('remove')}>×</button>
               </span>
             </div>
 
-            {/* active layer properties */}
             {activeLayer && (
               <div className="lp-props">
                 <label className="lp-row">
                   <span>{t('opacity')}</span>
                   <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.02}
+                    type="range" min={0} max={1} step={0.02}
                     value={activeLayer.opacity}
                     onChange={(e) => patchLayer(activeLayer.id, { opacity: Number(e.target.value) })}
                   />
@@ -1762,9 +1482,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                     value={activeLayer.blend}
                     onChange={(e) => patchLayer(activeLayer.id, { blend: e.target.value as Blend })}
                   >
-                    {BLEND_MODES.map((b) => (
-                      <option key={b} value={b}>{b === 'normal' ? t('blendNormal') : b}</option>
-                    ))}
+                    {BLEND_MODES.map((b) => <option key={b} value={b}>{b === 'normal' ? t('blendNormal') : b}</option>)}
                   </select>
                 </label>
                 <div className="lp-row lp-mask">
@@ -1780,12 +1498,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                       <button onClick={clearMask} title={t('clearMask')}>×</button>
                     </span>
                   ) : (
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={maskFromSelection}
-                      disabled={!maskRef.current}
-                      title={t('maskFromSelHint')}
-                    >
+                    <button className="btn btn-ghost btn-sm" onClick={maskFromSelection} disabled={!maskRef.current}>
                       {t('maskFromSel')}
                     </button>
                   )}
@@ -1793,14 +1506,14 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
               </div>
             )}
 
-            {/* layer stack, topmost first — the whole row is the click target */}
             {[...layers].reverse().map((l) => (
-              <div key={l.id} className={`lp-layer${l.id === activeId ? ' active' : ''}`}>
-                <div
-                  className="lp-layer-head"
-                  onClick={() => { setActiveId(l.id); setSel(null); }}
-                  onDoubleClick={() => setRenaming(l.id)}
-                >
+              <div
+                key={l.id}
+                className={`lp-layer${l.id === activeId ? ' active' : ''}`}
+                onClick={() => setActiveId(l.id)}
+                onDoubleClick={() => setRenaming(l.id)}
+              >
+                <div className="lp-layer-head">
                   <button
                     className="layer-eye"
                     onClick={(e) => { e.stopPropagation(); pushHist(); patchLayer(l.id, { visible: !l.visible }); }}
@@ -1813,7 +1526,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                     )}
                   </button>
 
-                  <LayerThumb layer={l} w={w} h={baseRef.current?.bmp.height ?? 0} />
+                  <LayerThumb src={l.src} ratio={ratio} />
 
                   {renaming === l.id ? (
                     <input
@@ -1837,25 +1550,9 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                         )}
                         {l.opacity < 1 && <span className="lp-badge dim">{Math.round(l.opacity * 100)}%</span>}
                       </span>
-                      {/* object count is a disclosure toggle, not a list of layers */}
-                      <button
-                        className="lp-disclose"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpanded((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(l.id)) next.delete(l.id);
-                            else next.add(l.id);
-                            return next;
-                          });
-                        }}
-                      >
-                        {expanded.has(l.id) ? '▾' : '▸'} {t('objectsCount', { n: String(l.objects.length) })}
-                      </button>
                     </span>
                   )}
 
-                  {/* actions appear on hover / when active — keeps the row clean */}
                   <span className="lp-actions">
                     <button
                       onClick={(e) => { e.stopPropagation(); patchLayer(l.id, { locked: !l.locked }); }}
@@ -1871,70 +1568,31 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                     <button onClick={(e) => { e.stopPropagation(); moveLayer(l.id, -1); }} title={t('moveDown')}>↓</button>
                   </span>
                 </div>
-
-                {/* objects inside this layer — only when explicitly expanded */}
-                {expanded.has(l.id) && [...l.objects].reverse().map((o) => (
-                  <div
-                    key={o.id}
-                    className={`layer-item lp-obj${sel === o.id ? ' active' : ''}`}
-                    ref={(el) => { if (sel === o.id && el) el.scrollIntoView({ block: 'nearest' }); }}
-                    onClick={() => { setActiveId(l.id); setSel(o.id); setTool('select'); }}
-                  >
-                    <button
-                      className="layer-eye"
-                      onClick={(e) => { e.stopPropagation(); objToggle(o.id); }}
-                    >
-                      {o.visible ? (
-                        <svg viewBox="0 0 24 24" width="12" height="12"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
-                      ) : (
-                        <svg viewBox="0 0 24 24" width="12" height="12"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-                      )}
-                    </button>
-                    <span className="layer-swatch" style={{ background: o.color }} />
-                    <span className="layer-name">
-                      {o.type === 'text' ? (o.text ?? '').slice(0, 10) || t('tool_text') : t(`tool_${o.type}`)}
-                    </span>
-                    <span className="layer-btns">
-                      <button onClick={(e) => { e.stopPropagation(); objMove(o.id, 1); }} title={t('moveUp')}>↑</button>
-                      <button onClick={(e) => { e.stopPropagation(); objMove(o.id, -1); }} title={t('moveDown')}>↓</button>
-                      <button onClick={(e) => { e.stopPropagation(); objDelete(o.id); }} title={t('remove')}>×</button>
-                    </span>
-                  </div>
-                ))}
               </div>
             ))}
 
-            {/* background: a permanent layer pinned to the very bottom */}
-            <div className="layer-item layer-bg" title={t('bgLayer')}>
-              <button
-                className="layer-eye"
-                onClick={() => applyBg(bgColor, !bgOn)}
-                title={t(bgOn ? 'transparentBg' : 'bgLayer')}
-              >
-                {bgOn ? (
-                  <svg viewBox="0 0 24 24" width="13" height="13"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-                )}
-              </button>
-              <input
-                type="color"
-                className="layer-bg-swatch"
-                value={bgColor}
-                onChange={(e) => applyBg(e.target.value, true)}
-                title={t('bgLayer')}
-              />
-              <span className={`layer-name${bgOn ? '' : ' layer-off'}`}>{t('bgLayerName')}</span>
-              {!bgOn && <span className="asset-size">{t('transparentBg')}</span>}
+            {/* background: permanent bottom layer */}
+            <div className="lp-layer layer-bg-row" title={t('bgLayer')}>
+              <div className="lp-layer-head">
+                <button className="layer-eye" onClick={() => applyBg(bgColor, !bgOn)} title={t(bgOn ? 'transparentBg' : 'bgLayer')}>
+                  {bgOn ? (
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                  )}
+                </button>
+                <input type="color" className="layer-bg-swatch" value={bgColor} onChange={(e) => applyBg(e.target.value, true)} title={t('bgLayer')} />
+                <span className={`lp-title-row${bgOn ? '' : ' layer-off'}`}>{t('bgLayerName')}</span>
+              </div>
             </div>
           </aside>
         </div>
 
         <div className="ed-foot">
           <span className="kbd-hints">
+            <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> {t('undo')}</span>
             <span><kbd>Ctrl</kbd>+<kbd>C</kbd> {t('kbdCopyImg')}</span>
-            <span><kbd>Ctrl</kbd>+<kbd>V</kbd> {t('kbdPasteText')}</span>
-            <span><kbd>Del</kbd> {maskRef.current ? t('kbdClearSel') : t('kbdDelete')}</span>
+            <span><kbd>Del</kbd> {t('kbdClearSel')}</span>
           </span>
           <div className="ed-foot-main">
             {!inline && <button className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>}
@@ -1975,9 +1633,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                 <button
                   className="btn btn-accent"
                   onClick={() => {
-                    const b = baseRef.current;
-                    if (!b) return;
-                    if (rzMode === 'pct') void applyResize(b.bmp.width * rzPct / 100, b.bmp.height * rzPct / 100);
+                    if (rzMode === 'pct') void applyResize(w * rzPct / 100, h * rzPct / 100);
                     else void applyResize(rzW, rzH);
                   }}
                 >
@@ -1991,6 +1647,5 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     </div>
   );
 
-  // modal mode renders through a portal so the backdrop always covers the viewport
   return inline ? body : createPortal(body, document.body);
 }

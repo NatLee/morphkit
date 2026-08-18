@@ -1887,14 +1887,30 @@ kbd {
 
 .lp-thumb {
   width: 36px;
-  height: auto;
   max-height: 30px;
   flex-shrink: 0;
+  overflow: hidden;
+  display: block;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
   background:
     repeating-conic-gradient(var(--bg-sunken) 0% 25%, var(--bg-raised) 0% 50%) 0 0 / 8px 8px;
 }
+
+.lp-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.lp-layer { cursor: pointer; }
+
+.layer-bg-row { cursor: default; }
+
+.layer-bg-row .lp-title-row { color: var(--ink); font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; }
+
+.layer-bg-row .layer-off { color: var(--ink-faint); text-decoration: line-through; }
 
 /* actions stay out of the way until you hover / focus the layer */
 .lp-actions {

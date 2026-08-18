@@ -275,6 +275,7 @@ const zh: Dict = {
   swapSides: '對調寬高',
   objectsCount: '{n} 個物件',
   kbdClearSel: '清除選取範圍',
+  tool_move: '移動圖層內容',
 };
 
 const en: Dict = {
@@ -542,6 +543,7 @@ const en: Dict = {
   swapSides: 'Swap width / height',
   objectsCount: '{n} objects',
   kbdClearSel: 'clear selection',
+  tool_move: 'Move layer pixels',
 };
 
 const ja: Dict = {
@@ -809,6 +811,7 @@ const ja: Dict = {
   swapSides: '幅と高さを入替',
   objectsCount: '{n} 個のオブジェクト',
   kbdClearSel: '選択範囲を消去',
+  tool_move: 'レイヤーを移動',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
