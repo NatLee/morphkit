@@ -94,6 +94,10 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
       if (m.duration != null) detailRows.push([t('duration'), fmtDuration(m.duration)]);
       if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
       if (m.bitrate) detailRows.push([t('bitrate'), `~${m.bitrate}`]);
+      if (m.title) detailRows.push([t('tagTitle'), m.title]);
+      if (m.artist) detailRows.push([t('tagArtist'), m.artist]);
+      if (m.album) detailRows.push([t('tagAlbum'), m.album]);
+      if (m.hasCover) detailRows.push([t('tagCover'), '✓']);
     }
     // photo EXIF
     if (m.camera) detailRows.push([t('camera'), m.camera]);

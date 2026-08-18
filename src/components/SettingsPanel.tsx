@@ -29,6 +29,27 @@ export function SettingsPanel({ settings, onChange }: Props) {
             </select>
             <span className="sp-hint">{t('workersHint')}</span>
           </label>
+
+          <label className="sp-field sp-check">
+            <input
+              type="checkbox"
+              checked={settings.keepMetadata}
+              onChange={(e) => set('keepMetadata', e.target.checked)}
+            />
+            <span className="sp-label">{t('keepMetadata')}</span>
+          </label>
+          <span className="sp-hint">{t('keepMetadataHint')}</span>
+
+          <label className="sp-field sp-check">
+            <input
+              type="checkbox"
+              checked={settings.keepCoverArt}
+              disabled={!settings.keepMetadata}
+              onChange={(e) => set('keepCoverArt', e.target.checked)}
+            />
+            <span className="sp-label">{t('keepCoverArt')}</span>
+          </label>
+          <span className="sp-hint">{t('keepCoverArtHint')}</span>
         </div>
       </div>
 

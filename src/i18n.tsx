@@ -277,6 +277,14 @@ const zh: Dict = {
   kbdClearSel: '清除選取範圍',
   tool_move: '移動圖層內容',
   noLayerHint: '沒有圖層可編輯，請按上方 ＋ 新增一個',
+  keepMetadata: '保留標籤資訊',
+  keepMetadataHint: '複製標題、演出者、專輯等標籤；MP3 以 ID3v2.3 寫入（Windows 相容性最好）',
+  keepCoverArt: '保留專輯封面',
+  keepCoverArtHint: '支援 MP3／M4A／FLAC；WAV 與 OGG 無法內嵌封面。剪輯過的音檔會略過封面',
+  tagTitle: '標題',
+  tagArtist: '演出者',
+  tagAlbum: '專輯',
+  tagCover: '封面',
 };
 
 const en: Dict = {
@@ -546,6 +554,14 @@ const en: Dict = {
   kbdClearSel: 'clear selection',
   tool_move: 'Move layer pixels',
   noLayerHint: 'No layer to edit — press ＋ above to add one',
+  keepMetadata: 'Keep metadata tags',
+  keepMetadataHint: 'Copies title / artist / album…; MP3 is written as ID3v2.3 for best Windows compatibility',
+  keepCoverArt: 'Keep cover art',
+  keepCoverArtHint: 'MP3 / M4A / FLAC only — WAV and OGG cannot embed artwork. Skipped when the audio is trimmed',
+  tagTitle: 'Title',
+  tagArtist: 'Artist',
+  tagAlbum: 'Album',
+  tagCover: 'Cover',
 };
 
 const ja: Dict = {
@@ -815,6 +831,14 @@ const ja: Dict = {
   kbdClearSel: '選択範囲を消去',
   tool_move: 'レイヤーを移動',
   noLayerHint: '編集できるレイヤーがありません。上の ＋ で追加してください',
+  keepMetadata: 'タグ情報を保持',
+  keepMetadataHint: 'タイトル／アーティスト／アルバム等をコピー。MP3はID3v2.3で書き込み（Windows互換性が高い）',
+  keepCoverArt: 'カバーアートを保持',
+  keepCoverArtHint: 'MP3／M4A／FLACのみ対応。WAVとOGGは埋め込み不可。トリム時はスキップされます',
+  tagTitle: 'タイトル',
+  tagArtist: 'アーティスト',
+  tagAlbum: 'アルバム',
+  tagCover: 'カバー',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
