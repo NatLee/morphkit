@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'rea
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { Overlay } from './Overlay';
+import { ColorPicker } from './ColorPicker';
 import type { Item } from '../types';
 
 /* Raster layer model (Photoshop-style): a LAYER *is* the drawing surface.
@@ -1351,7 +1352,6 @@ export function ImageEditor({
         {/* options bar — fixed height, canvas never shifts */}
         <div className="ed-options">
           <span className="opt-tool">{t(`tool_${tool}`)}</span>
-          <input type="color" className="tb-color" value={color} onChange={(e) => setColor(e.target.value)} title={t('colorLabel')} />
           <span className="swatches">
             {SWATCHES.map((s) => (
               <button
@@ -1478,6 +1478,12 @@ export function ImageEditor({
           </div>
 
           <aside className="layers-panel">
+            {/* inline colour picker — always available, synced with the swatches */}
+            <div className="lp-colour">
+              <span className="mx-label">{t('colorLabel')}</span>
+              <ColorPicker value={color} onChange={setColor} />
+            </div>
+
             <div className="lp-head">
               <span className="mx-label">{t('layers')}</span>
               <span className="lp-head-btns">
