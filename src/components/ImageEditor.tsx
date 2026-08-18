@@ -211,8 +211,11 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     | { mode: 'crop'; a: Pt }
     | { mode: 'rectsel'; a: Pt }
     | { mode: 'lasso' }
+    | { mode: 'pan'; sx: number; sy: number; sl: number; st: number }
     | null
   >(null);
+  const [panning, setPanning] = useState(false);
+  const [cursor, setCursor] = useState<Pt | null>(null);
 
   const [objects, setObjects] = useState<Obj[]>([]);
   const objectsRef = useRef<Obj[]>([]);
@@ -482,10 +485,23 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     return null;
   };
 
+  const startPan = (e: PointerEvent<HTMLCanvasElement>) => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    dragRef.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, sl: vp.scrollLeft, st: vp.scrollTop };
+    setPanning(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
   const onDown = (e: PointerEvent<HTMLCanvasElement>) => {
     if (!ready) return;
     // stop the canvas from stealing focus — this kept blurring the text input
     e.preventDefault();
+    // middle mouse button pans regardless of the active tool
+    if (e.button === 1) {
+      startPan(e);
+      return;
+    }
     const p = toPt(e);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
@@ -514,7 +530,9 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
         pushHist();
         dragRef.current = { mode: 'move', id: hit.id, last: p };
       } else {
+        // empty canvas area: grab & pan the viewport
         setSel(null);
+        startPan(e);
       }
       return;
     }
@@ -539,8 +557,27 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   };
 
   const onMove = (e: PointerEvent<HTMLCanvasElement>) => {
+    // live cursor readout (canvas pixel coords)
+    {
+      const c = canvasRef.current;
+      if (c) {
+        const p0 = toPt(e);
+        setCursor({
+          x: Math.min(c.width, Math.max(0, Math.round(p0.x))),
+          y: Math.min(c.height, Math.max(0, Math.round(p0.y))),
+        });
+      }
+    }
     const d = dragRef.current;
     if (!d) return;
+    if (d.mode === 'pan') {
+      const vp = viewportRef.current;
+      if (vp) {
+        vp.scrollLeft = d.sl - (e.clientX - d.sx);
+        vp.scrollTop = d.st - (e.clientY - d.sy);
+      }
+      return;
+    }
     const p = toPt(e);
     if (d.mode === 'rectsel') {
       setSelDraft({ a: d.a, b: p });
@@ -577,6 +614,10 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const onUp = (e: PointerEvent<HTMLCanvasElement>) => {
     const d = dragRef.current;
     dragRef.current = null;
+    if (d?.mode === 'pan') {
+      setPanning(false);
+      return;
+    }
     if (d?.mode === 'rectsel') {
       const p = toPt(e);
       if (Math.abs(p.x - d.a.x) > 3 && Math.abs(p.y - d.a.y) > 3) commitRectSel(d.a, p);
@@ -1174,10 +1215,14 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
               <canvas
                 ref={canvasRef}
                 className="ie-canvas2"
-                style={{ width: w * zoom || undefined, cursor: tool === 'select' ? 'default' : 'crosshair' }}
+                style={{
+                  width: w * zoom || undefined,
+                  cursor: panning ? 'grabbing' : tool === 'select' ? 'grab' : 'crosshair',
+                }}
                 onPointerDown={onDown}
                 onPointerMove={onMove}
                 onPointerUp={onUp}
+                onPointerLeave={() => setCursor(null)}
                 onDoubleClick={onDblClick as never}
               />
               {textEdit && (
@@ -1201,7 +1246,13 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
               )}
             </div>
           </div>
-          <span className="zoom-float">{Math.round(zoom * 100)}%</span>
+          <span className="zoom-float">
+            {w}×{baseRef.current?.bmp.height ?? 0}px
+            <span className="zf-sep">·</span>
+            {cursor ? `${cursor.x}, ${cursor.y}` : '–, –'}
+            <span className="zf-sep">·</span>
+            {Math.round(zoom * 100)}%
+          </span>
           </div>
 
           <aside className="layers-panel">

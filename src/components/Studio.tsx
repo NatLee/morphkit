@@ -336,12 +336,11 @@ export function Studio() {
   const blankCanvas = async (w: number, h: number) => {
     const cw = Math.min(4096, Math.max(8, Math.round(w)));
     const ch = Math.min(4096, Math.max(8, Math.round(h)));
+    // base stays transparent — the white comes from the editable BG layer,
+    // otherwise an opaque base would hide background-colour changes
     const c = document.createElement('canvas');
     c.width = cw;
     c.height = ch;
-    const g = c.getContext('2d')!;
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, cw, ch);
     const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
     if (!blob || !curId) return;
     const rec: AssetRec = {
