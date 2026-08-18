@@ -1630,6 +1630,9 @@ kbd {
   touch-action: none;
   border-radius: 2px;
   box-shadow: var(--shadow);
+  /* checkerboard shows through transparent pixels — BG layer toggles are obvious */
+  background:
+    repeating-conic-gradient(var(--bg-sunken) 0% 25%, var(--bg-raised) 0% 50%) 0 0 / 16px 16px;
 }
 
 .zoom-ctrl {

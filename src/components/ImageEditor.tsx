@@ -7,9 +7,9 @@ import type { Item } from '../types';
    base bitmap + objects on every change. */
 
 type Tool =
-  | 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
+  | 'pan' | 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
   | 'wand' | 'rectsel' | 'lasso' | 'fill';
-type ObjType = Exclude<Tool, 'select' | 'crop' | 'wand' | 'rectsel' | 'lasso' | 'fill'>;
+type ObjType = Exclude<Tool, 'pan' | 'select' | 'crop' | 'wand' | 'rectsel' | 'lasso' | 'fill'>;
 type FontFam = 'sans' | 'serif' | 'mono';
 type Brush = 'pen' | 'marker' | 'highlight';
 
@@ -60,6 +60,7 @@ const HIST_CAP = 40;
 let objId = 0;
 
 const TOOL_ICONS: Record<Tool, string> = {
+  pan: 'M12 2v20M2 12h20M12 2l-2.5 2.5M12 2l2.5 2.5M12 22l-2.5-2.5M12 22l2.5-2.5M2 12l2.5-2.5M2 12l2.5 2.5M22 12l-2.5-2.5M22 12l-2.5 2.5',
   select: 'M6 3l12 9-6 1 3 6-3 1.5L9 14l-3 4z',
   pen: 'M4 20l1-4L16 5l3 3L8 19l-4 1zM14.5 6.5l3 3',
   line: 'M5 19L19 5',
@@ -222,7 +223,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   useEffect(() => { objectsRef.current = objects; }, [objects]);
 
   const [sel, setSel] = useState<number | null>(null);
-  const [tool, setTool] = useState<Tool>('select');
+  const [tool, setTool] = useState<Tool>('pan');
   const [color, setColor] = useState('#c94f16');
   const [size, setSize] = useState(4);
   const [fontSize, setFontSize] = useState(32);
@@ -426,7 +427,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     }
   }, [sel, cropSel, zoom, bgColor, bgOn, selDraft, lassoPts, selVer]);
 
-  useEffect(() => { render(); }, [objects, baseVer, render]);
+  // belt & braces: every visual input is an explicit dep so no repaint is missed
+  useEffect(() => { render(); }, [objects, baseVer, bgColor, bgOn, selVer, selDraft, lassoPts, sel, cropSel, zoom, render]);
 
   // ---- history ----
   const pushHist = () => {
@@ -500,8 +502,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     if (!ready) return;
     // stop the canvas from stealing focus — this kept blurring the text input
     e.preventDefault();
-    // middle mouse button pans regardless of the active tool
-    if (e.button === 1) {
+    // pan tool, or middle mouse button with any tool
+    if (tool === 'pan' || e.button === 1) {
       startPan(e);
       return;
     }
@@ -533,9 +535,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
         pushHist();
         dragRef.current = { mode: 'move', id: hit.id, last: p };
       } else {
-        // empty canvas area: grab & pan the viewport
         setSel(null);
-        startPan(e);
       }
       return;
     }
@@ -1203,7 +1203,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
                 className="ie-canvas2"
                 style={{
                   width: w * zoom || undefined,
-                  cursor: panning ? 'grabbing' : tool === 'select' ? 'grab' : 'crosshair',
+                  cursor: panning ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'select' ? 'default' : 'crosshair',
                 }}
                 onPointerDown={onDown}
                 onPointerMove={onMove}
@@ -1248,6 +1248,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
               <div
                 key={o.id}
                 className={`layer-item${sel === o.id ? ' active' : ''}`}
+                ref={(el) => { if (sel === o.id && el) el.scrollIntoView({ block: 'nearest' }); }}
                 onClick={() => { setSel(o.id); setTool('select'); }}
               >
                 <button

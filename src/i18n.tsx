@@ -248,6 +248,7 @@ const zh: Dict = {
   clearSel: '清除選取範圍',
   deselect: '取消選取',
   bgLayerName: '背景',
+  tool_pan: '移動畫布',
 };
 
 const en: Dict = {
@@ -488,6 +489,7 @@ const en: Dict = {
   clearSel: 'Clear selection',
   deselect: 'Deselect',
   bgLayerName: 'Background',
+  tool_pan: 'Pan canvas',
 };
 
 const ja: Dict = {
@@ -728,6 +730,7 @@ const ja: Dict = {
   clearSel: '選択範囲を消去',
   deselect: '選択解除',
   bgLayerName: '背景',
+  tool_pan: 'キャンバス移動',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
