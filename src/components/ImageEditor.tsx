@@ -269,12 +269,15 @@ interface Props {
   /** bottom background layer colour (null = transparent) */
   bg?: string | null;
   onBgChange?: (c: string | null) => void;
+  /** raster edits (fill / erase / crop / rotate / resize) bake into the base —
+      the host must persist it or they are lost on reload */
+  onBaseChange?: (blob: Blob) => void;
   /** drop this blob onto the canvas as a movable image layer (GIF → first frame) */
   importBlob?: Blob | null;
   onImportDone?: () => void;
 }
 
-export function ImageEditor({ item, onSave, onClose, inline, initialLayers, initialObjects, onLayersChange, bg, onBgChange, importBlob, onImportDone }: Props) {
+export function ImageEditor({ item, onSave, onClose, inline, initialLayers, initialObjects, onLayersChange, bg, onBgChange, onBaseChange, importBlob, onImportDone }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -437,6 +440,16 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     if (ready) onLayersChange?.(layersRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, ready]);
+
+  // persist raster edits: every base swap (fill / erase / crop / rotate / resize
+  // / undo) writes the new bitmap back to the host
+  const firstBaseRef = useRef(true);
+  useEffect(() => {
+    if (!ready || !baseRef.current) return;
+    if (firstBaseRef.current) { firstBaseRef.current = false; return; }
+    onBaseChange?.(baseRef.current.blob);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseVer, ready]);
 
   // decode layer masks
   useEffect(() => {

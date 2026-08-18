@@ -597,6 +597,24 @@ export function Studio() {
     [gifAsset?.id, gifAsset?.blob]  // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  /** Raster edits from the canvas are written back to the base asset (debounced). */
+  const baseSaveTimer = useRef(0);
+  const persistBase = (assetId: string, blob: Blob) => {
+    window.clearTimeout(baseSaveTimer.current);
+    baseSaveTimer.current = window.setTimeout(() => {
+      const a = assets.find((x) => x.id === assetId);
+      if (!a) return;
+      const rec: AssetRec = { ...a, blob };
+      void putAsset(rec);
+      // keep the in-memory copy in sync WITHOUT remounting the editor:
+      // ImageEditor is keyed by asset id, and the blob identity change would
+      // otherwise reset the canvas mid-edit
+      const i = assets.findIndex((x) => x.id === assetId);
+      if (i >= 0) assets[i] = rec;
+      if (curRef.current && !persistedRef.current.has(curRef.current.id)) savePatch({});
+    }, 600);
+  };
+
   const replaceAssetBlob = async (id: string, file: File) => {
     const a = assets.find((x) => x.id === id);
     if (!a) return;
@@ -932,6 +950,7 @@ export function Studio() {
                       },
                     })
                   }
+                  onBaseChange={(blob) => persistBase(imgBase.id, blob)}
                   onSave={(_id, file) => void exportAsset(file)}
                   importBlob={imgImport}
                   onImportDone={() => setImgImport(null)}
