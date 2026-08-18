@@ -71,6 +71,7 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 15. **ImageEditor inline mode**: `initialObjects` consumed once at mount (key by base asset id); `objId` must be bumped past loaded ids. Pseudo-Items passed to inline editors MUST be memoized or the init effect loops.
 16. **muxVideo**: audio timeline aligns to the TRIMMED video start; wav is rendered by OfflineAudioContext first, then mapped `-map 0:v -map 1:a -shortest`.
 17. **Keyframe endings must be `transform: none`** — a retained transform (even `translateY(0)`) makes the element a containing block and traps `position:fixed` overlays inside it.
+18. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
 
 ## Design language ("Drafting Table")
 
