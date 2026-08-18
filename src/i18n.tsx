@@ -272,6 +272,7 @@ const zh: Dict = {
   unlockLayer: '解除鎖定',
   hideLayer: '隱藏圖層',
   showLayer: '顯示圖層',
+  swapSides: '對調寬高',
 };
 
 const en: Dict = {
@@ -536,6 +537,7 @@ const en: Dict = {
   unlockLayer: 'Unlock layer',
   hideLayer: 'Hide layer',
   showLayer: 'Show layer',
+  swapSides: 'Swap width / height',
 };
 
 const ja: Dict = {
@@ -800,6 +802,7 @@ const ja: Dict = {
   unlockLayer: 'ロック解除',
   hideLayer: 'レイヤーを隠す',
   showLayer: 'レイヤーを表示',
+  swapSides: '幅と高さを入替',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

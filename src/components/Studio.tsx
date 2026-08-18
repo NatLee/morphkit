@@ -52,6 +52,18 @@ const TYPE_META: Record<ProjectType, { labelKey: string; descKey: string; glyph:
   video: { labelKey: 'typeVideo', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video },
 };
 
+/** Common canvas sizes offered when starting a blank image project. */
+const CANVAS_PRESETS = [
+  { label: 'HD', w: 1280, h: 720 },
+  { label: 'FHD', w: 1920, h: 1080 },
+  { label: '2K', w: 2560, h: 1440 },
+  { label: 'Square', w: 1080, h: 1080 },
+  { label: 'Story', w: 1080, h: 1920 },
+  { label: 'A4 150dpi', w: 1240, h: 1754 },
+  { label: 'Icon', w: 512, h: 512 },
+  { label: 'Banner', w: 1500, h: 500 },
+];
+
 const isGifAsset = (a: AssetRec) =>
   ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
 
@@ -987,13 +999,37 @@ export function Studio() {
       {/* blank canvas size modal */}
       {blankOpen && (
         <Overlay onClick={() => setBlankOpen(false)}>
-          <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="editor mini-modal canvas-modal" onClick={(e) => e.stopPropagation()}>
             <p className="mx-label">{t('blankCanvas')}</p>
-            <div className="rz-grid">
-              <input type="number" className="num-sm" min={8} max={4096} value={bcW} onChange={(e) => setBcW(Number(e.target.value))} />
-              <span className="cap-dash">×</span>
-              <input type="number" className="num-sm" min={8} max={4096} value={bcH} onChange={(e) => setBcH(Number(e.target.value))} />
-              <span className="asset-size">px (max 4096)</span>
+
+            <div className="preset-grid">
+              {CANVAS_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  className={`preset${bcW === p.w && bcH === p.h ? ' active' : ''}`}
+                  onClick={() => { setBcW(p.w); setBcH(p.h); }}
+                >
+                  <span className="preset-name">{p.label}</span>
+                  <span className="preset-dim">{p.w}×{p.h}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="size-row">
+              <label className="size-field">
+                <span>W</span>
+                <input type="number" min={8} max={4096} value={bcW} onChange={(e) => setBcW(Number(e.target.value))} />
+              </label>
+              <button
+                className="tool-btn"
+                title={t('swapSides')}
+                onClick={() => { setBcW(bcH); setBcH(bcW); }}
+              >⇄</button>
+              <label className="size-field">
+                <span>H</span>
+                <input type="number" min={8} max={4096} value={bcH} onChange={(e) => setBcH(Number(e.target.value))} />
+              </label>
+              <span className="asset-size">px · max 4096</span>
             </div>
             <div className="ed-foot-main">
               <button className="btn btn-ghost" onClick={() => setBlankOpen(false)}>{t('cancel')}</button>

@@ -272,6 +272,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
   >(null);
   const [panning, setPanning] = useState(false);
   const [cursor, setCursor] = useState<Pt | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
 
   // ---- layer stack (objects live inside layers) ----
   const [layers, setLayers] = useState<Layer[]>(() => [newLayer('Layer 1')]);
@@ -1688,35 +1689,57 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
               </div>
             )}
 
-            {/* layer stack, topmost first */}
+            {/* layer stack, topmost first — the whole row is the click target */}
             {[...layers].reverse().map((l) => (
               <div key={l.id} className={`lp-layer${l.id === activeId ? ' active' : ''}`}>
-                <div className="lp-layer-head" onClick={() => { setActiveId(l.id); setSel(null); }}>
+                <div
+                  className="lp-layer-head"
+                  onClick={() => { setActiveId(l.id); setSel(null); }}
+                  onDoubleClick={() => setRenaming(l.id)}
+                >
                   <button
                     className="layer-eye"
                     onClick={(e) => { e.stopPropagation(); pushHist(); patchLayer(l.id, { visible: !l.visible }); }}
                     title={l.visible ? t('hideLayer') : t('showLayer')}
                   >
                     {l.visible ? (
-                      <svg viewBox="0 0 24 24" width="13" height="13"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
                     ) : (
-                      <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
                     )}
                   </button>
-                  <input
-                    className="lp-name"
-                    value={l.name}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => patchLayer(l.id, { name: e.target.value })}
-                  />
-                  {l.mask && <span className="lp-badge" title={t('maskLabel')}>M</span>}
-                  <span className="layer-btns">
+
+                  {renaming === l.id ? (
+                    <input
+                      className="lp-name"
+                      autoFocus
+                      value={l.name}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => patchLayer(l.id, { name: e.target.value })}
+                      onBlur={() => setRenaming(null)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setRenaming(null); }}
+                    />
+                  ) : (
+                    <span className="lp-title">
+                      {l.name}
+                      <span className="lp-count">{l.objects.length}</span>
+                      {l.mask && <span className="lp-badge" title={t('maskLabel')}>M</span>}
+                      {l.locked && <span className="lp-badge lock" title={t('lockLayer')}>🔒</span>}
+                      {l.opacity < 1 && <span className="lp-badge dim">{Math.round(l.opacity * 100)}%</span>}
+                    </span>
+                  )}
+
+                  {/* actions appear on hover / when active — keeps the row clean */}
+                  <span className="lp-actions">
                     <button
                       onClick={(e) => { e.stopPropagation(); patchLayer(l.id, { locked: !l.locked }); }}
                       title={l.locked ? t('unlockLayer') : t('lockLayer')}
-                      className={l.locked ? 'on' : ''}
                     >
-                      {l.locked ? '🔒' : '🔓'}
+                      <svg viewBox="0 0 24 24" width="12" height="12">
+                        {l.locked
+                          ? <path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                          : <path d="M7 10V7a5 5 0 0 1 9.5-2M5 10h14v10H5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />}
+                      </svg>
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); moveLayer(l.id, 1); }} title={t('moveUp')}>↑</button>
                     <button onClick={(e) => { e.stopPropagation(); moveLayer(l.id, -1); }} title={t('moveDown')}>↓</button>
@@ -1810,10 +1833,16 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                   <input type="range" min={10} max={200} value={rzPct} onChange={(e) => setRzPct(Number(e.target.value))} />
                 </label>
               ) : (
-                <div className="rz-grid">
-                  <input type="number" className="num-sm" min={8} max={4096} value={rzW} onChange={(e) => setRzW(Number(e.target.value))} />
-                  <span className="cap-dash">×</span>
-                  <input type="number" className="num-sm" min={8} max={4096} value={rzH} onChange={(e) => setRzH(Number(e.target.value))} />
+                <div className="size-row">
+                  <label className="size-field">
+                    <span>W</span>
+                    <input type="number" min={8} max={4096} value={rzW} onChange={(e) => setRzW(Number(e.target.value))} />
+                  </label>
+                  <button className="tool-btn" title={t('swapSides')} onClick={() => { const w0 = rzW; setRzW(rzH); setRzH(w0); }}>⇄</button>
+                  <label className="size-field">
+                    <span>H</span>
+                    <input type="number" min={8} max={4096} value={rzH} onChange={(e) => setRzH(Number(e.target.value))} />
+                  </label>
                 </div>
               )}
               <div className="ed-foot-main">

@@ -1815,11 +1815,69 @@ kbd {
 .lp-layer-head {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 7px;
+  gap: 7px;
+  /* generous hit area — the whole row selects the layer */
+  min-height: 40px;
+  padding: 8px 9px;
   cursor: pointer;
   background: var(--bg-raised);
+  transition: background 0.15s ease;
 }
+
+.lp-layer-head:hover { background: var(--panel); }
+
+.lp-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.lp-count {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 5px;
+  flex-shrink: 0;
+}
+
+/* actions stay out of the way until you hover / focus the layer */
+.lp-actions {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.lp-layer-head:hover .lp-actions,
+.lp-layer.active .lp-actions { opacity: 1; }
+
+.lp-actions button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+}
+
+.lp-actions button:hover { color: var(--accent); background: var(--bg); }
 
 .lp-layer.active .lp-layer-head { background: var(--accent-soft); }
 
@@ -1848,6 +1906,86 @@ kbd {
   padding: 0 3px;
   flex-shrink: 0;
 }
+
+.lp-badge.lock, .lp-badge.dim {
+  color: var(--ink-faint);
+  border-color: var(--line-strong);
+}
+
+.lp-obj { min-height: 32px; align-items: center; }
+
+/* ---- canvas size modal ---- */
+
+.canvas-modal { width: min(440px, 94vw); }
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+}
+
+.preset {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.preset:hover { border-color: var(--ink); }
+
+.preset.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.preset-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.preset-dim {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+.size-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.size-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.size-field input {
+  /* wide enough for 4-digit values without clipping */
+  width: 84px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+}
+
+.size-field input:focus { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 
 .layer-btns button.on { color: var(--accent); }
 
