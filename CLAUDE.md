@@ -43,6 +43,8 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 | `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
+| `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
+| `components/FramePicker.tsx` | Video → frames: single-frame (image projects) or clip w/ fps (GIF projects) |
 | `components/Studio.tsx` | **Typed projects** (App `mode==='studio'`): launcher (type picker at creation — type is immutable; storage stats; zip import/export w/ id remap), 4-way workspace routing (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace), primary-asset pickers (◎), blank canvas, new-project-from-asset |
 | `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
@@ -70,7 +72,7 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 14. **Typed projects**: `ProjectRec.type` is set at creation and immutable; legacy records without `type` are 'audio'. `savePatch` updates `curRef` synchronously — required for rapid patch bursts (trim drags, `onObjectsChange`).
 15. **ImageEditor inline mode**: `initialObjects` consumed once at mount (key by base asset id); `objId` must be bumped past loaded ids. Pseudo-Items passed to inline editors MUST be memoized or the init effect loops.
 16. **muxVideo**: audio timeline aligns to the TRIMMED video start; wav is rendered by OfflineAudioContext first, then mapped `-map 0:v -map 1:a -shortest`.
-17. **Keyframe endings must be `transform: none`** — a retained transform (even `translateY(0)`) makes the element a containing block and traps `position:fixed` overlays inside it.
+17. **Modals MUST portal to `<body>`** (`components/Overlay.tsx`, or `createPortal` directly). Any ancestor transform/filter makes itself the containing block for `position:fixed`, which clips the backdrop. Keyframe endings should also be `transform: none` for the same reason.
 18. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
 
 ## Design language ("Drafting Table")
