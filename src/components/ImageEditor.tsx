@@ -934,17 +934,27 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
         void copyCanvas();
         return;
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && sel != null) {
-        pushHist();
-        setObjects((prev) => prev.filter((o) => o.id !== sel));
-        setSel(null);
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // a live selection area wins over an object selection
+        if (maskRef.current) {
+          e.preventDefault();
+          void applyToSelection('clear');
+          return;
+        }
+        if (sel != null) {
+          e.preventDefault();
+          pushHist();
+          setObjects((prev) => prev.filter((o) => o.id !== sel));
+          setSel(null);
+          return;
+        }
       }
       if (e.key === 'Escape') { setCropSel(null); setSel(null); deselect(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel, textEdit]);
+  }, [sel, textEdit, selVer, color]);
 
   // Ctrl+V: pasted image → image layer; pasted text → text object
   useEffect(() => {
@@ -1859,7 +1869,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
           <span className="kbd-hints">
             <span><kbd>Ctrl</kbd>+<kbd>C</kbd> {t('kbdCopyImg')}</span>
             <span><kbd>Ctrl</kbd>+<kbd>V</kbd> {t('kbdPasteText')}</span>
-            <span><kbd>Del</kbd> {t('kbdDelete')}</span>
+            <span><kbd>Del</kbd> {maskRef.current ? t('kbdClearSel') : t('kbdDelete')}</span>
           </span>
           <div className="ed-foot-main">
             {!inline && <button className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>}

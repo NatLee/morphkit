@@ -274,6 +274,7 @@ const zh: Dict = {
   showLayer: '顯示圖層',
   swapSides: '對調寬高',
   objectsCount: '{n} 個物件',
+  kbdClearSel: '清除選取範圍',
 };
 
 const en: Dict = {
@@ -540,6 +541,7 @@ const en: Dict = {
   showLayer: 'Show layer',
   swapSides: 'Swap width / height',
   objectsCount: '{n} objects',
+  kbdClearSel: 'clear selection',
 };
 
 const ja: Dict = {
@@ -806,6 +808,7 @@ const ja: Dict = {
   showLayer: 'レイヤーを表示',
   swapSides: '幅と高さを入替',
   objectsCount: '{n} 個のオブジェクト',
+  kbdClearSel: '選択範囲を消去',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
