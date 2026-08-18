@@ -1,6 +1,12 @@
 import { useI18n } from '../i18n';
 import type { Settings } from '../lib/settings';
 
+/** LAME VBR presets and the average bitrate each typically lands on. */
+const VBR_LEVELS: ReadonlyArray<[q: number, kbps: number]> = [
+  [0, 245], [1, 225], [2, 190], [3, 175], [4, 165],
+  [5, 130], [6, 115], [7, 100], [8, 85], [9, 65],
+];
+
 interface Props {
   settings: Settings;
   onChange: (s: Settings) => void;
@@ -86,7 +92,37 @@ export function SettingsPanel({ settings, onChange }: Props) {
                 <option key={b} value={b}>{b.replace('k', ' kbps')}</option>
               ))}
             </select>
+            {settings.audioRateMode === 'vbr' && (
+              <span className="sp-hint">{t('audioBitrateVbrHint')}</span>
+            )}
           </label>
+
+          <label className="sp-field">
+            <span className="sp-label">{t('audioRateMode')}</span>
+            <select
+              value={settings.audioRateMode}
+              onChange={(e) => set('audioRateMode', e.target.value as Settings['audioRateMode'])}
+            >
+              <option value="cbr">{t('audioCbr')}</option>
+              <option value="vbr">{t('audioVbr')}</option>
+            </select>
+            <span className="sp-hint">{t('audioRateModeHint')}</span>
+          </label>
+
+          {settings.audioRateMode === 'vbr' && (
+            <label className="sp-field">
+              <span className="sp-label">{t('audioQuality')}</span>
+              <select
+                value={settings.audioQuality}
+                onChange={(e) => set('audioQuality', Number(e.target.value))}
+              >
+                {VBR_LEVELS.map(([q, kbps]) => (
+                  <option key={q} value={q}>V{q} ≈ {kbps} kbps</option>
+                ))}
+              </select>
+              <span className="sp-hint">{t('audioQualityHint')}</span>
+            </label>
+          )}
 
           <label className="sp-field">
             <span className="sp-label">{t('audioSampleRate')}</span>

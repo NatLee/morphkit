@@ -4,6 +4,10 @@ export interface Settings {
   /** Image: longest-edge cap in px. 0 = keep original size. */
   imageMaxDim: number;
   audioBitrate: '128k' | '192k' | '256k' | '320k';
+  /** Audio: 'cbr' pins the bitrate, 'vbr' hands the encoder a quality target. */
+  audioRateMode: 'cbr' | 'vbr';
+  /** VBR quality on the LAME scale: 0 = best (~245 kbps) … 9 = smallest. */
+  audioQuality: number;
   /** Audio: output sample rate in Hz. 0 = keep original. */
   audioSampleRate: number;
   /** Audio: 0 = keep original, 1 = mono, 2 = stereo. */
@@ -30,6 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   concurrency: 2,
   imageMaxDim: 0,
   audioBitrate: '192k',
+  audioRateMode: 'cbr',
+  audioQuality: 2,
   audioSampleRate: 0,
   audioChannels: 0,
   videoCrf: 23,
