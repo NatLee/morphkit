@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { GIFEncoder } from 'gifenc';
 import UPNG from 'upng-js';
 import { decodeAnim, writeGifFrame } from '../lib/animImage';
@@ -425,7 +426,7 @@ export function GifEditor({ item, onSave, onClose, inline, importFrames, onImpor
   const frames = framesRef.current;
   const n = frames.length;
 
-  return (
+  const body = (
     <div
       className={inline ? 'ie-inline-wrap' : 'editor-overlay'}
       onClick={inline || busy ? undefined : onClose}
@@ -638,4 +639,6 @@ export function GifEditor({ item, onSave, onClose, inline, importFrames, onImpor
       </div>
     </div>
   );
+
+  return inline ? body : createPortal(body, document.body);
 }

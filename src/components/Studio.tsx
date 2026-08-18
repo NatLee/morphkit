@@ -9,6 +9,8 @@ import { GifEditor } from './GifEditor';
 import { VideoWorkspace } from './VideoWorkspace';
 import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
+import { Overlay } from './Overlay';
+import { createPortal } from 'react-dom';
 import { detectKind, extOf, formatBytes } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer } from '../lib/audioEngine';
 import { decodeAnim } from '../lib/animImage';
@@ -678,9 +680,9 @@ export function Studio() {
 
         {projects.length === 0 && <p className="st-empty">{t('noProjects')}</p>}
 
-        {/* type picker — overlay modal */}
+        {/* type picker — overlay modal (portaled: always full-viewport) */}
         {pickType && (
-          <div className="editor-overlay" onClick={() => setPickType(false)}>
+          <Overlay onClick={() => setPickType(false)}>
             <div className="editor type-modal" onClick={(e) => e.stopPropagation()}>
               <p className="mx-label">{t('chooseType')}</p>
               <div className="pj-grid">
@@ -696,12 +698,12 @@ export function Studio() {
               </div>
               <button className="btn btn-ghost btn-sm" onClick={() => setPickType(false)}>{t('cancel')}</button>
             </div>
-          </div>
+          </Overlay>
         )}
 
         {/* project metadata modal */}
         {metaPj && (
-          <div className="editor-overlay" onClick={() => setMetaPj(null)}>
+          <Overlay onClick={() => setMetaPj(null)}>
             <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
               <p className="mx-label">{t('projectInfo')}</p>
               <dl className="fc-details meta-list">
@@ -715,7 +717,7 @@ export function Studio() {
                 <button className="btn btn-ghost" onClick={() => setMetaPj(null)}>{t('close')}</button>
               </div>
             </div>
-          </div>
+          </Overlay>
         )}
       </div>
     );
@@ -919,7 +921,7 @@ export function Studio() {
         </main>
       </div>
 
-      {note && <div className="banner info st-note">{note}</div>}
+      {note && createPortal(<div className="banner info st-note">{note}</div>, document.body)}
 
       {framePick && (
         <FramePicker
@@ -932,7 +934,7 @@ export function Studio() {
 
       {/* blank canvas size modal */}
       {blankOpen && (
-        <div className="editor-overlay" onClick={() => setBlankOpen(false)}>
+        <Overlay onClick={() => setBlankOpen(false)}>
           <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
             <p className="mx-label">{t('blankCanvas')}</p>
             <div className="rz-grid">
@@ -946,7 +948,7 @@ export function Studio() {
               <button className="btn btn-accent" onClick={() => void blankCanvas(bcW, bcH)}>{t('applyLabel')}</button>
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </div>
   );

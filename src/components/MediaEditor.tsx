@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { DualRange } from './DualRange';
 import type { Item, MediaEdit } from '../types';
@@ -108,7 +109,7 @@ export function MediaEditor({ item, onSave, onClose }: Props) {
     onSave(item.id, Object.keys(edit).length ? edit : undefined);
   };
 
-  return (
+  return createPortal(
     <div className="editor-overlay" onClick={onClose}>
       <div className="editor" role="dialog" aria-label={t('edit')} onClick={(e) => e.stopPropagation()}>
         <div className="ed-head">
@@ -269,6 +270,7 @@ export function MediaEditor({ item, onSave, onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

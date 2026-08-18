@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { DualRange } from './DualRange';
 
@@ -96,7 +97,7 @@ export function FramePicker({ blob, mode, onDone, onClose }: Props) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="editor-overlay" onClick={busy ? undefined : onClose}>
       <div className="editor mini-modal frame-modal" onClick={(e) => e.stopPropagation()}>
         <p className="mx-label">{mode === 'single' ? t('pickFrameTitle') : t('pickClipTitle')}</p>
@@ -171,6 +172,7 @@ export function FramePicker({ blob, mode, onDone, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
+import { Overlay } from './Overlay';
 import type { Item } from '../types';
 
 /* Graphite-inspired: non-destructive object model — every stroke, shape and
@@ -1152,7 +1154,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   void selVer;
   const w = baseRef.current?.bmp.width ?? 0;
 
-  return (
+  const body = (
     <div
       className={inline ? 'ie-inline-wrap' : 'editor-overlay'}
       onClick={inline ? undefined : onClose}
@@ -1456,7 +1458,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
         </div>
 
         {resizeOpen && (
-          <div className="editor-overlay" onClick={() => setResizeOpen(false)}>
+          <Overlay onClick={() => setResizeOpen(false)}>
             <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
               <p className="mx-label">{t('resizeCanvas')}</p>
               <div className="ed-seg">
@@ -1490,9 +1492,12 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
                 </button>
               </div>
             </div>
-          </div>
+          </Overlay>
         )}
       </div>
     </div>
   );
+
+  // modal mode renders through a portal so the backdrop always covers the viewport
+  return inline ? body : createPortal(body, document.body);
 }
