@@ -1912,6 +1912,13 @@ kbd {
   border-color: var(--line-strong);
 }
 
+/* monochrome glyph badge — inherits ink colour like every other icon */
+.lp-badge.lock {
+  display: inline-grid;
+  place-items: center;
+  padding: 1px 3px;
+}
+
 .lp-obj { min-height: 32px; align-items: center; }
 
 /* ---- canvas size modal ---- */

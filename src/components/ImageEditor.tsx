@@ -1724,7 +1724,11 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                       {l.name}
                       <span className="lp-count">{l.objects.length}</span>
                       {l.mask && <span className="lp-badge" title={t('maskLabel')}>M</span>}
-                      {l.locked && <span className="lp-badge lock" title={t('lockLayer')}>🔒</span>}
+                      {l.locked && (
+                        <span className="lp-badge lock" title={t('lockLayer')}>
+                          <svg viewBox="0 0 24 24" width="9" height="9"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /></svg>
+                        </span>
+                      )}
                       {l.opacity < 1 && <span className="lp-badge dim">{Math.round(l.opacity * 100)}%</span>}
                     </span>
                   )}
