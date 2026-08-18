@@ -2936,6 +2936,17 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .asset-row:hover { background: var(--panel); }
 
+.asset-draggable { cursor: grab; }
+.asset-draggable:active { cursor: grabbing; }
+
+/* workspace drop target */
+.st-main.drop-hot {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+}
+
 .thumb:hover:not(.active) { border-color: var(--ink); }
 
 /* modals pop instead of sliding like page content */

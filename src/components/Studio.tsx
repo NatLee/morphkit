@@ -81,6 +81,7 @@ export function Studio() {
   const [gifImportFrames, setGifImportFrames] = useState<{ img: ImageData; delay: number }[] | null>(null);
   const [framePick, setFramePick] = useState<{ blob: Blob; mode: 'single' | 'range' } | null>(null);
   const [note, setNote] = useState('');
+  const [dropHot, setDropHot] = useState(false);
   const [bcW, setBcW] = useState(1280);
   const [bcH, setBcH] = useState(720);
   const importRef = useRef<HTMLInputElement>(null);
@@ -522,6 +523,20 @@ export function Studio() {
     }
   };
 
+  /** File dropped on the workspace: keep it as an asset, then route it in. */
+  const dropExternalToEditor = async (f: File) => {
+    if (!curId) return;
+    const kind = detectKind(f);
+    if (!kind) return;
+    const rec: AssetRec = {
+      id: uid(), projectId: curId, name: f.name, kind, blob: f, addedAt: Date.now(),
+    };
+    await putAsset(rec);
+    setAssets((prev) => [...prev, rec]);
+    if (!persistedRef.current.has(curId)) savePatch({});
+    if (canImportToEditor(rec)) await importAssetToEditor(rec);
+  };
+
   const onFramesPicked = (frames: { img: ImageData; delay: number }[]) => {
     setFramePick(null);
     if (ptype === 'image') {
@@ -773,7 +788,15 @@ export function Studio() {
           {assets.length === 0 && <p className="st-empty">{t('emptyAssets')}</p>}
 
           {assets.map((a) => (
-            <div className="asset-row" key={a.id}>
+            <div
+              className={`asset-row${canImportToEditor(a) ? ' asset-draggable' : ''}`}
+              key={a.id}
+              draggable={canImportToEditor(a)}
+              onDragStart={(e) => {
+                e.dataTransfer.setData('application/x-morphkit-asset', a.id);
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+            >
               <span className="asset-icon">
                 <svg viewBox="0 0 24 24" width="14" height="14"><path d={KIND_GLYPH[a.kind] ?? KIND_GLYPH.image} fill="currentColor" /></svg>
               </span>
@@ -794,7 +817,8 @@ export function Studio() {
                 )}
                 {canImportToEditor(a) && (
                   <button onClick={() => void importAssetToEditor(a)} title={t('importToEditor')}>
-                    <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 21h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    {/* arrow pointing INTO a frame — distinct from the download glyph */}
+                    <svg viewBox="0 0 24 24" width="12" height="12"><path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5M3 12h10m0 0-3.5-3.5M13 12l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </button>
                 )}
                 <button onClick={() => newFromAsset(a)} title={t('newFromAsset')}>
@@ -809,7 +833,32 @@ export function Studio() {
           ))}
         </aside>
 
-        <main className="st-main">
+        <main
+          className={`st-main${dropHot ? ' drop-hot' : ''}`}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes('application/x-morphkit-asset') &&
+                !e.dataTransfer.types.includes('Files')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            if (!dropHot) setDropHot(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropHot(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDropHot(false);
+            const id = e.dataTransfer.getData('application/x-morphkit-asset');
+            if (id) {
+              const a = assets.find((x) => x.id === id);
+              if (a) void importAssetToEditor(a);
+              return;
+            }
+            // external file dropped straight onto the canvas: store, then import
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length) void dropExternalToEditor(files[0]);
+          }}
+        >
           <div className="view-anim" key={ptype + (curId ?? '')}>
             {ptype === 'audio' && cur && (
               <Mixer
