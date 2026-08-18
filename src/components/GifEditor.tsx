@@ -35,10 +35,12 @@ interface Cap {
 interface Props {
   item: Item;
   onSave: (id: string, file: File) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  /** workspace mode: no overlay chrome, fills its container */
+  inline?: boolean;
 }
 
-export function GifEditor({ item, onSave, onClose }: Props) {
+export function GifEditor({ item, onSave, onClose, inline }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const framesRef = useRef<Frame[]>([]);
@@ -376,14 +378,24 @@ export function GifEditor({ item, onSave, onClose }: Props) {
   const n = frames.length;
 
   return (
-    <div className="editor-overlay" onClick={busy ? undefined : onClose}>
-      <div className="editor editor-wide" role="dialog" aria-label={t('edit')} onClick={(e) => e.stopPropagation()}>
-        <div className="ed-head">
-          <span className="ed-title" title={item.file.name}>{item.file.name}</span>
-          <button className="theme-toggle" onClick={onClose} aria-label={t('close')} disabled={busy}>
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-          </button>
-        </div>
+    <div
+      className={inline ? 'ie-inline-wrap' : 'editor-overlay'}
+      onClick={inline || busy ? undefined : onClose}
+    >
+      <div
+        className={`editor editor-wide${inline ? ' ie-inline' : ''}`}
+        role={inline ? undefined : 'dialog'}
+        aria-label={t('edit')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {!inline && (
+          <div className="ed-head">
+            <span className="ed-title" title={item.file.name}>{item.file.name}</span>
+            <button className="theme-toggle" onClick={onClose} aria-label={t('close')} disabled={busy}>
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        )}
 
         <div className="ed-preview gif-preview">
           <canvas
@@ -569,9 +581,9 @@ export function GifEditor({ item, onSave, onClose }: Props) {
         <div className="ed-foot">
           <span className="ed-hint">{busy ? t('processing') : ''}</span>
           <div className="ed-foot-main">
-            <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('cancel')}</button>
+            {!inline && <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('cancel')}</button>}
             <button className="btn btn-accent" onClick={save} disabled={busy || !loaded}>
-              {busy ? t('processing') : t('save')}
+              {busy ? t('processing') : inline ? t('exportToAssets') : t('save')}
             </button>
           </div>
         </div>

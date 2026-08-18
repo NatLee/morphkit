@@ -13,7 +13,7 @@ type Brush = 'pen' | 'marker' | 'highlight';
 
 interface Pt { x: number; y: number }
 
-interface Obj {
+export interface Obj {
   id: number;
   type: ObjType;
   color: string;
@@ -180,11 +180,17 @@ function mapObj(o: Obj, fn: (p: Pt) => Pt): Obj {
 
 interface Props {
   item: Item;
-  onSave: (id: string, file: File) => void;
-  onClose: () => void;
+  onSave?: (id: string, file: File) => void;
+  onClose?: () => void;
+  /** workspace mode: no overlay chrome, fills its container */
+  inline?: boolean;
+  /** persisted non-destructive layers (image projects) */
+  initialObjects?: Obj[];
+  /** reported on every change so the project can persist layers */
+  onObjectsChange?: (objects: Obj[]) => void;
 }
 
-export function ImageEditor({ item, onSave, onClose }: Props) {
+export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onObjectsChange }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -239,6 +245,11 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
       const bmp = await createImageBitmap(blob);
       if (cancelled) { bmp.close(); return; }
       baseRef.current = { blob, bmp };
+      // restore persisted layers (image projects) and avoid id collisions
+      if (initialObjects?.length) {
+        objId = Math.max(objId, ...initialObjects.map((o) => o.id));
+        setObjects(cloneObjs(initialObjects));
+      }
       // fit zoom
       const vp = viewportRef.current;
       if (vp) {
@@ -249,7 +260,14 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
       setReady(true);
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.file]);
+
+  // report layer changes for project persistence
+  useEffect(() => {
+    if (ready) onObjectsChange?.(objectsRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objects, ready]);
 
   // ---- render ----
   const render = useCallback(() => {
@@ -662,7 +680,17 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
     out.toBlob((b) => {
       if (!b) return;
       const baseName = item.file.name.replace(/\.[^.]+$/, '');
-      onSave(item.id, new File([b], `${baseName}_edited.png`, { type: 'image/png' }));
+      const file = new File([b], `${baseName}_edited.png`, { type: 'image/png' });
+      if (onSave) {
+        onSave(item.id, file);
+      } else {
+        const url = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        a.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
     }, 'image/png');
   };
 
@@ -676,14 +704,24 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
   const w = baseRef.current?.bmp.width ?? 0;
 
   return (
-    <div className="editor-overlay" onClick={onClose}>
-      <div className="editor editor-wide" role="dialog" aria-label={t('edit')} onClick={(e) => e.stopPropagation()}>
-        <div className="ed-head">
-          <span className="ed-title" title={item.file.name}>{item.file.name}</span>
-          <button className="theme-toggle" onClick={onClose} aria-label={t('close')}>
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-          </button>
-        </div>
+    <div
+      className={inline ? 'ie-inline-wrap' : 'editor-overlay'}
+      onClick={inline ? undefined : onClose}
+    >
+      <div
+        className={`editor editor-wide${inline ? ' ie-inline' : ''}`}
+        role={inline ? undefined : 'dialog'}
+        aria-label={t('edit')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {!inline && (
+          <div className="ed-head">
+            <span className="ed-title" title={item.file.name}>{item.file.name}</span>
+            <button className="theme-toggle" onClick={onClose} aria-label={t('close')}>
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        )}
 
         <div className="ed-toolbar">
           {(Object.keys(TOOL_ICONS) as Tool[]).map((tl) => (
@@ -900,8 +938,10 @@ export function ImageEditor({ item, onSave, onClose }: Props) {
             <span><kbd>Del</kbd> {t('kbdDelete')}</span>
           </span>
           <div className="ed-foot-main">
-            <button className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>
-            <button className="btn btn-accent" onClick={save} disabled={!ready}>{t('save')}</button>
+            {!inline && <button className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>}
+            <button className="btn btn-accent" onClick={save} disabled={!ready}>
+              {inline ? t('exportToAssets') : t('save')}
+            </button>
           </div>
         </div>
       </div>

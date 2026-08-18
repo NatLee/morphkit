@@ -24,12 +24,35 @@ export interface MixerDoc {
   tracks: Track[];
 }
 
+/** Project type is chosen at creation and never changes. */
+export type ProjectType = 'audio' | 'image' | 'gif' | 'video';
+
+/** Image projects: persisted non-destructive object layers over a base asset. */
+export interface ImageDoc {
+  baseAssetId: string | null;
+  /** serialized ImageEditor objects (owned by ImageEditor's Obj type) */
+  objects: unknown[];
+}
+
+/** Video projects: one video + a full audio mixer, aligned to the trimmed start. */
+export interface VideoDoc {
+  videoAssetId: string | null;
+  trimStart: number;
+  trimEnd: number;
+  mixer: MixerDoc;
+}
+
 export interface ProjectRec {
   id: string;
   name: string;
   createdAt: number;
   updatedAt: number;
+  /** absent on legacy records — treat as 'audio' */
+  type?: ProjectType;
   mixer: MixerDoc;
+  imageDoc?: ImageDoc;
+  videoDoc?: VideoDoc;
+  gifAssetId?: string | null;
 }
 
 export interface AssetRec {
@@ -43,6 +66,15 @@ export interface AssetRec {
 }
 
 export const emptyMixer = (): MixerDoc => ({ tracks: [] });
+
+export const emptyImageDoc = (): ImageDoc => ({ baseAssetId: null, objects: [] });
+
+export const emptyVideoDoc = (): VideoDoc => ({
+  videoAssetId: null,
+  trimStart: 0,
+  trimEnd: 0,
+  mixer: emptyMixer(),
+});
 
 export const uid = (): string =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;

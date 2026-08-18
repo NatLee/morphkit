@@ -153,6 +153,57 @@ function buildArgs(
   }
 }
 
+/**
+ * Video-project export: trim the video, optionally replace its audio with a
+ * pre-rendered WAV mix (from the Studio timeline), encode to MP4.
+ */
+export async function muxVideo(
+  video: File,
+  audioWav: Blob | null,
+  trimStart: number,
+  trimEnd: number,
+  settings: Settings,
+  onProgress: (p: number) => void,
+  onDownload?: DownloadProgress
+): Promise<Blob> {
+  const ff = await acquireEngine(onDownload);
+  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const vName = `v_${stamp}.${extOf(video.name) || 'mp4'}`;
+  const aName = `a_${stamp}.wav`;
+  const outName = `out_${stamp}.mp4`;
+  const trim: string[] = [];
+  if (trimStart > 0.01) trim.push('-ss', trimStart.toFixed(3));
+  if (trimEnd > trimStart + 0.01) trim.push('-t', (trimEnd - trimStart).toFixed(3));
+
+  const handler = ({ progress }: { progress: number }) => {
+    if (Number.isFinite(progress)) onProgress(Math.min(1, Math.max(0, progress)));
+  };
+
+  try {
+    await ff.writeFile(vName, await fetchFile(video));
+    if (audioWav) await ff.writeFile(aName, new Uint8Array(await audioWav.arrayBuffer()));
+    ff.on('progress', handler);
+    const args = [
+      ...trim, '-i', vName,
+      ...(audioWav ? ['-i', aName, '-map', '0:v:0', '-map', '1:a:0', '-shortest'] : []),
+      '-c:v', 'libx264', '-preset', settings.videoPreset, '-crf', String(settings.videoCrf), '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac', '-b:a', '192k',
+      outName,
+    ];
+    const code = await ff.exec(args);
+    if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
+    const data = await ff.readFile(outName);
+    if (typeof data === 'string') throw new Error('unexpected output');
+    return new Blob([data.slice()], { type: 'video/mp4' });
+  } finally {
+    ff.off('progress', handler);
+    try { await ff.deleteFile(vName); } catch { /* ignore */ }
+    if (audioWav) { try { await ff.deleteFile(aName); } catch { /* ignore */ } }
+    try { await ff.deleteFile(outName); } catch { /* ignore */ }
+    releaseEngine(ff);
+  }
+}
+
 /** Convert audio/video in the browser. Job progress callback receives 0..1. */
 export async function convertMedia(
   file: File,
