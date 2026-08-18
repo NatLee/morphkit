@@ -1533,6 +1533,36 @@ kbd {
   cursor: pointer;
 }
 
+/* always-on palette strip */
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 14px);
+  grid-auto-rows: 14px;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.swatch:hover { transform: scale(1.18); }
+
+.swatch.active {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--accent);
+}
+
+.lp-locked {
+  margin: 0 0 8px;
+  padding: 14px 10px;
+}
+
 .tb-slider input[type='range'] {
   width: 90px;
   accent-color: var(--accent);

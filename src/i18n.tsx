@@ -276,6 +276,7 @@ const zh: Dict = {
   objectsCount: '{n} 個物件',
   kbdClearSel: '清除選取範圍',
   tool_move: '移動圖層內容',
+  noLayerHint: '沒有圖層可編輯，請按上方 ＋ 新增一個',
 };
 
 const en: Dict = {
@@ -544,6 +545,7 @@ const en: Dict = {
   objectsCount: '{n} objects',
   kbdClearSel: 'clear selection',
   tool_move: 'Move layer pixels',
+  noLayerHint: 'No layer to edit — press ＋ above to add one',
 };
 
 const ja: Dict = {
@@ -812,6 +814,7 @@ const ja: Dict = {
   objectsCount: '{n} 個のオブジェクト',
   kbdClearSel: '選択範囲を消去',
   tool_move: 'レイヤーを移動',
+  noLayerHint: '編集できるレイヤーがありません。上の ＋ で追加してください',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

@@ -47,6 +47,12 @@ export const newLayer = (name: string): Layer => ({
 
 const maskBmpCache = new Map<string, ImageBitmap>();
 
+/** Always-visible palette — no picker click needed for common colours. */
+const SWATCHES = [
+  '#000000', '#ffffff', '#8a8f98', '#c94f16', '#e0a020',
+  '#2f9e57', '#2f7fd1', '#7a4fd1', '#d13f6e', '#8a5a2b',
+];
+
 export const FONT_MAP: Record<FontFam, string> = {
   sans: "'IBM Plex Sans', 'Noto Sans TC', 'Microsoft JhengHei', 'Yu Gothic', sans-serif",
   serif: "'Instrument Serif', 'Noto Serif TC', 'Yu Mincho', serif",
@@ -897,11 +903,17 @@ export function ImageEditor({
     setActiveId(copy.id);
   };
 
+  /** Layers can be deleted down to zero — the panel just locks up. */
   const deleteLayer = (id: string) => {
-    if (layers.length <= 1) return;
     pushHist();
     pixRef.current.delete(id);
-    setLayers((prev) => prev.filter((l) => l.id !== id));
+    setLayers((prev) => {
+      const next = prev.filter((l) => l.id !== id);
+      if (!next.some((l) => l.id === activeId)) {
+        setActiveId(next[next.length - 1]?.id ?? '');
+      }
+      return next;
+    });
   };
 
   const moveLayer = (id: string, dir: 1 | -1) => {
@@ -1340,6 +1352,18 @@ export function ImageEditor({
         <div className="ed-options">
           <span className="opt-tool">{t(`tool_${tool}`)}</span>
           <input type="color" className="tb-color" value={color} onChange={(e) => setColor(e.target.value)} title={t('colorLabel')} />
+          <span className="swatches">
+            {SWATCHES.map((s) => (
+              <button
+                key={s}
+                className={`swatch${color.toLowerCase() === s ? ' active' : ''}`}
+                style={{ background: s }}
+                onClick={() => setColor(s)}
+                title={s}
+                aria-label={s}
+              />
+            ))}
+          </span>
           <label className="tb-slider" title={isTextish ? t('fontSizeLabel') : t('strokeW')}>
             <input
               type="range"
@@ -1459,10 +1483,14 @@ export function ImageEditor({
               <span className="lp-head-btns">
                 <button onClick={addLayer} title={t('addLayer')}>＋</button>
                 <button onClick={() => activeLayer && duplicateLayer(activeLayer.id)} title={t('dupLayer')}>⧉</button>
-                <button onClick={() => activeLayer && mergeDown(activeLayer.id)} title={t('mergeDown')}>⤓</button>
-                <button onClick={() => activeLayer && deleteLayer(activeLayer.id)} disabled={layers.length <= 1} title={t('remove')}>×</button>
+                <button onClick={() => activeLayer && mergeDown(activeLayer.id)} disabled={!activeLayer} title={t('mergeDown')}>⤓</button>
+                <button onClick={() => activeLayer && deleteLayer(activeLayer.id)} disabled={!activeLayer} title={t('remove')}>×</button>
               </span>
             </div>
+
+            {!activeLayer && (
+              <p className="st-empty lp-locked">{t('noLayerHint')}</p>
+            )}
 
             {activeLayer && (
               <div className="lp-props">

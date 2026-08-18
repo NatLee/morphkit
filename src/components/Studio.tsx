@@ -64,6 +64,40 @@ const CANVAS_PRESETS = [
   { label: 'Banner', w: 1500, h: 500 },
 ];
 
+/** Render an image project (bg + base + layers) to a small preview blob. */
+async function flattenImageProject(p: ProjectRec, base: AssetRec): Promise<Blob | null> {
+  const bmp = await createImageBitmap(base.blob);
+  const TH = 320;
+  const s = Math.min(1, TH / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * s));
+  c.height = Math.max(1, Math.round(bmp.height * s));
+  const g = c.getContext('2d')!;
+  const bg = p.imageDoc?.bg;
+  if (bg) {
+    g.fillStyle = bg;
+    g.fillRect(0, 0, c.width, c.height);
+  }
+  g.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  for (const raw of (p.imageDoc?.layers ?? []) as Layer[]) {
+    if (!raw?.visible || !raw.src) continue;
+    try {
+      const lb = await (await fetch(raw.src)).blob();
+      const lbmp = await createImageBitmap(lb);
+      g.save();
+      g.globalAlpha = raw.opacity ?? 1;
+      if (raw.blend && raw.blend !== 'normal') {
+        g.globalCompositeOperation = raw.blend as GlobalCompositeOperation;
+      }
+      g.drawImage(lbmp, 0, 0, c.width, c.height);
+      g.restore();
+      lbmp.close();
+    } catch { /* skip bad layer */ }
+  }
+  return new Promise((r) => c.toBlob(r, 'image/png'));
+}
+
 const isGifAsset = (a: AssetRec) =>
   ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
 
@@ -336,6 +370,21 @@ export function Studio() {
           list.find((a) => a.kind === 'image') ??
           list.find((a) => a.kind === 'video') ??
           null;
+
+        // image projects: flatten base + layers so the card shows real work,
+        // not the untouched source asset
+        if (p.type === 'image' && prim && prim.kind === 'image') {
+          try {
+            const flat = await flattenImageProject(p, prim);
+            if (flat) {
+              const u = URL.createObjectURL(flat);
+              thumbUrlsRef.current.push(u);
+              th[p.id] = { url: u, video: false };
+              continue;
+            }
+          } catch { /* fall through to the raw asset */ }
+        }
+
         if (prim) {
           const u = URL.createObjectURL(prim.blob);
           thumbUrlsRef.current.push(u);
