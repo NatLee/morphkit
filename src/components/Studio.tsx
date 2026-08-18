@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { useI18n } from '../i18n';
 import { Mixer } from './Mixer';
-import { ImageEditor } from './ImageEditor';
+import { ImageEditor, type Obj } from './ImageEditor';
 import { GifEditor } from './GifEditor';
+import { VideoWorkspace } from './VideoWorkspace';
 import { InfoTip } from './InfoTip';
 import { detectKind, extOf, formatBytes } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer } from '../lib/audioEngine';
@@ -16,12 +17,16 @@ import {
   putProject,
 } from '../lib/idb';
 import {
+  emptyImageDoc,
   emptyMixer,
+  emptyVideoDoc,
   uid,
   type AssetRec,
   type Clip,
   type MixerDoc,
   type ProjectRec,
+  type ProjectType,
+  type VideoDoc,
 } from '../lib/studioTypes';
 import type { Item } from '../types';
 
@@ -29,55 +34,31 @@ const KIND_GLYPH: Record<string, string> = {
   image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6z',
   audio: 'M9 18a3 3 0 1 1-2-2.83V6l11-2v10a3 3 0 1 1-2-2.83V7.4l-7 1.27V18z',
   video: 'M4 6h11a1 1 0 0 1 1 1v2.5l4-2.5a.6.6 0 0 1 1 .5v9a.6.6 0 0 1-1 .5l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
+  gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
 };
 
-/** Media-tab card with live preview (object URL managed per card). */
-function MediaCard({ a, onEdit, onRemove, editable }: {
-  a: AssetRec;
-  onEdit: () => void;
-  onRemove: () => void;
-  editable: boolean;
-}) {
-  const { t } = useI18n();
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    const u = URL.createObjectURL(a.blob);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [a.blob]);
+const TYPE_META: Record<ProjectType, { labelKey: string; descKey: string; glyph: string }> = {
+  audio: { labelKey: 'typeAudio', descKey: 'typeAudioDesc', glyph: KIND_GLYPH.audio },
+  image: { labelKey: 'typeImage', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image },
+  gif: { labelKey: 'typeGif', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif },
+  video: { labelKey: 'typeVideo', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video },
+};
 
-  return (
-    <div className="media-card">
-      <div className="media-thumb">
-        {a.kind === 'video'
-          ? <video src={url} controls preload="metadata" />
-          : <img src={url} alt={a.name} draggable={false} />}
-      </div>
-      <p className="media-name" title={a.name}>{a.name}</p>
-      <div className="media-actions">
-        <span className="asset-size">{formatBytes(a.blob.size)}</span>
-        <span className="opt-spacer" />
-        {editable && (
-          <button className="btn btn-ghost btn-sm" onClick={onEdit}>{t('edit')}</button>
-        )}
-        <a className="btn btn-ghost btn-sm" href={url} download={a.name}>{t('download')}</a>
-        <button className="btn btn-ghost btn-sm" onClick={onRemove} aria-label={t('remove')}>×</button>
-      </div>
-    </div>
-  );
-}
+const isGifAsset = (a: AssetRec) =>
+  ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
+
+const projectTypeFor = (a: AssetRec): ProjectType =>
+  isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : 'audio';
 
 export function Studio() {
   const { t } = useI18n();
   const [projects, setProjects] = useState<ProjectRec[]>([]);
   const [curId, setCurId] = useState<string | null>(null);
   const [assets, setAssets] = useState<AssetRec[]>([]);
-  const [doc, setDoc] = useState<MixerDoc>(emptyMixer());
   const [bufVer, setBufVer] = useState(0);
-  const [view, setView] = useState<'mix' | 'media'>('mix');
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<AssetRec | null>(null);
   const [entered, setEntered] = useState(false);
+  const [pickType, setPickType] = useState(false);
   const [pjStats, setPjStats] = useState<Record<string, { n: number; bytes: number }>>({});
   const importRef = useRef<HTMLInputElement>(null);
   const pjImportRef = useRef<HTMLInputElement>(null);
@@ -86,36 +67,31 @@ export function Studio() {
 
   const cur = projects.find((p) => p.id === curId) ?? null;
   useEffect(() => { curRef.current = cur; }, [cur]);
+  const ptype: ProjectType = cur?.type ?? 'audio';
 
-  // ---- init: load / create project ----
+  // ---- init ----
   useEffect(() => {
     void (async () => {
-      let list = await listProjects();
-      if (!list.length) {
-        const p: ProjectRec = {
-          id: uid(), name: 'Project 1', createdAt: Date.now(), updatedAt: Date.now(), mixer: emptyMixer(),
-        };
-        await putProject(p);
-        list = [p];
-      }
+      const list = (await listProjects()).map((p) => ({ ...p, type: p.type ?? ('audio' as ProjectType) }));
       setProjects(list.sort((a, b) => b.updatedAt - a.updatedAt));
       const saved = localStorage.getItem('morphkit-project');
-      setCurId(list.some((p) => p.id === saved) ? saved : list[0].id);
+      if (list.some((p) => p.id === saved)) setCurId(saved);
+      else if (list.length) setCurId(list[0].id);
     })();
   }, []);
 
-  // ---- switch project: load assets + mixer, warm decode cache ----
+  // ---- switch project: load assets, warm audio cache ----
   useEffect(() => {
     if (!curId) return;
     try { localStorage.setItem('morphkit-project', curId); } catch { /* ignore */ }
     const proj = projects.find((p) => p.id === curId);
     if (!proj) return;
-    setDoc(proj.mixer);
-    setActiveTrackId(proj.mixer.tracks[0]?.id ?? null);
+    const mix = proj.type === 'video' ? proj.videoDoc?.mixer : proj.mixer;
+    setActiveTrackId(mix?.tracks[0]?.id ?? null);
     void (async () => {
       const list = await listAssets(curId);
       setAssets(list.sort((a, b) => a.addedAt - b.addedAt));
-      const ids = new Set(proj.mixer.tracks.flatMap((tr) => tr.clips.map((c) => c.assetId)));
+      const ids = new Set((mix?.tracks ?? []).flatMap((tr) => tr.clips.map((c) => c.assetId)));
       for (const id of ids) {
         const a = list.find((x) => x.id === id);
         if (a) {
@@ -127,53 +103,46 @@ export function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curId, projects.length]);
 
-  const persistDoc = (mixer: MixerDoc) => {
+  /** Merge a patch into the current project; debounce the IndexedDB write. */
+  const savePatch = (patch: Partial<ProjectRec>) => {
     const c = curRef.current;
     if (!c) return;
-    const next = { ...c, mixer, updatedAt: Date.now() };
+    const next = { ...c, ...patch, updatedAt: Date.now() };
+    curRef.current = next; // stay fresh across rapid successive patches
     setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p)));
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => void putProject(next), 500);
   };
 
-  /** Functional doc update — safe across async boundaries. */
-  const updateDoc = (fn: (d: MixerDoc) => MixerDoc) => {
-    setDoc((prev) => {
-      const next = fn(prev);
-      persistDoc(next);
-      return next;
-    });
-  };
-
-  const renameProject = (name: string) => {
-    const c = curRef.current;
-    if (!c) return;
-    const next = { ...c, name, updatedAt: Date.now() };
-    setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p)));
-    window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => void putProject(next), 500);
-  };
+  const patchVideoDoc = (fn: (d: VideoDoc) => VideoDoc) =>
+    savePatch({ videoDoc: fn(curRef.current?.videoDoc ?? emptyVideoDoc()) });
 
   // ---- project ops ----
-  const createProject = async () => {
+  const createProject = async (type: ProjectType) => {
     const p: ProjectRec = {
-      id: uid(), name: `Project ${projects.length + 1}`,
+      id: uid(), name: `Project ${projects.length + 1}`, type,
       createdAt: Date.now(), updatedAt: Date.now(), mixer: emptyMixer(),
+      ...(type === 'image' ? { imageDoc: emptyImageDoc() } : {}),
+      ...(type === 'video' ? { videoDoc: emptyVideoDoc() } : {}),
+      ...(type === 'gif' ? { gifAssetId: null } : {}),
     };
     await putProject(p);
     setProjects((prev) => [p, ...prev]);
     setCurId(p.id);
+    setPickType(false);
+    setEntered(true);
   };
 
   const removeProject = async () => {
     const c = curRef.current;
     if (!c) return;
     await idbDeleteProject(c.id);
-    const rest = projects.filter((p) => p.id !== c.id);
-    setProjects(rest);
-    if (rest.length) setCurId(rest[0].id);
-    else void createProject();
+    setProjects((prev) => prev.filter((p) => p.id !== c.id));
+    setCurId(null);
+    setEntered(false);
   };
+
+  const renameProject = (name: string) => savePatch({ name });
 
   // ---- assets ----
   const importFiles = async (files: File[]) => {
@@ -195,43 +164,59 @@ export function Studio() {
     await idbDeleteAsset(a.id);
     dropAssetBuffer(a.id);
     setAssets((prev) => prev.filter((x) => x.id !== a.id));
-    updateDoc((d) => ({
-      tracks: d.tracks.map((tr) => ({
-        ...tr,
-        clips: tr.clips.filter((c) => c.assetId !== a.id),
-      })),
-    }));
+    const stripMix = (m: MixerDoc): MixerDoc => ({
+      tracks: m.tracks.map((tr) => ({ ...tr, clips: tr.clips.filter((c) => c.assetId !== a.id) })),
+    });
+    const c = curRef.current;
+    if (!c) return;
+    savePatch({
+      mixer: stripMix(c.mixer),
+      ...(c.videoDoc ? { videoDoc: { ...c.videoDoc, mixer: stripMix(c.videoDoc.mixer), videoAssetId: c.videoDoc.videoAssetId === a.id ? null : c.videoDoc.videoAssetId } } : {}),
+      ...(c.imageDoc?.baseAssetId === a.id ? { imageDoc: { ...c.imageDoc, baseAssetId: null } } : {}),
+      ...(c.gifAssetId === a.id ? { gifAssetId: null } : {}),
+    });
   };
 
-  /** Add audio to the timeline: lands on the focused track, else a new track. */
+  const downloadAsset = (a: AssetRec) => {
+    const u = URL.createObjectURL(a.blob);
+    const el = document.createElement('a');
+    el.href = u;
+    el.download = a.name;
+    el.click();
+    window.setTimeout(() => URL.revokeObjectURL(u), 10000);
+  };
+
+  /** Append a clip to the focused track (or a fresh one) of a mixer doc. */
+  const withClip = (m: MixerDoc, a: AssetRec, durSec: number, atSec?: number): { mixer: MixerDoc; newActive?: string } => {
+    const mk = (start: number): Clip => ({ id: uid(), assetId: a.id, start, offset: 0, duration: durSec, gain: 1 });
+    const act = m.tracks.find((tr) => tr.id === activeTrackId);
+    if (act) {
+      const end = atSec ?? act.clips.reduce((x, c) => Math.max(x, c.start + c.duration), 0);
+      return {
+        mixer: { tracks: m.tracks.map((tr) => (tr.id === act.id ? { ...tr, clips: [...tr.clips, mk(end)] } : tr)) },
+      };
+    }
+    const id = uid();
+    const short = a.name.replace(/\.[^.]+$/, '').slice(0, 14) || `Track ${m.tracks.length + 1}`;
+    return {
+      mixer: { tracks: [...m.tracks, { id, name: short, gain: 1, muted: false, solo: false, clips: [mk(atSec ?? 0)] }] },
+      newActive: id,
+    };
+  };
+
   const addToMix = async (a: AssetRec, atSec?: number) => {
     try {
       const buf = await decodeAssetBuffer(a.id, a.blob);
-      const mkClip = (start: number): Clip => ({
-        id: uid(), assetId: a.id, start, offset: 0, duration: buf.duration, gain: 1,
-      });
-      updateDoc((d) => {
-        const act = d.tracks.find((tr) => tr.id === activeTrackId);
-        if (act) {
-          const end = atSec ?? act.clips.reduce((m, c) => Math.max(m, c.start + c.duration), 0);
-          return {
-            tracks: d.tracks.map((tr) =>
-              tr.id === act.id ? { ...tr, clips: [...tr.clips, mkClip(end)] } : tr
-            ),
-          };
-        }
-        const id = uid();
-        const short = a.name.replace(/\.[^.]+$/, '').slice(0, 14);
-        window.setTimeout(() => setActiveTrackId(id), 0);
-        return {
-          tracks: [...d.tracks, {
-            id, name: short || t('trackName', { n: String(d.tracks.length + 1) }),
-            gain: 1, muted: false, solo: false, clips: [mkClip(atSec ?? 0)],
-          }],
-        };
-      });
+      if (ptype === 'video') {
+        const res = withClip(curRef.current?.videoDoc?.mixer ?? emptyMixer(), a, buf.duration, atSec);
+        patchVideoDoc((d) => ({ ...d, mixer: res.mixer }));
+        if (res.newActive) setActiveTrackId(res.newActive);
+      } else {
+        const res = withClip(curRef.current?.mixer ?? emptyMixer(), a, buf.duration, atSec);
+        savePatch({ mixer: res.mixer });
+        if (res.newActive) setActiveTrackId(res.newActive);
+      }
       setBufVer((v) => v + 1);
-      setView('mix');
     } catch { /* not decodable as audio */ }
   };
 
@@ -247,21 +232,27 @@ export function Studio() {
     await addToMix(rec, atSec);
   };
 
-  const onEditorSave = async (id: string, file: File) => {
-    const a = assets.find((x) => x.id === id);
-    if (!a) return;
-    const rec: AssetRec = { ...a, blob: file, name: file.name };
-    await putAsset(rec);
-    setAssets((prev) => prev.map((x) => (x.id === id ? rec : x)));
-    setEditing(null);
+  /** Spin an asset off into its own typed project. */
+  const newFromAsset = async (a: AssetRec) => {
+    const type = projectTypeFor(a);
+    const pid = uid();
+    const nid = uid();
+    await putAsset({ id: nid, projectId: pid, name: a.name, kind: a.kind, blob: a.blob, addedAt: Date.now() });
+    const p: ProjectRec = {
+      id: pid,
+      name: a.name.replace(/\.[^.]+$/, '').slice(0, 20) || 'Project',
+      type, createdAt: Date.now(), updatedAt: Date.now(), mixer: emptyMixer(),
+      ...(type === 'image' ? { imageDoc: { baseAssetId: nid, objects: [] } } : {}),
+      ...(type === 'gif' ? { gifAssetId: nid } : {}),
+      ...(type === 'video' ? { videoDoc: { ...emptyVideoDoc(), videoAssetId: nid } } : {}),
+    };
+    await putProject(p);
+    setProjects((prev) => [p, ...prev]);
+    setCurId(pid);
+    setEntered(true);
   };
 
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    void importFiles(Array.from(e.dataTransfer.files));
-  };
-
-  // ---- launcher stats: per-project asset count + bytes ----
+  // ---- launcher stats ----
   useEffect(() => {
     if (entered || !projects.length) return;
     void (async () => {
@@ -274,13 +265,20 @@ export function Studio() {
     })();
   }, [entered, projects]);
 
-  // ---- project export / import (.zip: project.json + assets/) ----
+  // ---- project zip export / import ----
+  const remapMixer = (m: MixerDoc, idMap: Record<string, string>): MixerDoc => ({
+    tracks: m.tracks.map((tr) => ({
+      ...tr, id: uid(),
+      clips: tr.clips.filter((c) => idMap[c.assetId]).map((c) => ({ ...c, id: uid(), assetId: idMap[c.assetId] })),
+    })),
+  });
+
   const exportProjectZip = async (p: ProjectRec) => {
     const list = await listAssets(p.id);
     const entries: Record<string, Uint8Array> = {
       'project.json': strToU8(JSON.stringify({
-        name: p.name,
-        mixer: p.mixer,
+        name: p.name, type: p.type ?? 'audio', mixer: p.mixer,
+        imageDoc: p.imageDoc ?? null, videoDoc: p.videoDoc ?? null, gifAssetId: p.gifAssetId ?? null,
         assets: list.map((a) => ({ id: a.id, name: a.name, kind: a.kind, addedAt: a.addedAt, type: a.blob.type })),
       })),
     };
@@ -298,8 +296,9 @@ export function Studio() {
     try {
       const unzipped = unzipSync(new Uint8Array(await file.arrayBuffer()));
       const meta = JSON.parse(strFromU8(unzipped['project.json'])) as {
-        name: string;
-        mixer: MixerDoc;
+        name: string; type?: ProjectType; mixer: MixerDoc;
+        imageDoc?: { baseAssetId: string | null; objects: unknown[] } | null;
+        videoDoc?: VideoDoc | null; gifAssetId?: string | null;
         assets: { id: string; name: string; kind: string; addedAt: number; type?: string }[];
       };
       const pid = uid();
@@ -315,26 +314,25 @@ export function Studio() {
           addedAt: a.addedAt,
         });
       }
-      const mixer: MixerDoc = {
-        tracks: (meta.mixer?.tracks ?? []).map((tr) => ({
-          ...tr,
-          id: uid(),
-          clips: tr.clips
-            .filter((c) => idMap[c.assetId])
-            .map((c) => ({ ...c, id: uid(), assetId: idMap[c.assetId] })),
-        })),
-      };
       const p: ProjectRec = {
-        id: pid, name: meta.name || 'Imported', createdAt: Date.now(), updatedAt: Date.now(), mixer,
+        id: pid, name: meta.name || 'Imported', type: meta.type ?? 'audio',
+        createdAt: Date.now(), updatedAt: Date.now(),
+        mixer: remapMixer(meta.mixer ?? emptyMixer(), idMap),
+        ...(meta.imageDoc ? { imageDoc: { baseAssetId: meta.imageDoc.baseAssetId ? idMap[meta.imageDoc.baseAssetId] ?? null : null, objects: meta.imageDoc.objects ?? [] } } : {}),
+        ...(meta.videoDoc ? { videoDoc: { videoAssetId: meta.videoDoc.videoAssetId ? idMap[meta.videoDoc.videoAssetId] ?? null : null, trimStart: meta.videoDoc.trimStart, trimEnd: meta.videoDoc.trimEnd, mixer: remapMixer(meta.videoDoc.mixer ?? emptyMixer(), idMap) } } : {}),
+        ...(meta.gifAssetId !== undefined ? { gifAssetId: meta.gifAssetId ? idMap[meta.gifAssetId] ?? null : null } : {}),
       };
       await putProject(p);
       setProjects((prev) => [p, ...prev]);
     } catch { /* not a valid project zip */ }
   };
 
-  const isGifAsset = (a: AssetRec) =>
-    ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    void importFiles(Array.from(e.dataTransfer.files));
+  };
 
+  // ---- workspace helpers ----
   const pseudoItem = (a: AssetRec): Item => ({
     id: a.id,
     file: new File([a.blob], a.name, { type: a.blob.type }),
@@ -345,11 +343,54 @@ export function Studio() {
     progress: 0,
   });
 
+  const imgBase = ptype === 'image' ? assets.find((a) => a.id === cur?.imageDoc?.baseAssetId) ?? null : null;
+  const gifAsset = ptype === 'gif' ? assets.find((a) => a.id === cur?.gifAssetId) ?? null : null;
+  const videoAsset = ptype === 'video' ? assets.find((a) => a.id === cur?.videoDoc?.videoAssetId) ?? null : null;
+
+  const imgItem = useMemo(
+    () => (imgBase ? pseudoItem(imgBase) : null),
+    [imgBase?.id, imgBase?.blob]  // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const gifItem = useMemo(
+    () => (gifAsset ? pseudoItem(gifAsset) : null),
+    [gifAsset?.id, gifAsset?.blob]  // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const replaceAssetBlob = async (id: string, file: File) => {
+    const a = assets.find((x) => x.id === id);
+    if (!a) return;
+    const rec: AssetRec = { ...a, blob: file, name: file.name };
+    await putAsset(rec);
+    setAssets((prev) => prev.map((x) => (x.id === id ? rec : x)));
+  };
+
+  const exportAsset = async (file: File) => {
+    if (!curId) return;
+    const rec: AssetRec = {
+      id: uid(), projectId: curId, name: file.name, kind: 'image', blob: file, addedAt: Date.now(),
+    };
+    await putAsset(rec);
+    setAssets((prev) => [...prev, rec]);
+  };
+
+  const blankCanvas = async () => {
+    const c = document.createElement('canvas');
+    c.width = 1280;
+    c.height = 720;
+    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+    if (!blob || !curId) return;
+    const rec: AssetRec = {
+      id: uid(), projectId: curId, name: 'canvas.png', kind: 'image', blob, addedAt: Date.now(),
+    };
+    await putAsset(rec);
+    setAssets((prev) => [...prev, rec]);
+    savePatch({ imageDoc: { baseAssetId: rec.id, objects: [] } });
+  };
+
   const names = Object.fromEntries(assets.map((a) => [a.id, a.name]));
-  const mediaAssets = assets.filter((a) => a.kind !== 'audio');
   const assetsBytes = assets.reduce((s, a) => s + a.blob.size, 0);
 
-  // ---- launcher: pick a project before entering the workspace ----
+  // ================= launcher =================
   if (!entered) {
     return (
       <div className="studio st-launcher">
@@ -373,57 +414,76 @@ export function Studio() {
           />
         </div>
 
-        <div className="pj-grid">
-          {projects.map((p) => (
-            <div className="pj-card" key={p.id}>
-              <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
-                <span className="pj-name">{p.name}</span>
-                <span className="pj-meta">
-                  {new Date(p.updatedAt).toLocaleDateString()} · {p.mixer.tracks.length} trk
-                </span>
-                <span className="pj-meta">
-                  {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
-                </span>
-              </button>
-              <div className="pj-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
-                  {t('exportProject')}
+        {pickType ? (
+          <>
+            <p className="mx-label">{t('chooseType')}</p>
+            <div className="pj-grid">
+              {(Object.keys(TYPE_META) as ProjectType[]).map((tp) => (
+                <button key={tp} className="pj-card pj-type" onClick={() => void createProject(tp)}>
+                  <span className="type-icon">
+                    <svg viewBox="0 0 24 24" width="22" height="22"><path d={TYPE_META[tp].glyph} fill={tp === 'gif' ? 'none' : 'currentColor'} stroke={tp === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
+                  </span>
+                  <span className="pj-name">{t(TYPE_META[tp].labelKey)}</span>
+                  <span className="pj-meta">{t(TYPE_META[tp].descKey)}</span>
                 </button>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => {
-                    void idbDeleteProject(p.id).then(() =>
-                      setProjects((prev) => prev.filter((x) => x.id !== p.id))
-                    );
-                  }}
-                >
-                  ×
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
+            <button className="btn btn-ghost btn-sm" onClick={() => setPickType(false)}>{t('cancel')}</button>
+          </>
+        ) : (
+          <div className="pj-grid">
+            {projects.map((p) => (
+              <div className="pj-card" key={p.id}>
+                <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
+                  <span className={`type-badge tb-${p.type ?? 'audio'}`}>
+                    {t(TYPE_META[p.type ?? 'audio'].labelKey)}
+                  </span>
+                  <span className="pj-name">{p.name}</span>
+                  <span className="pj-meta">{new Date(p.updatedAt).toLocaleDateString()}</span>
+                  <span className="pj-meta">
+                    {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
+                  </span>
+                </button>
+                <div className="pj-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
+                    {t('exportProject')}
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      void idbDeleteProject(p.id).then(() =>
+                        setProjects((prev) => prev.filter((x) => x.id !== p.id))
+                      );
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ))}
 
-          <button
-            className="pj-card pj-new"
-            onClick={() => { void createProject().then(() => setEntered(true)); }}
-          >
-            <span className="pj-plus">＋</span>
-            <span className="pj-name">{t('newProject')}</span>
-          </button>
-        </div>
+            <button className="pj-card pj-new" onClick={() => setPickType(true)}>
+              <span className="pj-plus">＋</span>
+              <span className="pj-name">{t('newProject')}</span>
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
+  // ================= workspace =================
   return (
     <div className="studio">
       <div className="st-bar">
         <button className="btn btn-ghost btn-sm" onClick={() => setEntered(false)}>
           ← {t('backToProjects')}
         </button>
+        <span className={`type-badge tb-${ptype}`}>{t(TYPE_META[ptype].labelKey)}</span>
         {cur && (
           <input className="st-name" value={cur.name} onChange={(e) => renameProject(e.target.value)} />
         )}
+        <span className="opt-spacer" />
         {cur && (
           <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(cur)}>
             {t('exportProject')}
@@ -432,18 +492,6 @@ export function Studio() {
         <button className="btn btn-ghost btn-sm" onClick={() => void removeProject()}>
           {t('deleteProject')}
         </button>
-
-        <span className="opt-spacer" />
-
-        <div className="st-tabs" role="group">
-          <button className={view === 'mix' ? 'active' : ''} onClick={() => setView('mix')}>
-            {t('tabMix')}
-          </button>
-          <button className={view === 'media' ? 'active' : ''} onClick={() => setView('media')}>
-            {t('tabMedia')}
-          </button>
-        </div>
-        <InfoTip text={t('tipTabs')} />
       </div>
 
       <div className="st-body">
@@ -460,16 +508,16 @@ export function Studio() {
             ↥ {t('importFiles')}
           </button>
           <input
-              ref={importRef}
-              type="file"
-              multiple
-              hidden
-              accept="image/*,audio/*,video/*"
-              onChange={(e) => {
-                void importFiles(Array.from(e.target.files ?? []));
-                e.target.value = '';
-              }}
-            />
+            ref={importRef}
+            type="file"
+            multiple
+            hidden
+            accept="image/*,audio/*,video/*"
+            onChange={(e) => {
+              void importFiles(Array.from(e.target.files ?? []));
+              e.target.value = '';
+            }}
+          />
 
           {assets.length === 0 && <p className="st-empty">{t('emptyAssets')}</p>}
 
@@ -481,14 +529,24 @@ export function Studio() {
               <span className="asset-name" title={a.name}>{a.name}</span>
               <span className="asset-size">{formatBytes(a.blob.size)}</span>
               <span className="asset-btns">
-                {(a.kind === 'audio' || a.kind === 'video') && (
+                {(ptype === 'audio' || ptype === 'video') && (a.kind === 'audio' || a.kind === 'video') && (
                   <button onClick={() => void addToMix(a)} title={t('addToTrack')}>＋</button>
                 )}
-                {a.kind === 'image' && (
-                  <button onClick={() => { setEditing(a); }} title={t('edit')}>
-                    <svg viewBox="0 0 24 24" width="12" height="12"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
-                  </button>
+                {ptype === 'image' && a.kind === 'image' && !isGifAsset(a) && (
+                  <button onClick={() => savePatch({ imageDoc: { baseAssetId: a.id, objects: curRef.current?.imageDoc?.objects ?? [] } })} title={t('pickBase')}>◎</button>
                 )}
+                {ptype === 'gif' && isGifAsset(a) && (
+                  <button onClick={() => savePatch({ gifAssetId: a.id })} title={t('pickGif')}>◎</button>
+                )}
+                {ptype === 'video' && a.kind === 'video' && (
+                  <button onClick={() => patchVideoDoc((d) => ({ ...d, videoAssetId: a.id }))} title={t('pickVideo')}>◎</button>
+                )}
+                <button onClick={() => newFromAsset(a)} title={t('newFromAsset')}>
+                  <svg viewBox="0 0 24 24" width="12" height="12"><path d="M8 8h12v12H8zM4 16V4h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
+                </button>
+                <button onClick={() => downloadAsset(a)} title={t('download')}>
+                  <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 19h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </button>
                 <button onClick={() => void removeAsset(a)} title={t('remove')}>×</button>
               </span>
             </div>
@@ -496,44 +554,93 @@ export function Studio() {
         </aside>
 
         <main className="st-main">
-          <div className="view-anim" key={view}>
-            {view === 'mix' ? (
+          <div className="view-anim" key={ptype + (curId ?? '')}>
+            {ptype === 'audio' && cur && (
               <Mixer
-                doc={doc}
-                onChange={(d) => updateDoc(() => d)}
+                doc={cur.mixer}
+                onChange={(m) => savePatch({ mixer: m })}
                 onRecorded={onRecorded}
                 bufVer={bufVer}
                 names={names}
                 activeTrackId={activeTrackId}
                 onActiveTrack={setActiveTrackId}
               />
-            ) : (
-              <div className="media-view">
-                {mediaAssets.length === 0 && <p className="st-empty">{t('noMedia')}</p>}
-                <div className="media-grid">
-                  {mediaAssets.map((a) => (
-                    <MediaCard
-                      key={`${a.id}-${a.blob.size}`}
-                      a={a}
-                      editable={a.kind === 'image'}
-                      onEdit={() => setEditing(a)}
-                      onRemove={() => void removeAsset(a)}
-                    />
-                  ))}
+            )}
+
+            {ptype === 'image' && (
+              !imgBase || !imgItem ? (
+                <div className="picker-panel">
+                  <p className="mx-label">{t('pickBase')}</p>
+                  <div className="picker-list">
+                    <button className="btn btn-accent" onClick={() => void blankCanvas()}>
+                      {t('blankCanvas')} (1280×720)
+                    </button>
+                    {assets.filter((a) => a.kind === 'image' && !isGifAsset(a)).map((a) => (
+                      <button
+                        key={a.id}
+                        className="btn btn-ghost"
+                        onClick={() => savePatch({ imageDoc: { baseAssetId: a.id, objects: [] } })}
+                      >
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="st-empty">{t('noneOfKind')}</p>
                 </div>
-              </div>
+              ) : (
+                <ImageEditor
+                  inline
+                  key={imgBase.id}
+                  item={imgItem}
+                  initialObjects={(cur?.imageDoc?.objects ?? []) as Obj[]}
+                  onObjectsChange={(objs) =>
+                    savePatch({ imageDoc: { baseAssetId: imgBase.id, objects: objs } })
+                  }
+                  onSave={(_id, file) => void exportAsset(file)}
+                />
+              )
+            )}
+
+            {ptype === 'gif' && (
+              !gifAsset || !gifItem ? (
+                <div className="picker-panel">
+                  <p className="mx-label">{t('pickGif')}</p>
+                  <div className="picker-list">
+                    {assets.filter(isGifAsset).map((a) => (
+                      <button key={a.id} className="btn btn-ghost" onClick={() => savePatch({ gifAssetId: a.id })}>
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="st-empty">{t('noneOfKind')}</p>
+                </div>
+              ) : (
+                <GifEditor
+                  inline
+                  key={`${gifAsset.id}-${gifAsset.blob.size}`}
+                  item={gifItem}
+                  onSave={(id, file) => void replaceAssetBlob(id, file)}
+                />
+              )
+            )}
+
+            {ptype === 'video' && cur && (
+              <VideoWorkspace
+                videoAsset={videoAsset}
+                candidates={assets.filter((a) => a.kind === 'video')}
+                doc={cur.videoDoc ?? emptyVideoDoc()}
+                onDoc={patchVideoDoc}
+                onRecorded={onRecorded}
+                bufVer={bufVer}
+                names={names}
+                activeTrackId={activeTrackId}
+                onActiveTrack={setActiveTrackId}
+                projectName={cur.name}
+              />
             )}
           </div>
         </main>
       </div>
-
-      {editing && (
-        isGifAsset(editing) ? (
-          <GifEditor item={pseudoItem(editing)} onSave={onEditorSave} onClose={() => setEditing(null)} />
-        ) : (
-          <ImageEditor item={pseudoItem(editing)} onSave={onEditorSave} onClose={() => setEditing(null)} />
-        )
-      )}
     </div>
   );
 }
