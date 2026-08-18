@@ -2609,7 +2609,20 @@ kbd {
 
 .pj-list .pj-actions { padding: 0 12px 0 0; }
 
-.type-modal { width: min(760px, 94vw); max-height: 84vh; overflow-y: auto; }
+.type-modal {
+  width: min(760px, 94vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* cancel sits clearly apart from the type cards */
+.type-modal > .btn-ghost {
+  align-self: flex-end;
+  margin-top: 6px;
+}
 
 .mini-modal {
   width: min(380px, 94vw);
@@ -2791,9 +2804,11 @@ kbd {
 
 /* ============ shared motion ============ */
 
+/* NOTE: end keyframes MUST be `transform: none` — a retained transform turns
+   the element into a containing block and traps position:fixed overlays. */
 @keyframes rise {
   from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ============ responsive & motion ============ */
@@ -2803,6 +2818,59 @@ kbd {
   .format-card { width: 102px; height: 102px; }
   .fsel select { width: 84px; font-size: 14px; }
   .fc-controls { width: 100%; justify-content: flex-end; }
+}
+
+/* ============ micro-interactions (project-wide) ============ */
+
+button { -webkit-tap-highlight-color: transparent; }
+
+.btn:active:not(:disabled),
+.tool-btn:active:not(:disabled),
+.theme-toggle:active,
+.studio-toggle:active,
+.lang-switch button:active,
+.st-tabs button:active,
+.trk-btns button:active,
+.asset-btns button:active,
+.layer-btns button:active {
+  transform: translateY(1px) scale(0.97);
+  transition-duration: 0.06s;
+}
+
+.pj-card:active { transform: translateY(-1px) scale(0.99); }
+
+.btn:focus-visible,
+.tool-btn:focus-visible,
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.asset-row {
+  transition: background 0.15s ease;
+  border-radius: 6px;
+}
+
+.asset-row:hover { background: var(--panel); }
+
+.thumb:hover:not(.active) { border-color: var(--ink); }
+
+/* modals pop instead of sliding like page content */
+.editor-overlay > .editor {
+  animation: modalPop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.dropzone { transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease; }
+
+.dropzone.over { transform: scale(1.006); }
+
+select, .tb-select, .fc-target select, .sp-field select {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
