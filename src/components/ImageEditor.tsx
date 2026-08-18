@@ -72,6 +72,26 @@ export const newLayer = (name: string): Layer => ({
 /** decoded masks, keyed by dataURL */
 const maskBmpCache = new Map<string, ImageBitmap>();
 
+/** Small preview of a layer's contents for the panel row. */
+function LayerThumb({ layer, w, h }: { layer: Layer; w: number; h: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c || !w || !h) return;
+    const TW = 36;
+    const TH = Math.max(10, Math.round((h / w) * TW));
+    c.width = TW;
+    c.height = TH;
+    const g = c.getContext('2d')!;
+    g.clearRect(0, 0, TW, TH);
+    g.save();
+    g.scale(TW / w, TH / h);
+    for (const o of layer.objects) drawObj(g, o);
+    g.restore();
+  }, [layer, w, h]);
+  return <canvas ref={ref} className="lp-thumb" />;
+}
+
 export const FONT_MAP: Record<FontFam, string> = {
   sans: "'IBM Plex Sans', 'Noto Sans TC', 'Microsoft JhengHei', 'Yu Gothic', sans-serif",
   serif: "'Instrument Serif', 'Noto Serif TC', 'Yu Mincho', serif",
@@ -273,6 +293,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
   const [panning, setPanning] = useState(false);
   const [cursor, setCursor] = useState<Pt | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  /** layers whose object list is expanded (collapsed by default) */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // ---- layer stack (objects live inside layers) ----
   const [layers, setLayers] = useState<Layer[]>(() => [newLayer('Layer 1')]);
@@ -1233,6 +1255,13 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     setBaseVer((v) => v + 1);
   };
 
+  /** Reveal the selected object's row when it is picked on canvas. */
+  useEffect(() => {
+    if (sel == null) return;
+    const owner = layersRef.current.find((l) => l.objects.some((o) => o.id === sel));
+    if (owner) setExpanded((prev) => (prev.has(owner.id) ? prev : new Set(prev).add(owner.id)));
+  }, [sel]);
+
   // ---- object ops (inside the active layer) ----
   const objMove = (id: number, dir: 1 | -1) => {
     pushHist();
@@ -1709,6 +1738,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                     )}
                   </button>
 
+                  <LayerThumb layer={l} w={w} h={baseRef.current?.bmp.height ?? 0} />
+
                   {renaming === l.id ? (
                     <input
                       className="lp-name"
@@ -1721,15 +1752,31 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                     />
                   ) : (
                     <span className="lp-title">
-                      {l.name}
-                      <span className="lp-count">{l.objects.length}</span>
-                      {l.mask && <span className="lp-badge" title={t('maskLabel')}>M</span>}
-                      {l.locked && (
-                        <span className="lp-badge lock" title={t('lockLayer')}>
-                          <svg viewBox="0 0 24 24" width="9" height="9"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /></svg>
-                        </span>
-                      )}
-                      {l.opacity < 1 && <span className="lp-badge dim">{Math.round(l.opacity * 100)}%</span>}
+                      <span className="lp-title-row">
+                        {l.name}
+                        {l.mask && <span className="lp-badge" title={t('maskLabel')}>M</span>}
+                        {l.locked && (
+                          <span className="lp-badge lock" title={t('lockLayer')}>
+                            <svg viewBox="0 0 24 24" width="9" height="9"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /></svg>
+                          </span>
+                        )}
+                        {l.opacity < 1 && <span className="lp-badge dim">{Math.round(l.opacity * 100)}%</span>}
+                      </span>
+                      {/* object count is a disclosure toggle, not a list of layers */}
+                      <button
+                        className="lp-disclose"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpanded((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(l.id)) next.delete(l.id);
+                            else next.add(l.id);
+                            return next;
+                          });
+                        }}
+                      >
+                        {expanded.has(l.id) ? '▾' : '▸'} {t('objectsCount', { n: String(l.objects.length) })}
+                      </button>
                     </span>
                   )}
 
@@ -1750,14 +1797,13 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
                   </span>
                 </div>
 
-                {/* objects inside this layer */}
-                {l.id === activeId && l.objects.length === 0 && <p className="ed-hint lp-empty">—</p>}
-                {l.id === activeId && [...l.objects].reverse().map((o) => (
+                {/* objects inside this layer — only when explicitly expanded */}
+                {expanded.has(l.id) && [...l.objects].reverse().map((o) => (
                   <div
                     key={o.id}
                     className={`layer-item lp-obj${sel === o.id ? ' active' : ''}`}
                     ref={(el) => { if (sel === o.id && el) el.scrollIntoView({ block: 'nearest' }); }}
-                    onClick={() => { setSel(o.id); setTool('select'); }}
+                    onClick={() => { setActiveId(l.id); setSel(o.id); setTool('select'); }}
                   >
                     <button
                       className="layer-eye"
