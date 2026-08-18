@@ -4,7 +4,7 @@ import { GIFEncoder } from 'gifenc';
 import { writeGifFrame } from '../lib/animImage';
 import { useI18n } from '../i18n';
 import { Mixer } from './Mixer';
-import { ImageEditor, type Obj } from './ImageEditor';
+import { ImageEditor, type Layer, type Obj } from './ImageEditor';
 import { GifEditor } from './GifEditor';
 import { VideoWorkspace } from './VideoWorkspace';
 import { FramePicker } from './FramePicker';
@@ -897,13 +897,15 @@ export function Studio() {
                   inline
                   key={imgBase.id}
                   item={imgItem}
+                  initialLayers={(cur?.imageDoc?.layers ?? []) as Layer[]}
                   initialObjects={(cur?.imageDoc?.objects ?? []) as Obj[]}
                   bg={cur?.imageDoc?.bg ?? null}
-                  onObjectsChange={(objs) =>
+                  onLayersChange={(ls) =>
                     savePatch({
                       imageDoc: {
                         baseAssetId: imgBase.id,
-                        objects: objs,
+                        objects: [], // superseded by layers
+                        layers: ls,
                         bg: curRef.current?.imageDoc?.bg ?? null,
                       },
                     })
@@ -912,7 +914,8 @@ export function Studio() {
                     savePatch({
                       imageDoc: {
                         baseAssetId: imgBase.id,
-                        objects: curRef.current?.imageDoc?.objects ?? [],
+                        objects: [],
+                        layers: curRef.current?.imageDoc?.layers ?? [],
                         bg: c,
                       },
                     })

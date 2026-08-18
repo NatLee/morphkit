@@ -30,8 +30,10 @@ export type ProjectType = 'audio' | 'image' | 'gif' | 'video';
 /** Image projects: persisted non-destructive object layers over a base asset. */
 export interface ImageDoc {
   baseAssetId: string | null;
-  /** serialized ImageEditor objects (owned by ImageEditor's Obj type) */
+  /** legacy flat object list (pre-layers) — migrated on load */
   objects: unknown[];
+  /** serialized ImageEditor layer stack */
+  layers?: unknown[];
   /** bottom background layer colour; null = transparent */
   bg?: string | null;
 }

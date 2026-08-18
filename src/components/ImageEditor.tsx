@@ -40,6 +40,38 @@ export interface Obj {
   src?: string;
 }
 
+/** Blend modes offered in the layer panel (canvas composite operations). */
+export const BLEND_MODES = [
+  'normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten',
+  'color-dodge', 'color-burn', 'soft-light', 'hard-light', 'difference', 'exclusion',
+] as const;
+export type Blend = typeof BLEND_MODES[number];
+
+/** A layer holds many objects and has its own opacity / blend / mask. */
+export interface Layer {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  /** 0..1 */
+  opacity: number;
+  blend: Blend;
+  objects: Obj[];
+  /** alpha mask as a dataURL (opaque = visible); null = no mask */
+  mask: string | null;
+  maskEnabled: boolean;
+}
+
+let layerSeq = 0;
+export const newLayer = (name: string): Layer => ({
+  id: `L${Date.now().toString(36)}${(layerSeq++).toString(36)}`,
+  name, visible: true, locked: false, opacity: 1, blend: 'normal',
+  objects: [], mask: null, maskEnabled: true,
+});
+
+/** decoded masks, keyed by dataURL */
+const maskBmpCache = new Map<string, ImageBitmap>();
+
 export const FONT_MAP: Record<FontFam, string> = {
   sans: "'IBM Plex Sans', 'Noto Sans TC', 'Microsoft JhengHei', 'Yu Gothic', sans-serif",
   serif: "'Instrument Serif', 'Noto Serif TC', 'Yu Mincho', serif",
@@ -60,7 +92,7 @@ function lumOf(hex: string): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
-interface HistEntry { objects: Obj[]; baseBlob: Blob }
+interface HistEntry { layers: Layer[]; baseBlob: Blob }
 
 const MAX_DIM = 4096;
 const HIST_CAP = 40;
@@ -208,10 +240,12 @@ interface Props {
   onClose?: () => void;
   /** workspace mode: no overlay chrome, fills its container */
   inline?: boolean;
-  /** persisted non-destructive layers (image projects) */
+  /** persisted layer stack (image projects) */
+  initialLayers?: Layer[];
+  /** legacy flat object list — migrated into a single layer */
   initialObjects?: Obj[];
   /** reported on every change so the project can persist layers */
-  onObjectsChange?: (objects: Obj[]) => void;
+  onLayersChange?: (layers: Layer[]) => void;
   /** bottom background layer colour (null = transparent) */
   bg?: string | null;
   onBgChange?: (c: string | null) => void;
@@ -220,7 +254,7 @@ interface Props {
   onImportDone?: () => void;
 }
 
-export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onObjectsChange, bg, onBgChange, importBlob, onImportDone }: Props) {
+export function ImageEditor({ item, onSave, onClose, inline, initialLayers, initialObjects, onLayersChange, bg, onBgChange, importBlob, onImportDone }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -239,9 +273,33 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const [panning, setPanning] = useState(false);
   const [cursor, setCursor] = useState<Pt | null>(null);
 
-  const [objects, setObjects] = useState<Obj[]>([]);
+  // ---- layer stack (objects live inside layers) ----
+  const [layers, setLayers] = useState<Layer[]>(() => [newLayer('Layer 1')]);
+  const [activeId, setActiveId] = useState<string>('');
+  const layersRef = useRef<Layer[]>([]);
+  useEffect(() => { layersRef.current = layers; }, [layers]);
+  useEffect(() => {
+    if (!layers.some((l) => l.id === activeId)) setActiveId(layers[layers.length - 1]?.id ?? '');
+  }, [layers, activeId]);
+
+  const activeLayer = layers.find((l) => l.id === activeId) ?? layers[layers.length - 1] ?? null;
+  const objects = activeLayer?.objects ?? [];
   const objectsRef = useRef<Obj[]>([]);
   useEffect(() => { objectsRef.current = objects; }, [objects]);
+
+  /** Mutate the ACTIVE layer's objects (drop-in replacement for the old setObjects). */
+  const setObjects = (updater: Obj[] | ((prev: Obj[]) => Obj[])) =>
+    setLayers((prev) => prev.map((l) => {
+      if (l.id !== (activeId || prev[prev.length - 1]?.id)) return l;
+      return { ...l, objects: typeof updater === 'function' ? updater(l.objects) : updater };
+    }));
+
+  /** Mutate objects in EVERY layer (geometry ops: crop / rotate / resize). */
+  const mapAllObjects = (fn: (o: Obj) => Obj) =>
+    setLayers((prev) => prev.map((l) => ({ ...l, objects: l.objects.map(fn) })));
+
+  const patchLayer = (id: string, p: Partial<Layer>) =>
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...p } : l)));
 
   const [sel, setSel] = useState<number | null>(null);
   const [tool, setTool] = useState<Tool>('pan');
@@ -275,6 +333,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const tintRef = useRef<HTMLCanvasElement | null>(null);
   const maskBBoxRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const antsRef = useRef(0);
+  const scratchRef = useRef<HTMLCanvasElement | null>(null);
 
   const applyBg = (color: string, on: boolean) => {
     setBgColor(color);
@@ -303,7 +362,9 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     setSelVer((v) => v + 1);
   };
 
-  const selObj = sel != null ? objects.find((o) => o.id === sel) ?? null : null;
+  const selObj = sel != null
+    ? layers.flatMap((l) => l.objects).find((o) => o.id === sel) ?? null
+    : null;
 
   // ---- init ----
   useEffect(() => {
@@ -323,9 +384,17 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       if (cancelled) { bmp.close(); return; }
       baseRef.current = { blob, bmp };
       // restore persisted layers (image projects) and avoid id collisions
-      if (initialObjects?.length) {
-        objId = Math.max(objId, ...initialObjects.map((o) => o.id));
-        setObjects(cloneObjs(initialObjects));
+      // restore layers (or migrate a legacy flat object list into one layer)
+      const restored: Layer[] = initialLayers?.length
+        ? initialLayers.map((l) => ({ ...l, objects: cloneObjs(l.objects) }))
+        : initialObjects?.length
+          ? [{ ...newLayer('Layer 1'), objects: cloneObjs(initialObjects) }]
+          : [];
+      if (restored.length) {
+        const ids = restored.flatMap((l) => l.objects.map((o) => o.id));
+        if (ids.length) objId = Math.max(objId, ...ids);
+        setLayers(restored);
+        setActiveId(restored[restored.length - 1].id);
       }
       // fit zoom
       const vp = viewportRef.current;
@@ -342,9 +411,30 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
 
   // report layer changes for project persistence
   useEffect(() => {
-    if (ready) onObjectsChange?.(objectsRef.current);
+    if (ready) onLayersChange?.(layersRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objects, ready]);
+  }, [layers, ready]);
+
+  // decode layer masks
+  useEffect(() => {
+    let stale = false;
+    void (async () => {
+      let got = false;
+      for (const l of layers) {
+        if (l.mask && !maskBmpCache.has(l.mask)) {
+          try {
+            const blob = await (await fetch(l.mask)).blob();
+            const bmp = await createImageBitmap(blob);
+            if (stale) { bmp.close(); return; }
+            maskBmpCache.set(l.mask, bmp);
+            got = true;
+          } catch { /* bad mask */ }
+        }
+      }
+      if (got && !stale) setSelVer((v) => v + 1);
+    })();
+    return () => { stale = true; };
+  }, [layers]);
 
   /** Place a blob on the canvas as a movable image layer. */
   const importImageBlob = async (blob: Blob) => {
@@ -402,7 +492,42 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       if (decoded && !stale) setSelVer((v) => v + 1);
     })();
     return () => { stale = true; };
-  }, [objects]);
+  }, [layers]);
+
+  /** Composite every visible layer (objects → mask → opacity/blend) onto ctx. */
+  const paintLayers = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    let scratch = scratchRef.current;
+    if (!scratch) {
+      scratch = document.createElement('canvas');
+      scratchRef.current = scratch;
+    }
+    if (scratch.width !== w || scratch.height !== h) {
+      scratch.width = w;
+      scratch.height = h;
+    }
+    const sctx = scratch.getContext('2d')!;
+    for (const l of layersRef.current) {
+      if (!l.visible || l.opacity <= 0) continue;
+      sctx.clearRect(0, 0, w, h);
+      sctx.save();
+      for (const o of l.objects) drawObj(sctx, o);
+      sctx.restore();
+      if (l.mask && l.maskEnabled) {
+        const mb = maskBmpCache.get(l.mask);
+        if (mb) {
+          sctx.save();
+          sctx.globalCompositeOperation = 'destination-in';
+          sctx.drawImage(mb, 0, 0, w, h);
+          sctx.restore();
+        }
+      }
+      ctx.save();
+      ctx.globalAlpha = l.opacity;
+      if (l.blend !== 'normal') ctx.globalCompositeOperation = l.blend as GlobalCompositeOperation;
+      ctx.drawImage(scratch, 0, 0);
+      ctx.restore();
+    }
+  };
 
   // wheel over the canvas = zoom (anchored at the cursor), never scroll
   useEffect(() => {
@@ -446,7 +571,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       ctx.fillRect(0, 0, c.width, c.height);
     }
     ctx.drawImage(base.bmp, 0, 0);
-    for (const o of objectsRef.current) drawObj(ctx, o);
+    paintLayers(ctx, c.width, c.height);
 
     // "marching ants": white underlay + animated black dashes — readable on any
     // image content, and the motion makes clear it's UI, not pixels
@@ -493,7 +618,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     }
     // selected-object outline
     if (sel != null) {
-      const o = objectsRef.current.find((x) => x.id === sel);
+      const o = layersRef.current.flatMap((l) => l.objects).find((x) => x.id === sel);
       if (o) {
         const bb = bboxOf(o, ctx);
         drawAnts(() => ctx.rect(bb.x - 6, bb.y - 6, bb.w + 12, bb.h + 12));
@@ -519,12 +644,15 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   }, [sel, cropSel, zoom, bgColor, bgOn, selDraft, lassoPts, selVer]);
 
   // belt & braces: every visual input is an explicit dep so no repaint is missed
-  useEffect(() => { render(); }, [objects, baseVer, bgColor, bgOn, selVer, selDraft, lassoPts, sel, cropSel, zoom, render]);
+  useEffect(() => { render(); }, [layers, baseVer, bgColor, bgOn, selVer, selDraft, lassoPts, sel, cropSel, zoom, render]);
 
-  // ---- history ----
+  // ---- history (whole layer stack) ----
+  const snapLayers = (): Layer[] =>
+    layersRef.current.map((l) => ({ ...l, objects: cloneObjs(l.objects) }));
+
   const pushHist = () => {
     if (!baseRef.current) return;
-    histRef.current.push({ objects: cloneObjs(objectsRef.current), baseBlob: baseRef.current.blob });
+    histRef.current.push({ layers: snapLayers(), baseBlob: baseRef.current.blob });
     if (histRef.current.length > HIST_CAP) histRef.current.shift();
     redoRef.current = [];
     setHistVer((v) => v + 1);
@@ -537,7 +665,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       baseRef.current = { blob: e.baseBlob, bmp };
       setBaseVer((v) => v + 1);
     }
-    setObjects(e.objects);
+    setLayers(e.layers);
     setSel(null);
     setCropSel(null);
   };
@@ -545,7 +673,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const undo = async () => {
     const e = histRef.current.pop();
     if (!e || !baseRef.current) return;
-    redoRef.current.push({ objects: cloneObjs(objectsRef.current), baseBlob: baseRef.current.blob });
+    redoRef.current.push({ layers: snapLayers(), baseBlob: baseRef.current.blob });
     await applyHist(e);
     setHistVer((v) => v + 1);
   };
@@ -553,7 +681,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const redo = async () => {
     const e = redoRef.current.pop();
     if (!e || !baseRef.current) return;
-    histRef.current.push({ objects: cloneObjs(objectsRef.current), baseBlob: baseRef.current.blob });
+    histRef.current.push({ layers: snapLayers(), baseBlob: baseRef.current.blob });
     await applyHist(e);
     setHistVer((v) => v + 1);
   };
@@ -568,15 +696,22 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     };
   };
 
-  const hitTest = (p: Pt): Obj | null => {
+  /** Hit-test across all visible, unlocked layers (top layer first). */
+  const hitTest = (p: Pt): { obj: Obj; layerId: string } | null => {
     const ctx = canvasRef.current!.getContext('2d')!;
-    const list = objectsRef.current;
-    for (let i = list.length - 1; i >= 0; i--) {
-      const o = list[i];
-      if (!o.visible) continue;
-      const bb = bboxOf(o, ctx);
-      const pad = Math.max(8, o.size);
-      if (p.x >= bb.x - pad && p.x <= bb.x + bb.w + pad && p.y >= bb.y - pad && p.y <= bb.y + bb.h + pad) return o;
+    const stack = layersRef.current;
+    for (let li = stack.length - 1; li >= 0; li--) {
+      const l = stack[li];
+      if (!l.visible || l.locked) continue;
+      for (let i = l.objects.length - 1; i >= 0; i--) {
+        const o = l.objects[i];
+        if (!o.visible) continue;
+        const bb = bboxOf(o, ctx);
+        const pad = Math.max(8, o.size);
+        if (p.x >= bb.x - pad && p.x <= bb.x + bb.w + pad && p.y >= bb.y - pad && p.y <= bb.y + bb.h + pad) {
+          return { obj: o, layerId: l.id };
+        }
+      }
     }
     return null;
   };
@@ -622,14 +757,16 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     if (tool === 'select') {
       const hit = hitTest(p);
       if (hit) {
-        setSel(hit.id);
+        setSel(hit.obj.id);
+        setActiveId(hit.layerId); // selecting also focuses the owning layer
         pushHist();
-        dragRef.current = { mode: 'move', id: hit.id, last: p };
+        dragRef.current = { mode: 'move', id: hit.obj.id, last: p };
       } else {
         setSel(null);
       }
       return;
     }
+    if (activeLayer?.locked) return; // locked layer: no drawing
     if (tool === 'crop') {
       dragRef.current = { mode: 'crop', a: p };
       setCropSel(null);
@@ -729,9 +866,10 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const onDblClick = (e: PointerEvent<HTMLCanvasElement>) => {
     if (tool !== 'select') return;
     const hit = hitTest(toPt(e));
-    if (hit?.type === 'text' && hit.pos) {
-      setSel(hit.id);
-      setTextEdit({ id: hit.id, pos: hit.pos, value: hit.text ?? '' });
+    if (hit?.obj.type === 'text' && hit.obj.pos) {
+      setSel(hit.obj.id);
+      setActiveId(hit.layerId);
+      setTextEdit({ id: hit.obj.id, pos: hit.obj.pos, value: hit.obj.text ?? '' });
     }
   };
 
@@ -748,7 +886,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       ctx.fillRect(0, 0, out.width, out.height);
     }
     ctx.drawImage(base.bmp, 0, 0);
-    for (const o of objectsRef.current) drawObj(ctx, o);
+    paintLayers(ctx, out.width, out.height);
     return out;
   };
 
@@ -1030,10 +1168,10 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     ctx.drawImage(base.bmp, 0, 0, w, h);
     const sx = w / base.bmp.width;
     const sy = h / base.bmp.height;
-    setObjects((prev) => prev.map((o) => ({
+    mapAllObjects((o) => ({
       ...mapObj(o, (p) => ({ x: p.x * sx, y: p.y * sy })),
       size: Math.max(1, o.size * (sx + sy) / 2),
-    })));
+    }));
     await swapBase(c);
     deselect();
     setResizeOpen(false);
@@ -1057,7 +1195,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     const bmp = await createImageBitmap(blob);
     baseRef.current.bmp.close();
     baseRef.current = { blob, bmp };
-    setObjects((prev) => prev.map((o) => mapObj(o, (p) => ({ x: p.x - x, y: p.y - y }))));
+    mapAllObjects((o) => mapObj(o, (p) => ({ x: p.x - x, y: p.y - y })));
     setCropSel(null);
     setBaseVer((v) => v + 1);
   };
@@ -1087,15 +1225,15 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     const bmp = await createImageBitmap(blob);
     baseRef.current.bmp.close();
     baseRef.current = { blob, bmp };
-    setObjects((prev) => prev.map((o) => mapObj(o, kind === 'rot'
+    mapAllObjects((o) => mapObj(o, kind === 'rot'
       ? (p) => ({ x: H - p.y, y: p.x })
-      : (p) => ({ x: W - p.x, y: p.y }))));
+      : (p) => ({ x: W - p.x, y: p.y })));
     setCropSel(null);
     setBaseVer((v) => v + 1);
   };
 
-  // ---- layers ops ----
-  const layerMove = (id: number, dir: 1 | -1) => {
+  // ---- object ops (inside the active layer) ----
+  const objMove = (id: number, dir: 1 | -1) => {
     pushHist();
     setObjects((prev) => {
       const i = prev.findIndex((o) => o.id === id);
@@ -1107,15 +1245,113 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     });
   };
 
-  const layerToggle = (id: number) => {
+  const objToggle = (id: number) => {
     pushHist();
     setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, visible: !o.visible } : o)));
   };
 
-  const layerDelete = (id: number) => {
+  const objDelete = (id: number) => {
     pushHist();
     setObjects((prev) => prev.filter((o) => o.id !== id));
     if (sel === id) setSel(null);
+  };
+
+  // ---- layer ops ----
+  const addLayer = () => {
+    pushHist();
+    const l = newLayer(`Layer ${layers.length + 1}`);
+    setLayers((prev) => [...prev, l]);
+    setActiveId(l.id);
+    setSel(null);
+  };
+
+  const duplicateLayer = (id: string) => {
+    pushHist();
+    setLayers((prev) => {
+      const i = prev.findIndex((l) => l.id === id);
+      if (i < 0) return prev;
+      const src = prev[i];
+      const copy: Layer = {
+        ...src, id: newLayer('').id, name: `${src.name} copy`,
+        objects: cloneObjs(src.objects).map((o) => {
+          const nid = ++objId;
+          const bmp = imgBmpCache.get(o.id);
+          if (bmp) imgBmpCache.set(nid, bmp);
+          return { ...o, id: nid };
+        }),
+      };
+      const next = [...prev];
+      next.splice(i + 1, 0, copy);
+      window.setTimeout(() => setActiveId(copy.id), 0);
+      return next;
+    });
+  };
+
+  const deleteLayer = (id: string) => {
+    if (layers.length <= 1) return;
+    pushHist();
+    setLayers((prev) => prev.filter((l) => l.id !== id));
+    setSel(null);
+  };
+
+  const moveLayer = (id: string, dir: 1 | -1) => {
+    pushHist();
+    setLayers((prev) => {
+      const i = prev.findIndex((l) => l.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  };
+
+  /** Merge a layer into the one below (objects concatenated, effects baked off). */
+  const mergeDown = (id: string) => {
+    setLayers((prev) => {
+      const i = prev.findIndex((l) => l.id === id);
+      if (i <= 0) return prev;
+      pushHist();
+      const upper = prev[i];
+      const lower = prev[i - 1];
+      const merged: Layer = { ...lower, objects: [...lower.objects, ...upper.objects] };
+      const next = [...prev];
+      next.splice(i - 1, 2, merged);
+      window.setTimeout(() => setActiveId(merged.id), 0);
+      return next;
+    });
+  };
+
+  /** Turn the live selection into the active layer's mask. */
+  const maskFromSelection = () => {
+    const m = maskRef.current;
+    if (!m || !activeLayer) return;
+    pushHist();
+    patchLayer(activeLayer.id, { mask: m.toDataURL('image/png'), maskEnabled: true });
+    deselect();
+  };
+
+  const invertMask = () => {
+    if (!activeLayer?.mask) return;
+    const bmp = maskBmpCache.get(activeLayer.mask);
+    const base = baseRef.current;
+    if (!bmp || !base) return;
+    pushHist();
+    const c = document.createElement('canvas');
+    c.width = base.bmp.width;
+    c.height = base.bmp.height;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'destination-out';
+    g.drawImage(bmp, 0, 0, c.width, c.height);
+    patchLayer(activeLayer.id, { mask: c.toDataURL('image/png') });
+  };
+
+  const clearMask = () => {
+    if (!activeLayer) return;
+    pushHist();
+    patchLayer(activeLayer.id, { mask: null });
   };
 
   const updateSel = (patch: Partial<Obj>) => {
@@ -1385,35 +1621,138 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
           </div>
 
           <aside className="layers-panel">
-            <p className="mx-label">{t('layers')}</p>
-            {objects.length === 0 && <p className="ed-hint">—</p>}
-            {[...objects].reverse().map((o) => (
-              <div
-                key={o.id}
-                className={`layer-item${sel === o.id ? ' active' : ''}`}
-                ref={(el) => { if (sel === o.id && el) el.scrollIntoView({ block: 'nearest' }); }}
-                onClick={() => { setSel(o.id); setTool('select'); }}
-              >
+            <div className="lp-head">
+              <span className="mx-label">{t('layers')}</span>
+              <span className="lp-head-btns">
+                <button onClick={addLayer} title={t('addLayer')}>＋</button>
+                <button onClick={() => activeLayer && duplicateLayer(activeLayer.id)} title={t('dupLayer')}>⧉</button>
+                <button onClick={() => activeLayer && mergeDown(activeLayer.id)} title={t('mergeDown')}>⤓</button>
                 <button
-                  className="layer-eye"
-                  onClick={(e) => { e.stopPropagation(); layerToggle(o.id); }}
-                  title={o.visible ? '👁' : '·'}
-                >
-                  {o.visible ? (
-                    <svg viewBox="0 0 24 24" width="13" height="13"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                  onClick={() => activeLayer && deleteLayer(activeLayer.id)}
+                  disabled={layers.length <= 1}
+                  title={t('remove')}
+                >×</button>
+              </span>
+            </div>
+
+            {/* active layer properties */}
+            {activeLayer && (
+              <div className="lp-props">
+                <label className="lp-row">
+                  <span>{t('opacity')}</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    value={activeLayer.opacity}
+                    onChange={(e) => patchLayer(activeLayer.id, { opacity: Number(e.target.value) })}
+                  />
+                  <span className="zoom-val">{Math.round(activeLayer.opacity * 100)}%</span>
+                </label>
+                <label className="lp-row">
+                  <span>{t('blendMode')}</span>
+                  <select
+                    className="tb-select lp-blend"
+                    value={activeLayer.blend}
+                    onChange={(e) => patchLayer(activeLayer.id, { blend: e.target.value as Blend })}
+                  >
+                    {BLEND_MODES.map((b) => (
+                      <option key={b} value={b}>{b === 'normal' ? t('blendNormal') : b}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="lp-row lp-mask">
+                  <span>{t('maskLabel')}</span>
+                  {activeLayer.mask ? (
+                    <span className="lp-mask-btns">
+                      <button
+                        className={activeLayer.maskEnabled ? 'active' : ''}
+                        onClick={() => patchLayer(activeLayer.id, { maskEnabled: !activeLayer.maskEnabled })}
+                        title={t('toggleMask')}
+                      >◑</button>
+                      <button onClick={invertMask} title={t('invertMask')}>⇄</button>
+                      <button onClick={clearMask} title={t('clearMask')}>×</button>
+                    </span>
                   ) : (
-                    <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={maskFromSelection}
+                      disabled={!maskRef.current}
+                      title={t('maskFromSelHint')}
+                    >
+                      {t('maskFromSel')}
+                    </button>
                   )}
-                </button>
-                <span className="layer-swatch" style={{ background: o.color }} />
-                <span className="layer-name">
-                  {o.type === 'text' ? (o.text ?? '').slice(0, 10) || t('tool_text') : t(`tool_${o.type}`)}
-                </span>
-                <span className="layer-btns">
-                  <button onClick={(e) => { e.stopPropagation(); layerMove(o.id, 1); }} title={t('moveUp')}>↑</button>
-                  <button onClick={(e) => { e.stopPropagation(); layerMove(o.id, -1); }} title={t('moveDown')}>↓</button>
-                  <button onClick={(e) => { e.stopPropagation(); layerDelete(o.id); }} title={t('remove')}>×</button>
-                </span>
+                </div>
+              </div>
+            )}
+
+            {/* layer stack, topmost first */}
+            {[...layers].reverse().map((l) => (
+              <div key={l.id} className={`lp-layer${l.id === activeId ? ' active' : ''}`}>
+                <div className="lp-layer-head" onClick={() => { setActiveId(l.id); setSel(null); }}>
+                  <button
+                    className="layer-eye"
+                    onClick={(e) => { e.stopPropagation(); pushHist(); patchLayer(l.id, { visible: !l.visible }); }}
+                    title={l.visible ? t('hideLayer') : t('showLayer')}
+                  >
+                    {l.visible ? (
+                      <svg viewBox="0 0 24 24" width="13" height="13"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                    )}
+                  </button>
+                  <input
+                    className="lp-name"
+                    value={l.name}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => patchLayer(l.id, { name: e.target.value })}
+                  />
+                  {l.mask && <span className="lp-badge" title={t('maskLabel')}>M</span>}
+                  <span className="layer-btns">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); patchLayer(l.id, { locked: !l.locked }); }}
+                      title={l.locked ? t('unlockLayer') : t('lockLayer')}
+                      className={l.locked ? 'on' : ''}
+                    >
+                      {l.locked ? '🔒' : '🔓'}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); moveLayer(l.id, 1); }} title={t('moveUp')}>↑</button>
+                    <button onClick={(e) => { e.stopPropagation(); moveLayer(l.id, -1); }} title={t('moveDown')}>↓</button>
+                  </span>
+                </div>
+
+                {/* objects inside this layer */}
+                {l.id === activeId && l.objects.length === 0 && <p className="ed-hint lp-empty">—</p>}
+                {l.id === activeId && [...l.objects].reverse().map((o) => (
+                  <div
+                    key={o.id}
+                    className={`layer-item lp-obj${sel === o.id ? ' active' : ''}`}
+                    ref={(el) => { if (sel === o.id && el) el.scrollIntoView({ block: 'nearest' }); }}
+                    onClick={() => { setSel(o.id); setTool('select'); }}
+                  >
+                    <button
+                      className="layer-eye"
+                      onClick={(e) => { e.stopPropagation(); objToggle(o.id); }}
+                    >
+                      {o.visible ? (
+                        <svg viewBox="0 0 24 24" width="12" height="12"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="12" height="12"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                      )}
+                    </button>
+                    <span className="layer-swatch" style={{ background: o.color }} />
+                    <span className="layer-name">
+                      {o.type === 'text' ? (o.text ?? '').slice(0, 10) || t('tool_text') : t(`tool_${o.type}`)}
+                    </span>
+                    <span className="layer-btns">
+                      <button onClick={(e) => { e.stopPropagation(); objMove(o.id, 1); }} title={t('moveUp')}>↑</button>
+                      <button onClick={(e) => { e.stopPropagation(); objMove(o.id, -1); }} title={t('moveDown')}>↓</button>
+                      <button onClick={(e) => { e.stopPropagation(); objDelete(o.id); }} title={t('remove')}>×</button>
+                    </span>
+                  </div>
+                ))}
               </div>
             ))}
 
