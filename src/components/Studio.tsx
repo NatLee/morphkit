@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { GIFEncoder } from 'gifenc';
+import { writeGifFrame } from '../lib/animImage';
 import { useI18n } from '../i18n';
 import { Mixer } from './Mixer';
 import { ImageEditor, type Obj } from './ImageEditor';
@@ -60,10 +62,33 @@ export function Studio() {
   const [entered, setEntered] = useState(false);
   const [pickType, setPickType] = useState(false);
   const [pjStats, setPjStats] = useState<Record<string, { n: number; bytes: number }>>({});
+  const [thumbs, setThumbs] = useState<Record<string, { url: string; video: boolean }>>({});
+  const [layout, setLayout] = useState<'grid' | 'list'>(
+    () => (localStorage.getItem('mk-layout') as 'grid' | 'list') || 'grid'
+  );
+  const [sortBy, setSortBy] = useState<'updated' | 'name' | 'size'>(
+    () => (localStorage.getItem('mk-sort') as 'updated' | 'name' | 'size') || 'updated'
+  );
+  const [metaPj, setMetaPj] = useState<ProjectRec | null>(null);
+  const [blankOpen, setBlankOpen] = useState(false);
+  const [bcW, setBcW] = useState(1280);
+  const [bcH, setBcH] = useState(720);
   const importRef = useRef<HTMLInputElement>(null);
   const pjImportRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef(0);
   const curRef = useRef<ProjectRec | null>(null);
+  /** ids that exist in IndexedDB — untouched new projects are discarded on exit */
+  const persistedRef = useRef<Set<string>>(new Set());
+  const thumbUrlsRef = useRef<string[]>([]);
+
+  const setLayoutP = (v: 'grid' | 'list') => {
+    setLayout(v);
+    try { localStorage.setItem('mk-layout', v); } catch { /* ignore */ }
+  };
+  const setSortP = (v: 'updated' | 'name' | 'size') => {
+    setSortBy(v);
+    try { localStorage.setItem('mk-sort', v); } catch { /* ignore */ }
+  };
 
   const cur = projects.find((p) => p.id === curId) ?? null;
   useEffect(() => { curRef.current = cur; }, [cur]);
@@ -73,11 +98,15 @@ export function Studio() {
   useEffect(() => {
     void (async () => {
       const list = (await listProjects()).map((p) => ({ ...p, type: p.type ?? ('audio' as ProjectType) }));
+      persistedRef.current = new Set(list.map((p) => p.id));
       setProjects(list.sort((a, b) => b.updatedAt - a.updatedAt));
       const saved = localStorage.getItem('morphkit-project');
       if (list.some((p) => p.id === saved)) setCurId(saved);
       else if (list.length) setCurId(list[0].id);
     })();
+    return () => {
+      thumbUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+    };
   }, []);
 
   // ---- switch project: load assets, warm audio cache ----
@@ -109,9 +138,20 @@ export function Studio() {
     if (!c) return;
     const next = { ...c, ...patch, updatedAt: Date.now() };
     curRef.current = next; // stay fresh across rapid successive patches
+    persistedRef.current.add(next.id);
     setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p)));
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => void putProject(next), 500);
+  };
+
+  const leaveWorkspace = () => {
+    const c = curRef.current;
+    if (c && !persistedRef.current.has(c.id) && assets.length === 0) {
+      // never touched — silently drop the empty project
+      setProjects((prev) => prev.filter((p) => p.id !== c.id));
+      setCurId(null);
+    }
+    setEntered(false);
   };
 
   const patchVideoDoc = (fn: (d: VideoDoc) => VideoDoc) =>
@@ -126,7 +166,7 @@ export function Studio() {
       ...(type === 'video' ? { videoDoc: emptyVideoDoc() } : {}),
       ...(type === 'gif' ? { gifAssetId: null } : {}),
     };
-    await putProject(p);
+    // ephemeral until the user actually does something (savePatch persists)
     setProjects((prev) => [p, ...prev]);
     setCurId(p.id);
     setPickType(false);
@@ -157,7 +197,11 @@ export function Studio() {
       await putAsset(rec);
       added.push(rec);
     }
-    if (added.length) setAssets((prev) => [...prev, ...added]);
+    if (added.length) {
+      setAssets((prev) => [...prev, ...added]);
+      // importing assets counts as "touching" the project
+      if (curRef.current && !persistedRef.current.has(curRef.current.id)) savePatch({});
+    }
   };
 
   const removeAsset = async (a: AssetRec) => {
@@ -252,18 +296,81 @@ export function Studio() {
     setEntered(true);
   };
 
-  // ---- launcher stats ----
+  // ---- launcher stats + thumbnails ----
   useEffect(() => {
     if (entered || !projects.length) return;
     void (async () => {
+      thumbUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      thumbUrlsRef.current = [];
       const stats: Record<string, { n: number; bytes: number }> = {};
+      const th: Record<string, { url: string; video: boolean }> = {};
       for (const p of projects) {
         const list = await listAssets(p.id);
         stats[p.id] = { n: list.length, bytes: list.reduce((s, a) => s + a.blob.size, 0) };
+        const primId = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? null;
+        const prim =
+          list.find((a) => a.id === primId) ??
+          list.find((a) => a.kind === 'image') ??
+          list.find((a) => a.kind === 'video') ??
+          null;
+        if (prim) {
+          const u = URL.createObjectURL(prim.blob);
+          thumbUrlsRef.current.push(u);
+          th[p.id] = { url: u, video: prim.kind === 'video' };
+        }
       }
       setPjStats(stats);
+      setThumbs(th);
     })();
   }, [entered, projects]);
+
+  const sortedProjects = useMemo(() => {
+    const list = [...projects];
+    if (sortBy === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'size') list.sort((a, b) => (pjStats[b.id]?.bytes ?? 0) - (pjStats[a.id]?.bytes ?? 0));
+    else list.sort((a, b) => b.updatedAt - a.updatedAt);
+    return list;
+  }, [projects, sortBy, pjStats]);
+
+  /** White blank canvas asset for image projects. */
+  const blankCanvas = async (w: number, h: number) => {
+    const cw = Math.min(4096, Math.max(8, Math.round(w)));
+    const ch = Math.min(4096, Math.max(8, Math.round(h)));
+    const c = document.createElement('canvas');
+    c.width = cw;
+    c.height = ch;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, cw, ch);
+    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+    if (!blob || !curId) return;
+    const rec: AssetRec = {
+      id: uid(), projectId: curId, name: `canvas_${cw}x${ch}.png`, kind: 'image', blob, addedAt: Date.now(),
+    };
+    await putAsset(rec);
+    setAssets((prev) => [...prev, rec]);
+    savePatch({ imageDoc: { baseAssetId: rec.id, objects: [], bg: '#ffffff' } });
+    setBlankOpen(false);
+  };
+
+  /** White single-frame GIF so GIF projects can start from blank. */
+  const blankGif = async () => {
+    if (!curId) return;
+    const w = 480;
+    const h = 360;
+    const img = new ImageData(w, h);
+    img.data.fill(255);
+    const enc = GIFEncoder();
+    writeGifFrame(enc, img.data, w, h, 100, false);
+    enc.finish();
+    const blob = new Blob([enc.bytes().slice()], { type: 'image/gif' });
+    const rec: AssetRec = {
+      id: uid(), projectId: curId, name: 'blank.gif', kind: 'image', blob, addedAt: Date.now(),
+    };
+    await putAsset(rec);
+    setAssets((prev) => [...prev, rec]);
+    savePatch({ gifAssetId: rec.id });
+  };
 
   // ---- project zip export / import ----
   const remapMixer = (m: MixerDoc, idMap: Record<string, string>): MixerDoc => ({
@@ -373,20 +480,6 @@ export function Studio() {
     setAssets((prev) => [...prev, rec]);
   };
 
-  const blankCanvas = async () => {
-    const c = document.createElement('canvas');
-    c.width = 1280;
-    c.height = 720;
-    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
-    if (!blob || !curId) return;
-    const rec: AssetRec = {
-      id: uid(), projectId: curId, name: 'canvas.png', kind: 'image', blob, addedAt: Date.now(),
-    };
-    await putAsset(rec);
-    setAssets((prev) => [...prev, rec]);
-    savePatch({ imageDoc: { baseAssetId: rec.id, objects: [] } });
-  };
-
   const names = Object.fromEntries(assets.map((a) => [a.id, a.name]));
   const assetsBytes = assets.reduce((s, a) => s + a.blob.size, 0);
 
@@ -398,6 +491,19 @@ export function Studio() {
           <h2 className="launcher-title">{t('projectsTitle')}</h2>
           <InfoTip text={t('tipProjects')} />
           <span className="opt-spacer" />
+          <select className="tb-select" value={sortBy} onChange={(e) => setSortP(e.target.value as 'updated' | 'name' | 'size')}>
+            <option value="updated">{t('sortUpdated')}</option>
+            <option value="name">{t('sortName')}</option>
+            <option value="size">{t('sortSize')}</option>
+          </select>
+          <div className="st-tabs" role="group">
+            <button className={layout === 'grid' ? 'active' : ''} onClick={() => setLayoutP('grid')} title="Grid">
+              <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+            </button>
+            <button className={layout === 'list' ? 'active' : ''} onClick={() => setLayoutP('list')} title="List">
+              <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            </button>
+          </div>
           <button className="btn btn-ghost" onClick={() => pjImportRef.current?.click()}>
             {t('importProject')}
           </button>
@@ -414,58 +520,96 @@ export function Studio() {
           />
         </div>
 
-        {pickType ? (
-          <>
-            <p className="mx-label">{t('chooseType')}</p>
-            <div className="pj-grid">
-              {(Object.keys(TYPE_META) as ProjectType[]).map((tp) => (
-                <button key={tp} className="pj-card pj-type" onClick={() => void createProject(tp)}>
-                  <span className="type-icon">
-                    <svg viewBox="0 0 24 24" width="22" height="22"><path d={TYPE_META[tp].glyph} fill={tp === 'gif' ? 'none' : 'currentColor'} stroke={tp === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
-                  </span>
-                  <span className="pj-name">{t(TYPE_META[tp].labelKey)}</span>
-                  <span className="pj-meta">{t(TYPE_META[tp].descKey)}</span>
-                </button>
-              ))}
-            </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPickType(false)}>{t('cancel')}</button>
-          </>
-        ) : (
-          <div className="pj-grid">
-            {projects.map((p) => (
-              <div className="pj-card" key={p.id}>
-                <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
+        <div className={layout === 'grid' ? 'pj-grid' : 'pj-list'}>
+          {sortedProjects.map((p) => (
+            <div className="pj-card" key={p.id}>
+              <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
+                <span className="pj-thumb">
+                  {thumbs[p.id] ? (
+                    thumbs[p.id].video
+                      ? <video src={thumbs[p.id].url} muted preload="metadata" />
+                      : <img src={thumbs[p.id].url} alt="" draggable={false} />
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="26" height="26"><path d={TYPE_META[p.type ?? 'audio'].glyph} fill={(p.type ?? 'audio') === 'gif' ? 'none' : 'currentColor'} stroke={(p.type ?? 'audio') === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
+                  )}
+                </span>
+                <span className="pj-body">
                   <span className={`type-badge tb-${p.type ?? 'audio'}`}>
                     {t(TYPE_META[p.type ?? 'audio'].labelKey)}
                   </span>
                   <span className="pj-name">{p.name}</span>
-                  <span className="pj-meta">{new Date(p.updatedAt).toLocaleDateString()}</span>
                   <span className="pj-meta">
-                    {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
+                    {new Date(p.updatedAt).toLocaleDateString()} · {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
                   </span>
+                </span>
+              </button>
+              <div className="pj-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setMetaPj(p)} title={t('projectInfo')}>
+                  <svg viewBox="0 0 24 24" width="13" height="13"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 7.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
                 </button>
-                <div className="pj-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
-                    {t('exportProject')}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => {
-                      void idbDeleteProject(p.id).then(() =>
-                        setProjects((prev) => prev.filter((x) => x.id !== p.id))
-                      );
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
+                <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
+                  {t('exportProject')}
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    persistedRef.current.delete(p.id);
+                    void idbDeleteProject(p.id).then(() =>
+                      setProjects((prev) => prev.filter((x) => x.id !== p.id))
+                    );
+                  }}
+                >
+                  ×
+                </button>
               </div>
-            ))}
+            </div>
+          ))}
 
-            <button className="pj-card pj-new" onClick={() => setPickType(true)}>
-              <span className="pj-plus">＋</span>
-              <span className="pj-name">{t('newProject')}</span>
-            </button>
+          <button className="pj-card pj-new" onClick={() => setPickType(true)}>
+            <span className="pj-plus">＋</span>
+            <span className="pj-name">{t('newProject')}</span>
+          </button>
+        </div>
+
+        {projects.length === 0 && <p className="st-empty">{t('noProjects')}</p>}
+
+        {/* type picker — overlay modal */}
+        {pickType && (
+          <div className="editor-overlay" onClick={() => setPickType(false)}>
+            <div className="editor type-modal" onClick={(e) => e.stopPropagation()}>
+              <p className="mx-label">{t('chooseType')}</p>
+              <div className="pj-grid">
+                {(Object.keys(TYPE_META) as ProjectType[]).map((tp) => (
+                  <button key={tp} className="pj-card pj-type" onClick={() => void createProject(tp)}>
+                    <span className="type-icon">
+                      <svg viewBox="0 0 24 24" width="22" height="22"><path d={TYPE_META[tp].glyph} fill={tp === 'gif' ? 'none' : 'currentColor'} stroke={tp === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
+                    </span>
+                    <span className="pj-name">{t(TYPE_META[tp].labelKey)}</span>
+                    <span className="pj-meta">{t(TYPE_META[tp].descKey)}</span>
+                  </button>
+                ))}
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setPickType(false)}>{t('cancel')}</button>
+            </div>
+          </div>
+        )}
+
+        {/* project metadata modal */}
+        {metaPj && (
+          <div className="editor-overlay" onClick={() => setMetaPj(null)}>
+            <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
+              <p className="mx-label">{t('projectInfo')}</p>
+              <dl className="fc-details meta-list">
+                <div className="fc-detail-row"><dt>{t('fileType')}</dt><dd>{t(TYPE_META[metaPj.type ?? 'audio'].labelKey)}</dd></div>
+                <div className="fc-detail-row"><dt>{t('createdLabel')}</dt><dd>{new Date(metaPj.createdAt).toLocaleString()}</dd></div>
+                <div className="fc-detail-row"><dt>{t('updatedLabel')}</dt><dd>{new Date(metaPj.updatedAt).toLocaleString()}</dd></div>
+                <div className="fc-detail-row"><dt>{t('assetsLabel')}</dt><dd>{t('filesCount', { n: String(pjStats[metaPj.id]?.n ?? 0) })} · {formatBytes(pjStats[metaPj.id]?.bytes ?? 0)}</dd></div>
+                <div className="fc-detail-row"><dt>{t('tracksLabel')}</dt><dd>{(metaPj.type === 'video' ? metaPj.videoDoc?.mixer.tracks.length : metaPj.mixer.tracks.length) ?? 0}</dd></div>
+              </dl>
+              <div className="ed-foot-main">
+                <button className="btn btn-ghost" onClick={() => setMetaPj(null)}>{t('close')}</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -476,7 +620,7 @@ export function Studio() {
   return (
     <div className="studio">
       <div className="st-bar">
-        <button className="btn btn-ghost btn-sm" onClick={() => setEntered(false)}>
+        <button className="btn btn-ghost btn-sm" onClick={leaveWorkspace}>
           ← {t('backToProjects')}
         </button>
         <span className={`type-badge tb-${ptype}`}>{t(TYPE_META[ptype].labelKey)}</span>
@@ -572,8 +716,8 @@ export function Studio() {
                 <div className="picker-panel">
                   <p className="mx-label">{t('pickBase')}</p>
                   <div className="picker-list">
-                    <button className="btn btn-accent" onClick={() => void blankCanvas()}>
-                      {t('blankCanvas')} (1280×720)
+                    <button className="btn btn-accent" onClick={() => setBlankOpen(true)}>
+                      {t('blankCanvas')}…
                     </button>
                     {assets.filter((a) => a.kind === 'image' && !isGifAsset(a)).map((a) => (
                       <button
@@ -593,8 +737,24 @@ export function Studio() {
                   key={imgBase.id}
                   item={imgItem}
                   initialObjects={(cur?.imageDoc?.objects ?? []) as Obj[]}
+                  bg={cur?.imageDoc?.bg ?? null}
                   onObjectsChange={(objs) =>
-                    savePatch({ imageDoc: { baseAssetId: imgBase.id, objects: objs } })
+                    savePatch({
+                      imageDoc: {
+                        baseAssetId: imgBase.id,
+                        objects: objs,
+                        bg: curRef.current?.imageDoc?.bg ?? null,
+                      },
+                    })
+                  }
+                  onBgChange={(c) =>
+                    savePatch({
+                      imageDoc: {
+                        baseAssetId: imgBase.id,
+                        objects: curRef.current?.imageDoc?.objects ?? [],
+                        bg: c,
+                      },
+                    })
                   }
                   onSave={(_id, file) => void exportAsset(file)}
                 />
@@ -606,6 +766,9 @@ export function Studio() {
                 <div className="picker-panel">
                   <p className="mx-label">{t('pickGif')}</p>
                   <div className="picker-list">
+                    <button className="btn btn-accent" onClick={() => void blankGif()}>
+                      {t('blankGif')}
+                    </button>
                     {assets.filter(isGifAsset).map((a) => (
                       <button key={a.id} className="btn btn-ghost" onClick={() => savePatch({ gifAssetId: a.id })}>
                         {a.name}
@@ -641,6 +804,25 @@ export function Studio() {
           </div>
         </main>
       </div>
+
+      {/* blank canvas size modal */}
+      {blankOpen && (
+        <div className="editor-overlay" onClick={() => setBlankOpen(false)}>
+          <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="mx-label">{t('blankCanvas')}</p>
+            <div className="rz-grid">
+              <input type="number" className="num-sm" min={8} max={4096} value={bcW} onChange={(e) => setBcW(Number(e.target.value))} />
+              <span className="cap-dash">×</span>
+              <input type="number" className="num-sm" min={8} max={4096} value={bcH} onChange={(e) => setBcH(Number(e.target.value))} />
+              <span className="asset-size">px (max 4096)</span>
+            </div>
+            <div className="ed-foot-main">
+              <button className="btn btn-ghost" onClick={() => setBlankOpen(false)}>{t('cancel')}</button>
+              <button className="btn btn-accent" onClick={() => void blankCanvas(bcW, bcH)}>{t('applyLabel')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

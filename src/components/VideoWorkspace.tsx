@@ -89,32 +89,31 @@ export function VideoWorkspace({
     }
   };
 
-  // ---- no video picked yet ----
-  if (!videoAsset) {
-    return (
-      <div className="picker-panel">
-        <p className="mx-label">{t('pickVideo')}</p>
-        {candidates.length === 0 && <p className="st-empty">{t('noneOfKind')}</p>}
-        <div className="picker-list">
-          {candidates.map((a) => (
-            <button
-              key={a.id}
-              className="btn btn-ghost"
-              onClick={() => onDoc((d) => ({ ...d, videoAssetId: a.id }))}
-            >
-              {a.name}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  // blank-start friendly: the workspace always renders; the preview slot
+  // doubles as an inline video picker until one is chosen
   return (
     <div className="vw">
       <div className="vw-top">
         <div className="vw-preview">
-          <video ref={videoRef} src={url} controls playsInline onLoadedMetadata={onLoaded} />
+          {videoAsset ? (
+            <video ref={videoRef} src={url} controls playsInline onLoadedMetadata={onLoaded} />
+          ) : (
+            <div className="vw-pick">
+              <p className="mx-label">{t('pickVideo')}</p>
+              <div className="picker-list">
+                {candidates.map((a) => (
+                  <button
+                    key={a.id}
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => onDoc((d) => ({ ...d, videoAssetId: a.id }))}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+              {candidates.length === 0 && <p className="st-empty">{t('noneOfKind')}</p>}
+            </div>
+          )}
         </div>
         <div className="vw-side">
           <span className="sp-label">

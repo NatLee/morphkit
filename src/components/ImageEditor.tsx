@@ -6,8 +6,10 @@ import type { Item } from '../types';
    text is an editable object in a layers list; the canvas re-renders
    base bitmap + objects on every change. */
 
-type Tool = 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop' | 'wand';
-type ObjType = Exclude<Tool, 'select' | 'crop' | 'wand'>;
+type Tool =
+  | 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
+  | 'wand' | 'rectsel' | 'lasso' | 'fill';
+type ObjType = Exclude<Tool, 'select' | 'crop' | 'wand' | 'rectsel' | 'lasso' | 'fill'>;
 type FontFam = 'sans' | 'serif' | 'mono';
 type Brush = 'pen' | 'marker' | 'highlight';
 
@@ -67,6 +69,9 @@ const TOOL_ICONS: Record<Tool, string> = {
   text: 'M6 6h12M12 6v13',
   crop: 'M7 3v14h14M3 7h14v14',
   wand: 'M5 19L14 10m2.5-2.5L19 5M13 3l.8 2.2M21 11l-2.2-.8M15.5 14.5l1.8 1.3M8.5 6.2L9.8 8',
+  rectsel: 'M5 5h3M11 5h3M19 5v3M19 11v3M19 19h-3M11 19H8M5 19v-3M5 11V8',
+  lasso: 'M12 4c4.5 0 8 1.9 8 4.5S16.5 13 12 13c-2 0-3.8-.4-5.2-1M6.8 12C5 13 4.2 14.6 5 16c.7 1.2 2.6 1.2 3.6.2M8 17c0 1.6-.8 3-2.5 3',
+  fill: 'M8 3l9 9-6.5 6.5L4 12zM4 12h11M19 15c1 1.4 1.6 2.6 1 3.6-.6 1-2 1-2.8 0-.6-.9-.2-2.3 1.8-3.6z',
 };
 
 function cloneObjs(objs: Obj[]): Obj[] {
@@ -188,9 +193,12 @@ interface Props {
   initialObjects?: Obj[];
   /** reported on every change so the project can persist layers */
   onObjectsChange?: (objects: Obj[]) => void;
+  /** bottom background layer colour (null = transparent) */
+  bg?: string | null;
+  onBgChange?: (c: string | null) => void;
 }
 
-export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onObjectsChange }: Props) {
+export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onObjectsChange, bg, onBgChange }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -201,6 +209,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     | { mode: 'draw'; id: number }
     | { mode: 'move'; id: number; last: Pt }
     | { mode: 'crop'; a: Pt }
+    | { mode: 'rectsel'; a: Pt }
+    | { mode: 'lasso' }
     | null
   >(null);
 
@@ -225,6 +235,42 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const [textEdit, setTextEdit] = useState<{ id?: number; pos: Pt; value: string } | null>(null);
   const [ready, setReady] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [canvasBg, setCanvasBg] = useState<string | null>(bg ?? null);
+  const [selVer, setSelVer] = useState(0);
+  const [selDraft, setSelDraft] = useState<{ a: Pt; b: Pt } | null>(null);
+  const [lassoPts, setLassoPts] = useState<Pt[] | null>(null);
+  const [resizeOpen, setResizeOpen] = useState(false);
+  const [rzMode, setRzMode] = useState<'pct' | 'abs'>('pct');
+  const [rzPct, setRzPct] = useState(50);
+  const [rzW, setRzW] = useState(0);
+  const [rzH, setRzH] = useState(0);
+  const maskRef = useRef<HTMLCanvasElement | null>(null);
+  const tintRef = useRef<HTMLCanvasElement | null>(null);
+
+  const setBg = (c: string | null) => {
+    setCanvasBg(c);
+    onBgChange?.(c);
+  };
+
+  const buildTint = () => {
+    const m = maskRef.current;
+    if (!m) { tintRef.current = null; return; }
+    const c = document.createElement('canvas');
+    c.width = m.width;
+    c.height = m.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(m, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = '#c94f16';
+    g.fillRect(0, 0, c.width, c.height);
+    tintRef.current = c;
+  };
+
+  const deselect = () => {
+    maskRef.current = null;
+    tintRef.current = null;
+    setSelVer((v) => v + 1);
+  };
 
   const selObj = sel != null ? objects.find((o) => o.id === sel) ?? null : null;
 
@@ -280,8 +326,42 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     }
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, c.width, c.height);
+    if (canvasBg) {
+      ctx.fillStyle = canvasBg;
+      ctx.fillRect(0, 0, c.width, c.height);
+    }
     ctx.drawImage(base.bmp, 0, 0);
     for (const o of objectsRef.current) drawObj(ctx, o);
+    // selection tint
+    if (tintRef.current) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(tintRef.current, 0, 0);
+      ctx.restore();
+    }
+    // marquee / lasso drafts
+    if (selDraft) {
+      ctx.save();
+      ctx.setLineDash([7, 5]);
+      ctx.strokeStyle = '#c94f16';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(
+        Math.min(selDraft.a.x, selDraft.b.x), Math.min(selDraft.a.y, selDraft.b.y),
+        Math.abs(selDraft.b.x - selDraft.a.x), Math.abs(selDraft.b.y - selDraft.a.y)
+      );
+      ctx.restore();
+    }
+    if (lassoPts && lassoPts.length > 1) {
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = '#c94f16';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(lassoPts[0].x, lassoPts[0].y);
+      for (const p of lassoPts) ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.restore();
+    }
     // selection outline
     if (sel != null) {
       const o = objectsRef.current.find((x) => x.id === sel);
@@ -312,7 +392,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
       ctx.restore();
     }
-  }, [sel, cropSel, zoom]);
+  }, [sel, cropSel, zoom, canvasBg, selDraft, lassoPts, selVer]);
 
   useEffect(() => { render(); }, [objects, baseVer, render]);
 
@@ -384,7 +464,21 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
     if (tool === 'wand') {
-      void wandRemove(p);
+      wandSelect(p);
+      return;
+    }
+    if (tool === 'fill') {
+      void bucketFill(p);
+      return;
+    }
+    if (tool === 'rectsel') {
+      dragRef.current = { mode: 'rectsel', a: p };
+      setSelDraft(null);
+      return;
+    }
+    if (tool === 'lasso') {
+      dragRef.current = { mode: 'lasso' };
+      setLassoPts([p]);
       return;
     }
     if (tool === 'select') {
@@ -422,6 +516,14 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     const d = dragRef.current;
     if (!d) return;
     const p = toPt(e);
+    if (d.mode === 'rectsel') {
+      setSelDraft({ a: d.a, b: p });
+      return;
+    }
+    if (d.mode === 'lasso') {
+      setLassoPts((prev) => (prev ? [...prev, p] : [p]));
+      return;
+    }
     if (d.mode === 'crop') {
       setCropSel({ a: d.a, b: p });
       return;
@@ -446,7 +548,20 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     }));
   };
 
-  const onUp = () => { dragRef.current = null; };
+  const onUp = (e: PointerEvent<HTMLCanvasElement>) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (d?.mode === 'rectsel') {
+      const p = toPt(e);
+      if (Math.abs(p.x - d.a.x) > 3 && Math.abs(p.y - d.a.y) > 3) commitRectSel(d.a, p);
+      setSelDraft(null);
+      return;
+    }
+    if (d?.mode === 'lasso') {
+      if (lassoPts) commitLasso(lassoPts);
+      setLassoPts(null);
+    }
+  };
 
   const onDblClick = (e: PointerEvent<HTMLCanvasElement>) => {
     if (tool !== 'select') return;
@@ -465,6 +580,10 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     out.width = base.bmp.width;
     out.height = base.bmp.height;
     const ctx = out.getContext('2d')!;
+    if (canvasBg) {
+      ctx.fillStyle = canvasBg;
+      ctx.fillRect(0, 0, out.width, out.height);
+    }
     ctx.drawImage(base.bmp, 0, 0);
     for (const o of objectsRef.current) drawObj(ctx, o);
     return out;
@@ -496,7 +615,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
         setObjects((prev) => prev.filter((o) => o.id !== sel));
         setSel(null);
       }
-      if (e.key === 'Escape') { setCropSel(null); setSel(null); }
+      if (e.key === 'Escape') { setCropSel(null); setSel(null); deselect(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -541,11 +660,10 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     setTextEdit(null);
   };
 
-  /** Magic wand: flood-fill from the clicked pixel, clearing similar colours to alpha 0. */
-  const wandRemove = async (p: Pt) => {
+  /** Flood over the base from p; visits similar-colour pixels and calls apply(i4). */
+  const floodRegion = (p: Pt, apply: (data: Uint8ClampedArray, i4: number) => void): ImageData | null => {
     const base = baseRef.current;
-    if (!base) return;
-    pushHist();
+    if (!base) return null;
     const W = base.bmp.width;
     const H = base.bmp.height;
     const c = document.createElement('canvas');
@@ -572,7 +690,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       const dg = d[i4 + 1] - g0;
       const db = d[i4 + 2] - b0;
       if (Math.sqrt(dr * dr + dg * dg + db * db) > tol) continue;
-      d[i4 + 3] = 0;
+      apply(d, i4);
       const x = idx % W;
       const y = (idx / W) | 0;
       if (x > 0 && !visited[idx - 1]) { visited[idx - 1] = 1; stack.push(idx - 1); }
@@ -580,13 +698,137 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       if (y > 0 && !visited[idx - W]) { visited[idx - W] = 1; stack.push(idx - W); }
       if (y < H - 1 && !visited[idx + W]) { visited[idx + W] = 1; stack.push(idx + W); }
     }
-    ctx.putImageData(img, 0, 0);
+    return img;
+  };
+
+  const swapBase = async (c: HTMLCanvasElement) => {
     const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
-    if (!blob) return;
+    if (!blob || !baseRef.current) return;
     const bmp = await createImageBitmap(blob);
-    base.bmp.close();
+    baseRef.current.bmp.close();
     baseRef.current = { blob, bmp };
     setBaseVer((v) => v + 1);
+  };
+
+  /** Paint-bucket: flood-fill the clicked region with the current colour. */
+  const bucketFill = async (p: Pt) => {
+    const base = baseRef.current;
+    if (!base) return;
+    pushHist();
+    const n = parseInt(color.slice(1), 16);
+    const fr = (n >> 16) & 255;
+    const fg = (n >> 8) & 255;
+    const fb = n & 255;
+    const img = floodRegion(p, (d, i4) => { d[i4] = fr; d[i4 + 1] = fg; d[i4 + 2] = fb; d[i4 + 3] = 255; });
+    if (!img) return;
+    const c = document.createElement('canvas');
+    c.width = base.bmp.width;
+    c.height = base.bmp.height;
+    c.getContext('2d')!.putImageData(img, 0, 0);
+    await swapBase(c);
+  };
+
+  const ensureMask = (): HTMLCanvasElement => {
+    const base = baseRef.current!;
+    const m = document.createElement('canvas');
+    m.width = base.bmp.width;
+    m.height = base.bmp.height;
+    return m;
+  };
+
+  /** Magic wand: flood → selection mask. */
+  const wandSelect = (p: Pt) => {
+    const base = baseRef.current;
+    if (!base) return;
+    const m = ensureMask();
+    const mctx = m.getContext('2d')!;
+    const mimg = mctx.createImageData(m.width, m.height);
+    const img = floodRegion(p, (_d, i4) => {
+      mimg.data[i4] = 255; mimg.data[i4 + 1] = 255; mimg.data[i4 + 2] = 255; mimg.data[i4 + 3] = 255;
+    });
+    if (!img) return;
+    mctx.putImageData(mimg, 0, 0);
+    maskRef.current = m;
+    buildTint();
+    setSelVer((v) => v + 1);
+  };
+
+  const commitRectSel = (a: Pt, b: Pt) => {
+    const m = ensureMask();
+    const g = m.getContext('2d')!;
+    g.fillStyle = '#fff';
+    g.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    maskRef.current = m;
+    buildTint();
+    setSelVer((v) => v + 1);
+  };
+
+  const commitLasso = (pts: Pt[]) => {
+    if (pts.length < 3) return;
+    const m = ensureMask();
+    const g = m.getContext('2d')!;
+    g.fillStyle = '#fff';
+    g.beginPath();
+    g.moveTo(pts[0].x, pts[0].y);
+    for (const p of pts) g.lineTo(p.x, p.y);
+    g.closePath();
+    g.fill();
+    maskRef.current = m;
+    buildTint();
+    setSelVer((v) => v + 1);
+  };
+
+  /** Fill or erase the selected region on the base. */
+  const applyToSelection = async (mode: 'fill' | 'clear') => {
+    const base = baseRef.current;
+    const m = maskRef.current;
+    if (!base || !m) return;
+    pushHist();
+    const c = document.createElement('canvas');
+    c.width = base.bmp.width;
+    c.height = base.bmp.height;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(base.bmp, 0, 0);
+    if (mode === 'clear') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.drawImage(m, 0, 0);
+    } else {
+      const tmp = document.createElement('canvas');
+      tmp.width = c.width;
+      tmp.height = c.height;
+      const tg = tmp.getContext('2d')!;
+      tg.drawImage(m, 0, 0);
+      tg.globalCompositeOperation = 'source-in';
+      tg.fillStyle = color;
+      tg.fillRect(0, 0, tmp.width, tmp.height);
+      ctx.drawImage(tmp, 0, 0);
+    }
+    await swapBase(c);
+    deselect();
+  };
+
+  /** Resample the whole canvas (base + object coordinates). */
+  const applyResize = async (nw: number, nh: number) => {
+    const base = baseRef.current;
+    if (!base) return;
+    const w = Math.min(4096, Math.max(8, Math.round(nw)));
+    const h = Math.min(4096, Math.max(8, Math.round(nh)));
+    pushHist();
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d')!;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(base.bmp, 0, 0, w, h);
+    const sx = w / base.bmp.width;
+    const sy = h / base.bmp.height;
+    setObjects((prev) => prev.map((o) => ({
+      ...mapObj(o, (p) => ({ x: p.x * sx, y: p.y * sy })),
+      size: Math.max(1, o.size * (sx + sy) / 2),
+    })));
+    await swapBase(c);
+    deselect();
+    setResizeOpen(false);
   };
 
   // ---- geometry (bakes into base, transforms objects) ----
@@ -701,6 +943,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   };
 
   void histVer;
+  void selVer;
   const w = baseRef.current?.bmp.width ?? 0;
 
   return (
@@ -740,6 +983,17 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
           </button>
           <button className="tool-btn" onClick={() => transform('flip')} title={t('flipH')}>
             <svg viewBox="0 0 24 24"><path d="M12 3v18M8 7L4 12l4 5M16 7l4 5-4 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <button
+            className="tool-btn"
+            onClick={() => {
+              const b = baseRef.current;
+              if (b) { setRzW(b.bmp.width); setRzH(b.bmp.height); }
+              setResizeOpen(true);
+            }}
+            title={t('resizeCanvas')}
+          >
+            <svg viewBox="0 0 24 24"><path d="M4 20L20 4M4 20v-5m0 5h5M20 4v5m0-5h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
           <span className="tb-sep" />
           <button className="tool-btn" onClick={undo} disabled={histRef.current.length === 0} title={t('undo')}>
@@ -844,6 +1098,30 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
           {cropSel && (
             <button className="btn btn-accent btn-sm" onClick={applyCrop}>{t('applyCrop')}</button>
           )}
+          {maskRef.current && (
+            <>
+              <button className="btn btn-accent btn-sm" onClick={() => void applyToSelection('fill')}>{t('fillSel')}</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => void applyToSelection('clear')}>{t('clearSel')}</button>
+              <button className="btn btn-ghost btn-sm" onClick={deselect}>{t('deselect')}</button>
+            </>
+          )}
+          <span className="tb-sep" />
+          <span className="zoom-val" title={t('bgLayer')}>BG</span>
+          <input
+            type="color"
+            className="tb-color"
+            value={canvasBg ?? '#ffffff'}
+            onChange={(e) => setBg(e.target.value)}
+            title={t('bgLayer')}
+          />
+          <label className="sp-check bg-check" title={t('transparentBg')}>
+            <input
+              type="checkbox"
+              checked={canvasBg === null}
+              onChange={(e) => setBg(e.target.checked ? null : '#ffffff')}
+            />
+            <span className="zoom-val">{t('transparentBg')}</span>
+          </label>
           <span className="opt-spacer" />
           <div className="zoom-ctrl">
             <button className="tool-btn" onClick={() => setZoom((z) => Math.max(0.05, z / 1.25))} title="−">−</button>
@@ -944,6 +1222,44 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
             </button>
           </div>
         </div>
+
+        {resizeOpen && (
+          <div className="editor-overlay" onClick={() => setResizeOpen(false)}>
+            <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
+              <p className="mx-label">{t('resizeCanvas')}</p>
+              <div className="ed-seg">
+                <button className={rzMode === 'pct' ? 'active' : ''} onClick={() => setRzMode('pct')}>{t('percentMode')}</button>
+                <button className={rzMode === 'abs' ? 'active' : ''} onClick={() => setRzMode('abs')}>{t('absMode')}</button>
+              </div>
+              {rzMode === 'pct' ? (
+                <label className="sp-field">
+                  <span className="sp-label">% <span className="sp-val">{rzPct}%</span></span>
+                  <input type="range" min={10} max={200} value={rzPct} onChange={(e) => setRzPct(Number(e.target.value))} />
+                </label>
+              ) : (
+                <div className="rz-grid">
+                  <input type="number" className="num-sm" min={8} max={4096} value={rzW} onChange={(e) => setRzW(Number(e.target.value))} />
+                  <span className="cap-dash">×</span>
+                  <input type="number" className="num-sm" min={8} max={4096} value={rzH} onChange={(e) => setRzH(Number(e.target.value))} />
+                </div>
+              )}
+              <div className="ed-foot-main">
+                <button className="btn btn-ghost" onClick={() => setResizeOpen(false)}>{t('cancel')}</button>
+                <button
+                  className="btn btn-accent"
+                  onClick={() => {
+                    const b = baseRef.current;
+                    if (!b) return;
+                    if (rzMode === 'pct') void applyResize(b.bmp.width * rzPct / 100, b.bmp.height * rzPct / 100);
+                    else void applyResize(rzW, rzH);
+                  }}
+                >
+                  {t('applyLabel')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

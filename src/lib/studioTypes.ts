@@ -32,6 +32,8 @@ export interface ImageDoc {
   baseAssetId: string | null;
   /** serialized ImageEditor objects (owned by ImageEditor's Obj type) */
   objects: unknown[];
+  /** bottom background layer colour; null = transparent */
+  bg?: string | null;
 }
 
 /** Video projects: one video + a full audio mixer, aligned to the trimmed start. */
