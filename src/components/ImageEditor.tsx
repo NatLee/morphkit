@@ -252,6 +252,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const [rzH, setRzH] = useState(0);
   const maskRef = useRef<HTMLCanvasElement | null>(null);
   const tintRef = useRef<HTMLCanvasElement | null>(null);
+  const maskBBoxRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const antsRef = useRef(0);
 
   const applyBg = (color: string, on: boolean) => {
     setBgColor(color);
@@ -276,6 +278,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const deselect = () => {
     maskRef.current = null;
     tintRef.current = null;
+    maskBBoxRef.current = null;
     setSelVer((v) => v + 1);
   };
 
@@ -365,47 +368,56 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     }
     ctx.drawImage(base.bmp, 0, 0);
     for (const o of objectsRef.current) drawObj(ctx, o);
-    // selection tint
+
+    // "marching ants": white underlay + animated black dashes — readable on any
+    // image content, and the motion makes clear it's UI, not pixels
+    const drawAnts = (path: () => void) => {
+      ctx.save();
+      const lw = Math.max(1.25, 1.5 / zoom);
+      const dash = Math.max(4, 6 / zoom);
+      ctx.lineWidth = lw;
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath();
+      path();
+      ctx.stroke();
+      ctx.setLineDash([dash, dash]);
+      ctx.lineDashOffset = -antsRef.current * dash * 2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+      ctx.beginPath();
+      path();
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    // selection tint + boundary ants
     if (tintRef.current) {
       ctx.save();
-      ctx.globalAlpha = 0.35;
+      ctx.globalAlpha = 0.28;
       ctx.drawImage(tintRef.current, 0, 0);
       ctx.restore();
+      const bb = maskBBoxRef.current;
+      if (bb) drawAnts(() => ctx.rect(bb.x, bb.y, bb.w, bb.h));
     }
     // marquee / lasso drafts
     if (selDraft) {
-      ctx.save();
-      ctx.setLineDash([7, 5]);
-      ctx.strokeStyle = '#c94f16';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(
+      drawAnts(() => ctx.rect(
         Math.min(selDraft.a.x, selDraft.b.x), Math.min(selDraft.a.y, selDraft.b.y),
         Math.abs(selDraft.b.x - selDraft.a.x), Math.abs(selDraft.b.y - selDraft.a.y)
-      );
-      ctx.restore();
+      ));
     }
     if (lassoPts && lassoPts.length > 1) {
-      ctx.save();
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = '#c94f16';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(lassoPts[0].x, lassoPts[0].y);
-      for (const p of lassoPts) ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      ctx.restore();
+      drawAnts(() => {
+        ctx.moveTo(lassoPts[0].x, lassoPts[0].y);
+        for (const p of lassoPts) ctx.lineTo(p.x, p.y);
+      });
     }
-    // selection outline
+    // selected-object outline
     if (sel != null) {
       const o = objectsRef.current.find((x) => x.id === sel);
       if (o) {
         const bb = bboxOf(o, ctx);
-        ctx.save();
-        ctx.setLineDash([6, 5]);
-        ctx.strokeStyle = '#c94f16';
-        ctx.lineWidth = Math.max(1.5, 1.5 / zoom);
-        ctx.strokeRect(bb.x - 6, bb.y - 6, bb.w + 12, bb.h + 12);
-        ctx.restore();
+        drawAnts(() => ctx.rect(bb.x - 6, bb.y - 6, bb.w + 12, bb.h + 12));
       }
     }
     // crop marquee
@@ -624,11 +636,13 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     if (d?.mode === 'rectsel') {
       const p = toPt(e);
       if (Math.abs(p.x - d.a.x) > 3 && Math.abs(p.y - d.a.y) > 3) commitRectSel(d.a, p);
+      else deselect(); // plain click clears the previous selection
       setSelDraft(null);
       return;
     }
     if (d?.mode === 'lasso') {
       if (lassoPts) commitLasso(lassoPts);
+      else deselect();
       setLassoPts(null);
     }
   };
@@ -806,19 +820,29 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     return m;
   };
 
-  /** Magic wand: flood → selection mask. */
+  /** Magic wand: flood → selection mask (tracks the bounding box for the ants). */
   const wandSelect = (p: Pt) => {
     const base = baseRef.current;
     if (!base) return;
     const m = ensureMask();
     const mctx = m.getContext('2d')!;
     const mimg = mctx.createImageData(m.width, m.height);
+    const W = m.width;
+    let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
     const img = floodRegion(p, (_d, i4) => {
       mimg.data[i4] = 255; mimg.data[i4 + 1] = 255; mimg.data[i4 + 2] = 255; mimg.data[i4 + 3] = 255;
+      const idx = i4 / 4;
+      const x = idx % W;
+      const y = (idx / W) | 0;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
     });
-    if (!img) return;
+    if (!img || maxX < 0) return;
     mctx.putImageData(mimg, 0, 0);
     maskRef.current = m;
+    maskBBoxRef.current = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
     buildTint();
     setSelVer((v) => v + 1);
   };
@@ -826,15 +850,20 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const commitRectSel = (a: Pt, b: Pt) => {
     const m = ensureMask();
     const g = m.getContext('2d')!;
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    const w2 = Math.abs(b.x - a.x);
+    const h2 = Math.abs(b.y - a.y);
     g.fillStyle = '#fff';
-    g.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    g.fillRect(x, y, w2, h2);
     maskRef.current = m;
+    maskBBoxRef.current = { x, y, w: w2, h: h2 };
     buildTint();
     setSelVer((v) => v + 1);
   };
 
   const commitLasso = (pts: Pt[]) => {
-    if (pts.length < 3) return;
+    if (pts.length < 3) { deselect(); return; }
     const m = ensureMask();
     const g = m.getContext('2d')!;
     g.fillStyle = '#fff';
@@ -844,9 +873,29 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     g.closePath();
     g.fill();
     maskRef.current = m;
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    maskBBoxRef.current = { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
     buildTint();
     setSelVer((v) => v + 1);
   };
+
+  // marching-ants animation loop — only runs while something is selected
+  useEffect(() => {
+    const active = !!maskRef.current || !!selDraft || !!(lassoPts && lassoPts.length > 1) || sel != null;
+    if (!active) return;
+    let raf = 0;
+    const loop = () => {
+      antsRef.current = (performance.now() / 400) % 1;
+      render();
+      raf = window.requestAnimationFrame(loop);
+    };
+    raf = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selVer, selDraft, lassoPts, sel, render]);
 
   /** Fill or erase the selected region on the base. */
   const applyToSelection = async (mode: 'fill' | 'clear') => {
@@ -1041,7 +1090,12 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
             <button
               key={tl}
               className={`tool-btn${tool === tl ? ' active' : ''}`}
-              onClick={() => { setTool(tl); setCropSel(null); }}
+              onClick={() => {
+                setTool(tl);
+                setCropSel(null);
+                // switching to a drawing tool dismisses the selection
+                if (!['pan', 'select', 'wand', 'rectsel', 'lasso'].includes(tl)) deselect();
+              }}
               title={t(`tool_${tl}`)}
             >
               <svg viewBox="0 0 24 24"><path d={TOOL_ICONS[tl]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
