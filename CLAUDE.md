@@ -39,7 +39,7 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 | `components/DropZone.tsx` | Accepts image/audio/video, multi-file |
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings |
 | `components/MediaEditor.tsx` | A/V trim (DualRange + playhead buttons), volume/speed/rotate → saved as `Item.edit`, applied at ffmpeg time |
-| `components/ImageEditor.tsx` | Graphite-style **non-destructive object model**: objects[] replayed over base bitmap. Tools: select/pen(3 brushes)/line/rect/ellipse/arrow/text(font/bold/outline)/crop/wand(flood-fill BG removal). Layers panel, zoom, blob-ref history (base blob shared by reference), Ctrl+C copy, Ctrl+V text |
+| `components/ImageEditor.tsx` | **Raster layer editor**: layer = canvas surface. Tools: pan/move/pen(3 brushes)/line/rect/ellipse/arrow/text/crop/wand/rectsel/lasso/fill — all paint into the active layer. Layer panel (add/dup/merge-down/delete/reorder/opacity/blend/lock/mask), pixel history, wheel zoom, marching-ants selections, bg layer |
 | `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
@@ -73,7 +73,7 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 15. **ImageEditor inline mode**: `initialObjects` consumed once at mount (key by base asset id); `objId` must be bumped past loaded ids. Pseudo-Items passed to inline editors MUST be memoized or the init effect loops.
 16. **muxVideo**: audio timeline aligns to the TRIMMED video start; wav is rendered by OfflineAudioContext first, then mapped `-map 0:v -map 1:a -shortest`.
 17. **Modals MUST portal to `<body>`** (`components/Overlay.tsx`, or `createPortal` directly). Any ancestor transform/filter makes itself the containing block for `position:fixed`, which clips the backdrop. Keyframe endings should also be `transform: none` for the same reason.
-18. **Layer model**: `Layer` holds `objects[]` + opacity/blend/lock/visible/mask. Rendering composites each layer through a shared scratch canvas (mask via `destination-in`, then alpha+blend onto the main ctx). `setObjects` targets the ACTIVE layer; geometry ops must use `mapAllObjects`. History snapshots the WHOLE stack. Legacy `imageDoc.objects` migrates into one layer on load.
+18. **Layer model is RASTER**: a `Layer` IS a canvas (`pixRef: Map<id, HTMLCanvasElement>`, persisted as `src` dataURL). Every tool paints into the active layer; there are no sub-objects. Rendering composites each layer through a scratch canvas (mask via `destination-in`, then alpha+blend). Geometry ops (crop/rotate/resize) must run `transformLayers` so every layer canvas follows the base. History snapshots ALL layer pixels (cap 14) — keep it that way or undo desyncs.
 19. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
 
 ## Design language ("Drafting Table")
