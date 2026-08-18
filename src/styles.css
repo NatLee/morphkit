@@ -2718,6 +2718,34 @@ kbd {
   max-height: 100%;
 }
 
+.frame-modal { width: min(560px, 94vw); }
+
+.fp-preview {
+  height: 240px;
+  margin-bottom: 0;
+}
+
+.st-note {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150;
+  box-shadow: var(--shadow);
+  margin: 0;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-faint);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.footer-link:hover { color: var(--accent); }
+
 /* ---- studio tabs ---- */
 
 .st-tabs {

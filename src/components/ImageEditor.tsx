@@ -9,7 +9,10 @@ import type { Item } from '../types';
 type Tool =
   | 'pan' | 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
   | 'wand' | 'rectsel' | 'lasso' | 'fill';
-type ObjType = Exclude<Tool, 'pan' | 'select' | 'crop' | 'wand' | 'rectsel' | 'lasso' | 'fill'>;
+type ObjType = Exclude<Tool, 'pan' | 'select' | 'crop' | 'wand' | 'rectsel' | 'lasso' | 'fill'> | 'image';
+
+/** runtime bitmap cache for image-layer objects (src dataURL is the persisted form) */
+const imgBmpCache = new Map<number, ImageBitmap>();
 type FontFam = 'sans' | 'serif' | 'mono';
 type Brush = 'pen' | 'marker' | 'highlight';
 
@@ -31,6 +34,8 @@ export interface Obj {
   weight?: number;
   outline?: boolean;
   brush?: Brush;
+  /** image layers: persisted dataURL */
+  src?: string;
 }
 
 export const FONT_MAP: Record<FontFam, string> = {
@@ -108,6 +113,17 @@ function bboxOf(o: Obj, ctx: CanvasRenderingContext2D): { x: number; y: number; 
 
 function drawObj(ctx: CanvasRenderingContext2D, o: Obj) {
   if (!o.visible) return;
+  if (o.type === 'image' && o.a && o.b) {
+    const bmp = imgBmpCache.get(o.id);
+    if (bmp) {
+      ctx.drawImage(
+        bmp,
+        Math.min(o.a.x, o.b.x), Math.min(o.a.y, o.b.y),
+        Math.abs(o.b.x - o.a.x), Math.abs(o.b.y - o.a.y)
+      );
+    }
+    return;
+  }
   ctx.strokeStyle = o.color;
   ctx.fillStyle = o.color;
   ctx.lineWidth = o.size;
@@ -197,9 +213,12 @@ interface Props {
   /** bottom background layer colour (null = transparent) */
   bg?: string | null;
   onBgChange?: (c: string | null) => void;
+  /** drop this blob onto the canvas as a movable image layer (GIF → first frame) */
+  importBlob?: Blob | null;
+  onImportDone?: () => void;
 }
 
-export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onObjectsChange, bg, onBgChange }: Props) {
+export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onObjectsChange, bg, onBgChange, importBlob, onImportDone }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -324,6 +343,64 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     if (ready) onObjectsChange?.(objectsRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objects, ready]);
+
+  /** Place a blob on the canvas as a movable image layer. */
+  const importImageBlob = async (blob: Blob) => {
+    const cv = canvasRef.current;
+    if (!cv || !ready) return;
+    const bmp = await createImageBitmap(blob); // animated sources → first frame
+    const maxW = cv.width * 0.6;
+    const maxH = cv.height * 0.6;
+    const s = Math.min(1, maxW / bmp.width, maxH / bmp.height);
+    const w2 = Math.max(1, Math.round(bmp.width * s));
+    const h2 = Math.max(1, Math.round(bmp.height * s));
+    // persisted form capped at 1024px so project docs stay reasonable
+    const capS = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+    const tc = document.createElement('canvas');
+    tc.width = Math.max(1, Math.round(bmp.width * capS));
+    tc.height = Math.max(1, Math.round(bmp.height * capS));
+    tc.getContext('2d')!.drawImage(bmp, 0, 0, tc.width, tc.height);
+    const src = tc.toDataURL('image/png');
+    bmp.close();
+    pushHist();
+    const id = ++objId;
+    const cx = cv.width / 2;
+    const cy = cv.height / 2;
+    setObjects((prev) => [...prev, {
+      id, type: 'image', color: '#000000', size: 1, visible: true, src,
+      a: { x: cx - w2 / 2, y: cy - h2 / 2 }, b: { x: cx + w2 / 2, y: cy + h2 / 2 },
+    }]);
+    setSel(id);
+    setTool('select');
+  };
+
+  // consume import requests from the workspace (asset panel ↧ / frame picker)
+  useEffect(() => {
+    if (!importBlob || !ready) return;
+    void importImageBlob(importBlob).finally(() => onImportDone?.());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importBlob, ready]);
+
+  // decode bitmaps for image layers (restored from persistence or freshly added)
+  useEffect(() => {
+    let stale = false;
+    void (async () => {
+      let decoded = false;
+      for (const o of objects) {
+        if (o.type === 'image' && o.src && !imgBmpCache.has(o.id)) {
+          try {
+            const blob = await (await fetch(o.src)).blob();
+            const bmp = await createImageBitmap(blob);
+            if (stale) { bmp.close(); return; }
+            imgBmpCache.set(o.id, bmp);
+            decoded = true;
+          } catch { /* corrupt src */ }
+        }
+      }
+      if (decoded && !stale) setSelVer((v) => v + 1);
+    })();
+    return () => { stale = true; };
+  }, [objects]);
 
   // wheel over the canvas = zoom (anchored at the cursor), never scroll
   useEffect(() => {
@@ -706,10 +783,20 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel, textEdit]);
 
-  // Ctrl+V: pasted text becomes a text object at the canvas centre
+  // Ctrl+V: pasted image → image layer; pasted text → text object
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (textEdit) return;
+      for (const it of Array.from(e.clipboardData?.items ?? [])) {
+        if (it.kind === 'file' && it.type.startsWith('image/')) {
+          const f = it.getAsFile();
+          if (f) {
+            e.preventDefault();
+            void importImageBlob(f);
+            return;
+          }
+        }
+      }
       const txt = e.clipboardData?.getData('text');
       if (!txt?.trim()) return;
       e.preventDefault();

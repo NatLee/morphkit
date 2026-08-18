@@ -38,9 +38,12 @@ interface Props {
   onClose?: () => void;
   /** workspace mode: no overlay chrome, fills its container */
   inline?: boolean;
+  /** frames to append to the strip (from GIF / image / video imports) */
+  importFrames?: { img: ImageData; delay: number }[] | null;
+  onImportDone?: () => void;
 }
 
-export function GifEditor({ item, onSave, onClose, inline }: Props) {
+export function GifEditor({ item, onSave, onClose, inline, importFrames, onImportDone }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const framesRef = useRef<Frame[]>([]);
@@ -104,6 +107,51 @@ export function GifEditor({ item, onSave, onClose, inline }: Props) {
       framesRef.current = [];
     };
   }, [item.file]);
+
+  // append imported frames (scaled to this GIF's canvas size)
+  useEffect(() => {
+    if (!importFrames?.length || !loaded) return;
+    void (async () => {
+      try {
+        const frames = framesRef.current;
+        const room = 300 - frames.length;
+        const take = importFrames.slice(0, Math.max(0, room));
+        if (!take.length) return;
+        const w0 = frames[0]?.bitmap.width ?? take[0].img.width;
+        const h0 = frames[0]?.bitmap.height ?? take[0].img.height;
+        const scale = document.createElement('canvas');
+        scale.width = w0;
+        scale.height = h0;
+        const sctx = scale.getContext('2d')!;
+        const th = 48;
+        const tc = document.createElement('canvas');
+        tc.width = Math.max(1, Math.round((w0 / h0) * th));
+        tc.height = th;
+        const tctx = tc.getContext('2d')!;
+        const wasAtEnd = range[1] === frames.length - 1;
+        for (const f of take) {
+          const src = await createImageBitmap(f.img);
+          sctx.clearRect(0, 0, w0, h0);
+          // contain-fit imported content inside the gif canvas
+          const s = Math.min(w0 / src.width, h0 / src.height);
+          const dw = src.width * s;
+          const dh = src.height * s;
+          sctx.drawImage(src, (w0 - dw) / 2, (h0 - dh) / 2, dw, dh);
+          src.close();
+          const bitmap = await createImageBitmap(scale);
+          tctx.clearRect(0, 0, tc.width, th);
+          tctx.drawImage(scale, 0, 0, tc.width, th);
+          frames.push({ bitmap, delay: Math.max(f.delay, 20), thumb: tc.toDataURL() });
+          bitmapsRef.current.add(bitmap);
+        }
+        if (wasAtEnd) setRange(([s]) => [s, framesRef.current.length - 1]);
+        setVer((v) => v + 1);
+      } finally {
+        onImportDone?.();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importFrames, loaded]);
 
   const drawCaptions = (ctx: CanvasRenderingContext2D, w: number, h: number, fi: number) => {
     for (const cap of caps) {

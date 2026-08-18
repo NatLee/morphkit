@@ -7,9 +7,13 @@ import { Mixer } from './Mixer';
 import { ImageEditor, type Obj } from './ImageEditor';
 import { GifEditor } from './GifEditor';
 import { VideoWorkspace } from './VideoWorkspace';
+import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
 import { detectKind, extOf, formatBytes } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer } from '../lib/audioEngine';
+import { decodeAnim } from '../lib/animImage';
+import { convertMedia } from '../lib/ffmpegClient';
+import { loadSettings } from '../lib/settings';
 import {
   deleteAsset as idbDeleteAsset,
   deleteProject as idbDeleteProject,
@@ -71,6 +75,10 @@ export function Studio() {
   );
   const [metaPj, setMetaPj] = useState<ProjectRec | null>(null);
   const [blankOpen, setBlankOpen] = useState(false);
+  const [imgImport, setImgImport] = useState<Blob | null>(null);
+  const [gifImportFrames, setGifImportFrames] = useState<{ img: ImageData; delay: number }[] | null>(null);
+  const [framePick, setFramePick] = useState<{ blob: Blob; mode: 'single' | 'range' } | null>(null);
+  const [note, setNote] = useState('');
   const [bcW, setBcW] = useState(1280);
   const [bcH, setBcH] = useState(720);
   const importRef = useRef<HTMLInputElement>(null);
@@ -438,6 +446,104 @@ export function Studio() {
     void importFiles(Array.from(e.dataTransfer.files));
   };
 
+  // Ctrl+V anywhere in the studio: pasted files become assets
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (!entered) return;
+      const files: File[] = [];
+      for (const it of Array.from(e.clipboardData?.items ?? [])) {
+        if (it.kind === 'file') {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length) void importFiles(files);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entered, curId]);
+
+  const flash = (msg: string) => {
+    setNote(msg);
+    window.setTimeout(() => setNote(''), 5000);
+  };
+
+  /** Route an asset into the active editor, converting across types as needed. */
+  const importAssetToEditor = async (a: AssetRec) => {
+    if (ptype === 'image') {
+      if (a.kind === 'video') { setFramePick({ blob: a.blob, mode: 'single' }); return; }
+      setImgImport(a.blob); // images & GIFs (first frame) become movable layers
+      return;
+    }
+    if (ptype === 'gif') {
+      if (a.kind === 'video') { setFramePick({ blob: a.blob, mode: 'range' }); return; }
+      if (isGifAsset(a)) {
+        const anim = await decodeAnim(new File([a.blob], a.name, { type: a.blob.type }));
+        setGifImportFrames(anim.frames.map((f) => ({ img: f.img, delay: f.delay })));
+        return;
+      }
+      // static image → a single appended frame
+      const bmp = await createImageBitmap(a.blob);
+      const c = document.createElement('canvas');
+      c.width = bmp.width;
+      c.height = bmp.height;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(bmp, 0, 0);
+      bmp.close();
+      setGifImportFrames([{ img: ctx.getImageData(0, 0, c.width, c.height), delay: 500 }]);
+      return;
+    }
+    if (ptype === 'video' && isGifAsset(a)) {
+      // GIF → MP4 so it can be the project's video (size-capped: wasm memory)
+      if (a.blob.size > 15 * 1024 * 1024) {
+        flash(t('tooBigGif', { n: '15' }));
+        return;
+      }
+      flash(t('processing'));
+      try {
+        const mp4 = await convertMedia(
+          new File([a.blob], a.name, { type: a.blob.type }),
+          'mp4', loadSettings(), { mute: true }, () => { /* progress */ }
+        );
+        const rec: AssetRec = {
+          id: uid(), projectId: curId!, name: a.name.replace(/\.[^.]+$/, '') + '.mp4',
+          kind: 'video', blob: mp4, addedAt: Date.now(),
+        };
+        await putAsset(rec);
+        setAssets((prev) => [...prev, rec]);
+        patchVideoDoc((d) => ({ ...d, videoAssetId: rec.id }));
+        setNote('');
+      } catch {
+        flash(t('failed'));
+      }
+    }
+  };
+
+  const onFramesPicked = (frames: { img: ImageData; delay: number }[]) => {
+    setFramePick(null);
+    if (ptype === 'image') {
+      const f = frames[0];
+      if (!f) return;
+      const c = document.createElement('canvas');
+      c.width = f.img.width;
+      c.height = f.img.height;
+      c.getContext('2d')!.putImageData(f.img, 0, 0);
+      c.toBlob((b) => { if (b) setImgImport(b); }, 'image/png');
+    } else {
+      setGifImportFrames(frames);
+    }
+  };
+
+  /** Which assets can be pulled into the current workspace? */
+  const canImportToEditor = (a: AssetRec): boolean => {
+    if (ptype === 'image') return !!imgBaseId && (a.kind === 'image' || a.kind === 'video');
+    if (ptype === 'gif') return !!cur?.gifAssetId && (a.kind === 'image' || a.kind === 'video');
+    if (ptype === 'video') return isGifAsset(a);
+    return false;
+  };
+  const imgBaseId = cur?.imageDoc?.baseAssetId ?? null;
+
   // ---- workspace helpers ----
   const pseudoItem = (a: AssetRec): Item => ({
     id: a.id,
@@ -684,6 +790,11 @@ export function Studio() {
                 {ptype === 'video' && a.kind === 'video' && (
                   <button onClick={() => patchVideoDoc((d) => ({ ...d, videoAssetId: a.id }))} title={t('pickVideo')}>◎</button>
                 )}
+                {canImportToEditor(a) && (
+                  <button onClick={() => void importAssetToEditor(a)} title={t('importToEditor')}>
+                    <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 21h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </button>
+                )}
                 <button onClick={() => newFromAsset(a)} title={t('newFromAsset')}>
                   <svg viewBox="0 0 24 24" width="12" height="12"><path d="M8 8h12v12H8zM4 16V4h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
                 </button>
@@ -756,6 +867,8 @@ export function Studio() {
                     })
                   }
                   onSave={(_id, file) => void exportAsset(file)}
+                  importBlob={imgImport}
+                  onImportDone={() => setImgImport(null)}
                 />
               )
             )}
@@ -782,6 +895,8 @@ export function Studio() {
                   key={`${gifAsset.id}-${gifAsset.blob.size}`}
                   item={gifItem}
                   onSave={(id, file) => void replaceAssetBlob(id, file)}
+                  importFrames={gifImportFrames}
+                  onImportDone={() => setGifImportFrames(null)}
                 />
               )
             )}
@@ -803,6 +918,17 @@ export function Studio() {
           </div>
         </main>
       </div>
+
+      {note && <div className="banner info st-note">{note}</div>}
+
+      {framePick && (
+        <FramePicker
+          blob={framePick.blob}
+          mode={framePick.mode}
+          onDone={onFramesPicked}
+          onClose={() => setFramePick(null)}
+        />
+      )}
 
       {/* blank canvas size modal */}
       {blankOpen && (

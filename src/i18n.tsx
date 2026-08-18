@@ -249,6 +249,13 @@ const zh: Dict = {
   deselect: '取消選取',
   bgLayerName: '背景',
   tool_pan: '移動畫布',
+  tool_image: '圖片圖層',
+  importToEditor: '匯入編輯器',
+  captureLabel: '擷取',
+  timePos: '時間點',
+  pickFrameTitle: '從影片擷取一格',
+  pickClipTitle: '從影片擷取片段',
+  tooBigGif: 'GIF 過大（超過 {n} MB），無法轉為影片',
 };
 
 const en: Dict = {
@@ -490,6 +497,13 @@ const en: Dict = {
   deselect: 'Deselect',
   bgLayerName: 'Background',
   tool_pan: 'Pan canvas',
+  tool_image: 'Image layer',
+  importToEditor: 'Import into editor',
+  captureLabel: 'Capture',
+  timePos: 'Time',
+  pickFrameTitle: 'Grab one frame from the video',
+  pickClipTitle: 'Grab a clip from the video',
+  tooBigGif: 'GIF too large (over {n} MB) to become a video',
 };
 
 const ja: Dict = {
@@ -731,6 +745,13 @@ const ja: Dict = {
   deselect: '選択解除',
   bgLayerName: '背景',
   tool_pan: 'キャンバス移動',
+  tool_image: '画像レイヤー',
+  importToEditor: 'エディタへ読み込み',
+  captureLabel: 'キャプチャ',
+  timePos: '時間',
+  pickFrameTitle: '動画から1フレームを取得',
+  pickClipTitle: '動画からクリップを取得',
+  tooBigGif: 'GIFが大きすぎます（{n} MB超）。動画化できません',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };
