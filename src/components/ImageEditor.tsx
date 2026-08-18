@@ -1017,17 +1017,16 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     setTextEdit(null);
   };
 
-  /** Flood over the base from p; visits similar-colour pixels and calls apply(i4). */
+  /**
+   * Flood from p over what the user actually sees (base + layers), so fills and
+   * the wand respect strokes drawn on top. Calls apply(i4) for each hit pixel.
+   */
   const floodRegion = (p: Pt, apply: (data: Uint8ClampedArray, i4: number) => void): ImageData | null => {
-    const base = baseRef.current;
-    if (!base) return null;
-    const W = base.bmp.width;
-    const H = base.bmp.height;
-    const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
+    const c = composite();
+    if (!c) return null;
+    const W = c.width;
+    const H = c.height;
     const ctx = c.getContext('2d', { willReadFrequently: true })!;
-    ctx.drawImage(base.bmp, 0, 0);
     const img = ctx.getImageData(0, 0, W, H);
     const d = img.data;
     const sx = Math.min(W - 1, Math.max(0, Math.round(p.x)));
@@ -1067,22 +1066,62 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     setBaseVer((v) => v + 1);
   };
 
-  /** Paint-bucket: flood-fill the clicked region with the current colour. */
+  /** Turn a pixel patch into an editable image object on the active layer. */
+  const addPatchObject = async (patch: HTMLCanvasElement, x: number, y: number) => {
+    const src = patch.toDataURL('image/png');
+    const bmp = await createImageBitmap(patch);
+    const id = ++objId;
+    imgBmpCache.set(id, bmp);
+    pushHist();
+    setObjects((prev) => [...prev, {
+      id, type: 'image', color, size: 1, visible: true, src,
+      a: { x, y }, b: { x: x + patch.width, y: y + patch.height },
+    }]);
+    setSel(id);
+  };
+
+  /**
+   * Paint-bucket — a normal, undoable ACTION: the filled region becomes an
+   * object on the active layer (never baked into the base bitmap).
+   */
   const bucketFill = async (p: Pt) => {
     const base = baseRef.current;
     if (!base) return;
-    pushHist();
+    const W = base.bmp.width;
+    const H = base.bmp.height;
     const n = parseInt(color.slice(1), 16);
     const fr = (n >> 16) & 255;
     const fg = (n >> 8) & 255;
     const fb = n & 255;
-    const img = floodRegion(p, (d, i4) => { d[i4] = fr; d[i4 + 1] = fg; d[i4 + 2] = fb; d[i4 + 3] = 255; });
-    if (!img) return;
-    const c = document.createElement('canvas');
-    c.width = base.bmp.width;
-    c.height = base.bmp.height;
-    c.getContext('2d')!.putImageData(img, 0, 0);
-    await swapBase(c);
+    const full = document.createElement('canvas');
+    full.width = W;
+    full.height = H;
+    const fctx = full.getContext('2d')!;
+    const patch = fctx.createImageData(W, H);
+    let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+    const hit = floodRegion(p, (_d, i4) => {
+      patch.data[i4] = fr;
+      patch.data[i4 + 1] = fg;
+      patch.data[i4 + 2] = fb;
+      patch.data[i4 + 3] = 255;
+      const idx = i4 / 4;
+      const x = idx % W;
+      const y = (idx / W) | 0;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    });
+    if (!hit || maxX < 0) return;
+    fctx.putImageData(patch, 0, 0);
+    // crop to the filled bounds so the stored object stays small
+    const bw = maxX - minX + 1;
+    const bh = maxY - minY + 1;
+    const cropped = document.createElement('canvas');
+    cropped.width = bw;
+    cropped.height = bh;
+    cropped.getContext('2d')!.drawImage(full, minX, minY, bw, bh, 0, 0, bw, bh);
+    await addPatchObject(cropped, minX, minY);
   };
 
   const ensureMask = (): HTMLCanvasElement => {
@@ -1170,31 +1209,44 @@ export function ImageEditor({ item, onSave, onClose, inline, initialLayers, init
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selVer, selDraft, lassoPts, sel, render]);
 
-  /** Fill or erase the selected region on the base. */
+  /**
+   * Selection fill → an object on the active layer (non-destructive).
+   * Selection clear → erases pixels, which can only happen on the base.
+   */
   const applyToSelection = async (mode: 'fill' | 'clear') => {
     const base = baseRef.current;
     const m = maskRef.current;
     if (!base || !m) return;
+
+    if (mode === 'fill') {
+      const bb = maskBBoxRef.current ?? { x: 0, y: 0, w: m.width, h: m.height };
+      const tinted = document.createElement('canvas');
+      tinted.width = m.width;
+      tinted.height = m.height;
+      const tg = tinted.getContext('2d')!;
+      tg.drawImage(m, 0, 0);
+      tg.globalCompositeOperation = 'source-in';
+      tg.fillStyle = color;
+      tg.fillRect(0, 0, tinted.width, tinted.height);
+      const bw = Math.max(1, Math.round(bb.w));
+      const bh = Math.max(1, Math.round(bb.h));
+      const cropped = document.createElement('canvas');
+      cropped.width = bw;
+      cropped.height = bh;
+      cropped.getContext('2d')!.drawImage(tinted, bb.x, bb.y, bw, bh, 0, 0, bw, bh);
+      await addPatchObject(cropped, bb.x, bb.y);
+      deselect();
+      return;
+    }
+
     pushHist();
     const c = document.createElement('canvas');
     c.width = base.bmp.width;
     c.height = base.bmp.height;
     const ctx = c.getContext('2d')!;
     ctx.drawImage(base.bmp, 0, 0);
-    if (mode === 'clear') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.drawImage(m, 0, 0);
-    } else {
-      const tmp = document.createElement('canvas');
-      tmp.width = c.width;
-      tmp.height = c.height;
-      const tg = tmp.getContext('2d')!;
-      tg.drawImage(m, 0, 0);
-      tg.globalCompositeOperation = 'source-in';
-      tg.fillStyle = color;
-      tg.fillRect(0, 0, tmp.width, tmp.height);
-      ctx.drawImage(tmp, 0, 0);
-    }
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.drawImage(m, 0, 0);
     await swapBase(c);
     deselect();
   };
