@@ -99,6 +99,23 @@ function artOpts(target: string, s: Settings, hasArt: boolean): string[] {
   ];
 }
 
+/**
+ * Bitrate control. CBR pins `-b:a`; VBR gives the encoder a quality target
+ * (`-q:a`) instead, so it spends bits where the material actually needs them.
+ *
+ * The scale is encoder-specific: libmp3lame runs 0 (best, ~245 kbps) … 9, while
+ * libvorbis runs the other way round (0 … 10, higher = better), so the shared
+ * `audioQuality` slider is mirrored for it. The native AAC encoder's VBR is
+ * experimental and unreliable at low q, so m4a stays on CBR either way.
+ */
+function rateOpts(codec: 'mp3' | 'aac' | 'vorbis', s: Settings): string[] {
+  const q = Math.min(Math.max(Math.round(s.audioQuality), 0), 9);
+  // vorbis is quality-driven in both modes; CBR keeps the historical q5
+  if (codec === 'vorbis') return ['-q:a', String(s.audioRateMode === 'vbr' ? 10 - q : 5)];
+  if (codec === 'mp3' && s.audioRateMode === 'vbr') return ['-q:a', String(q)];
+  return ['-b:a', s.audioBitrate];
+}
+
 /** Shared audio-output options: sample rate + channel layout. */
 function audioOpts(s: Settings): string[] {
   const a: string[] = [];
@@ -167,15 +184,15 @@ function buildArgs(
   switch (target) {
     // ---- audio ----
     case 'mp3':
-      return [...trim, '-i', input, ...art, '-c:a', 'libmp3lame', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, ...art, '-c:a', 'libmp3lame', ...rateOpts('mp3', s), ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'wav':
       return [...trim, '-i', input, '-vn', ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'ogg':
-      return [...trim, '-i', input, '-vn', '-c:a', 'libvorbis', '-q:a', '5', ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, '-vn', '-c:a', 'libvorbis', ...rateOpts('vorbis', s), ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'flac':
       return [...trim, '-i', input, ...art, '-c:a', 'flac', ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'm4a':
-      return [...trim, '-i', input, ...art, '-c:a', 'aac', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, ...art, '-c:a', 'aac', ...rateOpts('aac', s), ...audioOpts(s), ...afChain(e), ...meta, output];
     // ---- video ----
     case 'mp4':
       return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)] : videoAudioTrack(s, e)), ...meta, output];
