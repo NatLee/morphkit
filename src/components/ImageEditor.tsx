@@ -315,6 +315,32 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objects, ready]);
 
+  // wheel over the canvas = zoom (anchored at the cursor), never scroll
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      setZoom((z) => {
+        const nz = Math.min(6, Math.max(0.05, z * factor));
+        const rect = vp.getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        const cx = px + vp.scrollLeft;
+        const cy = py + vp.scrollTop;
+        const s = nz / z;
+        window.requestAnimationFrame(() => {
+          vp.scrollLeft = cx * s - px;
+          vp.scrollTop = cy * s - py;
+        });
+        return nz;
+      });
+    };
+    vp.addEventListener('wheel', onWheel, { passive: false });
+    return () => vp.removeEventListener('wheel', onWheel);
+  }, []);
+
   // ---- render ----
   const render = useCallback(() => {
     const base = baseRef.current;
@@ -1142,6 +1168,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
         </div>
 
         <div className="ie-layout">
+          <div className="ie-vpwrap">
           <div className="ie-viewport" ref={viewportRef}>
             <div className="ie-inner" style={{ width: w * zoom || undefined }}>
               <canvas
@@ -1173,6 +1200,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
                 />
               )}
             </div>
+          </div>
+          <span className="zoom-float">{Math.round(zoom * 100)}%</span>
           </div>
 
           <aside className="layers-panel">
