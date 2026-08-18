@@ -68,6 +68,37 @@ function releaseEngine(ff: FFmpeg): void {
   if (entry) entry.busy = false;
 }
 
+/**
+ * Metadata handling.
+ *
+ * Tags: `-map_metadata 0` copies title/artist/album/… from the source. MP3 also
+ * needs `-id3v2_version 3` because ID3v2.4 is poorly supported by Windows
+ * Explorer and many players, plus `-write_id3v1 1` for legacy readers.
+ *
+ * Cover art: an embedded cover is a single-frame video stream. Copying it needs
+ * an explicit stream map (otherwise `-vn` in the audio path drops it) and the
+ * `attached_pic` disposition so players treat it as artwork, not video.
+ * Containers that cannot carry artwork (WAV, OGG/Vorbis via this path) are
+ * skipped — a stray mjpeg stream would make the file unplayable.
+ */
+const ART_CAPABLE = new Set(['mp3', 'm4a', 'flac']);
+
+function metaOpts(target: string, s: Settings): string[] {
+  if (!s.keepMetadata) return ['-map_metadata', '-1'];
+  const a: string[] = ['-map_metadata', '0'];
+  if (target === 'mp3') a.push('-id3v2_version', '3', '-write_id3v1', '1');
+  return a;
+}
+
+/** Stream mapping + codec bits needed to carry a cover image through. */
+function artOpts(target: string, s: Settings, hasArt: boolean): string[] {
+  if (!s.keepCoverArt || !hasArt || !ART_CAPABLE.has(target)) return ['-vn'];
+  return [
+    '-map', '0:a', '-map', '0:v:0?',
+    '-c:v', 'copy', '-disposition:v:0', 'attached_pic',
+  ];
+}
+
 /** Shared audio-output options: sample rate + channel layout. */
 function audioOpts(s: Settings): string[] {
   const a: string[] = [];
@@ -125,31 +156,51 @@ function buildArgs(
   output: string,
   s: Settings,
   e?: MediaEdit,
-  input2?: string
+  input2?: string,
+  hasArt = false
 ): string[] {
   const trim = trimOpts(e);
   const t2 = trackMap(input2);
+  const meta = metaOpts(target, s);
+  // trimming re-times the stream, so a copied cover would desync the map
+  const art = artOpts(target, s, hasArt && !trim.length);
   switch (target) {
     // ---- audio ----
     case 'mp3':
-      return [...trim, '-i', input, '-vn', '-c:a', 'libmp3lame', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), output];
+      return [...trim, '-i', input, ...art, '-c:a', 'libmp3lame', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'wav':
-      return [...trim, '-i', input, '-vn', ...audioOpts(s), ...afChain(e), output];
+      return [...trim, '-i', input, '-vn', ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'ogg':
-      return [...trim, '-i', input, '-vn', '-c:a', 'libvorbis', '-q:a', '5', ...audioOpts(s), ...afChain(e), output];
+      return [...trim, '-i', input, '-vn', '-c:a', 'libvorbis', '-q:a', '5', ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'flac':
-      return [...trim, '-i', input, '-vn', '-c:a', 'flac', ...audioOpts(s), ...afChain(e), output];
+      return [...trim, '-i', input, ...art, '-c:a', 'flac', ...audioOpts(s), ...afChain(e), ...meta, output];
     case 'm4a':
-      return [...trim, '-i', input, '-vn', '-c:a', 'aac', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), output];
+      return [...trim, '-i', input, ...art, '-c:a', 'aac', '-b:a', s.audioBitrate, ...audioOpts(s), ...afChain(e), ...meta, output];
     // ---- video ----
     case 'mp4':
-      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)] : videoAudioTrack(s, e)), output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)] : videoAudioTrack(s, e)), ...meta, output];
     case 'webm':
-      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), ...meta, output];
     case 'gif':
+      // GIF carries no tags — copying metadata here only risks muxer warnings
       return [...trim, '-i', input, ...vfChain(s, e, [`fps=${s.gifFps}`, `scale=${s.gifWidth}:-2:flags=lanczos`]), '-loop', '0', output];
     default:
-      return [...trim, '-i', input, output];
+      return [...trim, '-i', input, ...meta, output];
+  }
+}
+
+/** Does this file carry an embedded cover image? (cheap sniff, no decode) */
+async function sniffCoverArt(file: File): Promise<boolean> {
+  try {
+    const head = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
+    const text = new TextDecoder('latin1').decode(head);
+    // ID3v2 APIC frame (mp3), MP4 'covr' atom (m4a), FLAC PICTURE block marker
+    if (text.includes('APIC')) return true;
+    if (text.includes('covr')) return true;
+    if (text.startsWith('fLaC') && text.includes('image/')) return true;
+    return false;
+  } catch {
+    return false;
   }
 }
 
@@ -188,6 +239,7 @@ export async function muxVideo(
       ...(audioWav ? ['-i', aName, '-map', '0:v:0', '-map', '1:a:0', '-shortest'] : []),
       '-c:v', 'libx264', '-preset', settings.videoPreset, '-crf', String(settings.videoCrf), '-pix_fmt', 'yuv420p',
       '-c:a', 'aac', '-b:a', '192k',
+      ...(settings.keepMetadata ? ['-map_metadata', '0'] : ['-map_metadata', '-1']),
       outName,
     ];
     const code = await ff.exec(args);
@@ -229,8 +281,13 @@ export async function convertMedia(
   try {
     await ff.writeFile(inName, await fetchFile(file));
     if (in2Name) await ff.writeFile(in2Name, await fetchFile(edit!.audioTrack!));
+    const hasArt = settings.keepCoverArt ? await sniffCoverArt(file) : false;
     ff.on('progress', handler);
-    const code = await ff.exec(buildArgs(target, inName, outName, settings, edit, in2Name));
+    let code = await ff.exec(buildArgs(target, inName, outName, settings, edit, in2Name, hasArt));
+    // cover-art mapping is best-effort: retry once without it rather than fail
+    if (code !== 0 && hasArt) {
+      code = await ff.exec(buildArgs(target, inName, outName, settings, edit, in2Name, false));
+    }
     if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
     const data = await ff.readFile(outName);
     if (typeof data === 'string') throw new Error('unexpected output');

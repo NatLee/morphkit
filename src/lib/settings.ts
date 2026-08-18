@@ -20,6 +20,10 @@ export interface Settings {
   videoMute: boolean;
   gifFps: number;
   gifWidth: number;
+  /** copy title/artist/album… into the output (ffmpeg -map_metadata) */
+  keepMetadata: boolean;
+  /** carry embedded cover art across audio formats that support it */
+  keepCoverArt: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -35,6 +39,8 @@ export const DEFAULT_SETTINGS: Settings = {
   videoMute: false,
   gifFps: 12,
   gifWidth: 480,
+  keepMetadata: true,
+  keepCoverArt: true,
 };
 
 const KEY = 'morphkit-settings';
