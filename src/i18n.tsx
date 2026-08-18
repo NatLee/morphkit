@@ -247,6 +247,7 @@ const zh: Dict = {
   fillSel: '填入顏色',
   clearSel: '清除選取範圍',
   deselect: '取消選取',
+  bgLayerName: '背景',
 };
 
 const en: Dict = {
@@ -486,6 +487,7 @@ const en: Dict = {
   fillSel: 'Fill selection',
   clearSel: 'Clear selection',
   deselect: 'Deselect',
+  bgLayerName: 'Background',
 };
 
 const ja: Dict = {
@@ -725,6 +727,7 @@ const ja: Dict = {
   fillSel: '選択範囲を塗る',
   clearSel: '選択範囲を消去',
   deselect: '選択解除',
+  bgLayerName: '背景',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

@@ -238,7 +238,9 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const [textEdit, setTextEdit] = useState<{ id?: number; pos: Pt; value: string } | null>(null);
   const [ready, setReady] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [canvasBg, setCanvasBg] = useState<string | null>(bg ?? null);
+  // background is a permanent bottom "layer": colour + visibility
+  const [bgColor, setBgColor] = useState<string>(bg ?? '#ffffff');
+  const [bgOn, setBgOn] = useState<boolean>(bg != null);
   const [selVer, setSelVer] = useState(0);
   const [selDraft, setSelDraft] = useState<{ a: Pt; b: Pt } | null>(null);
   const [lassoPts, setLassoPts] = useState<Pt[] | null>(null);
@@ -250,9 +252,10 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
   const maskRef = useRef<HTMLCanvasElement | null>(null);
   const tintRef = useRef<HTMLCanvasElement | null>(null);
 
-  const setBg = (c: string | null) => {
-    setCanvasBg(c);
-    onBgChange?.(c);
+  const applyBg = (color: string, on: boolean) => {
+    setBgColor(color);
+    setBgOn(on);
+    onBgChange?.(on ? color : null);
   };
 
   const buildTint = () => {
@@ -355,8 +358,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     }
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, c.width, c.height);
-    if (canvasBg) {
-      ctx.fillStyle = canvasBg;
+    if (bgOn) {
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, c.width, c.height);
     }
     ctx.drawImage(base.bmp, 0, 0);
@@ -421,7 +424,7 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
       ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
       ctx.restore();
     }
-  }, [sel, cropSel, zoom, canvasBg, selDraft, lassoPts, selVer]);
+  }, [sel, cropSel, zoom, bgColor, bgOn, selDraft, lassoPts, selVer]);
 
   useEffect(() => { render(); }, [objects, baseVer, render]);
 
@@ -647,8 +650,8 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
     out.width = base.bmp.width;
     out.height = base.bmp.height;
     const ctx = out.getContext('2d')!;
-    if (canvasBg) {
-      ctx.fillStyle = canvasBg;
+    if (bgOn) {
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, out.width, out.height);
     }
     ctx.drawImage(base.bmp, 0, 0);
@@ -1172,23 +1175,6 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
               <button className="btn btn-ghost btn-sm" onClick={deselect}>{t('deselect')}</button>
             </>
           )}
-          <span className="tb-sep" />
-          <span className="zoom-val" title={t('bgLayer')}>BG</span>
-          <input
-            type="color"
-            className="tb-color"
-            value={canvasBg ?? '#ffffff'}
-            onChange={(e) => setBg(e.target.value)}
-            title={t('bgLayer')}
-          />
-          <label className="sp-check bg-check" title={t('transparentBg')}>
-            <input
-              type="checkbox"
-              checked={canvasBg === null}
-              onChange={(e) => setBg(e.target.checked ? null : '#ffffff')}
-            />
-            <span className="zoom-val">{t('transparentBg')}</span>
-          </label>
           <span className="opt-spacer" />
           <div className="zoom-ctrl">
             <button className="tool-btn" onClick={() => setZoom((z) => Math.max(0.05, z / 1.25))} title="−">−</button>
@@ -1286,6 +1272,30 @@ export function ImageEditor({ item, onSave, onClose, inline, initialObjects, onO
                 </span>
               </div>
             ))}
+
+            {/* background: a permanent layer pinned to the very bottom */}
+            <div className="layer-item layer-bg" title={t('bgLayer')}>
+              <button
+                className="layer-eye"
+                onClick={() => applyBg(bgColor, !bgOn)}
+                title={t(bgOn ? 'transparentBg' : 'bgLayer')}
+              >
+                {bgOn ? (
+                  <svg viewBox="0 0 24 24" width="13" height="13"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 4l16 16M2 12s4-7 10-7c1.8 0 3.4.6 4.8 1.4M22 12s-4 7-10 7c-1.8 0-3.4-.6-4.8-1.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                )}
+              </button>
+              <input
+                type="color"
+                className="layer-bg-swatch"
+                value={bgColor}
+                onChange={(e) => applyBg(e.target.value, true)}
+                title={t('bgLayer')}
+              />
+              <span className={`layer-name${bgOn ? '' : ' layer-off'}`}>{t('bgLayerName')}</span>
+              {!bgOn && <span className="asset-size">{t('transparentBg')}</span>}
+            </div>
           </aside>
         </div>
 

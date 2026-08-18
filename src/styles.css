@@ -1724,6 +1724,30 @@ kbd {
 
 .layer-btns button:hover { color: var(--ink); background: var(--panel); }
 
+/* permanent background layer row (always the bottom entry) */
+.layer-item.layer-bg {
+  border-top: 1px dashed var(--line-strong);
+  margin-top: 6px;
+  padding-top: 9px;
+  cursor: default;
+}
+
+.layer-bg-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 1px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.layer-name.layer-off {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+}
+
 /* ---- gif editor v2: transport + film strip ---- */
 
 .gif-transport {
