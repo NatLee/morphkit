@@ -271,7 +271,7 @@ const zh: Dict = {
   blendNormal: '正常',
   maskLabel: '遮罩',
   maskFromSel: '由選取建立',
-  maskFromSelHint: '先用選取工具framing範圍，再建立遮罩',
+  maskFromSelHint: '先用選取工具框選範圍，再建立遮罩',
   toggleMask: '啟用／停用遮罩',
   invertMask: '反轉遮罩',
   clearMask: '移除遮罩',
