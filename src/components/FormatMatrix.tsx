@@ -31,7 +31,7 @@ export function FormatMatrix() {
       <h2 className="matrix-title">{t('supported')}</h2>
       <div className="matrix-grid">
         {MATRIX.map((m) => (
-          <div className="mx-card" key={m.key}>
+          <div className={`mx-card mx-${m.key.slice(4).toLowerCase()}`} key={m.key}>
             <div className="mx-head">
               <span className="mx-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d={m.icon} fill="currentColor" /></svg>

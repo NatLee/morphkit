@@ -1,48 +1,69 @@
-/* ============ MorphKit — "Drafting Table" ============
-   Editorial precision: hairline borders, blueprint grid,
-   serif display type, ink-solid buttons, one accent used sparingly. */
+/* ============ MorphKit — "Atelier" ============
+   A painter's studio: warm canvas ground, pigment palette
+   (vermilion / ultramarine / ochre / viridian), hand-drawn
+   wobbly borders, watercolour washes, sepia ink lines. */
 
 :root {
   --font-display: 'Instrument Serif', 'Songti TC', 'Noto Serif TC', 'Yu Mincho', serif;
   --font-body: 'IBM Plex Sans', 'Noto Sans TC', 'Noto Sans JP', 'Microsoft JhengHei', 'Yu Gothic', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* handwritten accents (latin only — CJK falls back to the display serif) */
+  --font-hand: 'Caveat', 'Instrument Serif', 'Songti TC', 'Noto Serif TC', cursive;
   --radius: 8px;
   --radius-lg: 12px;
+  /* hand-drawn border shapes: small (buttons/chips) and large (panels) */
+  --wobble-sm: 10px 4px 12px 5px / 5px 12px 4px 10px;
+  --wobble-lg: 24px 10px 28px 12px / 12px 26px 10px 24px;
 }
 
+/* day studio: linen canvas, sepia ink, saturated pigments */
 :root[data-theme='light'] {
-  --bg: #f7f4ee;
-  --bg-raised: #fdfbf7;
-  --bg-sunken: #efeae1;
-  --panel: rgba(23, 19, 16, 0.03);
-  --line: rgba(23, 19, 16, 0.1);
-  --line-strong: rgba(23, 19, 16, 0.2);
-  --ink: #171310;
-  --ink-dim: #5f574e;
-  --ink-faint: #978d82;
-  --mark-bg: #171310;
-  --accent: #c94f16;
-  --accent-soft: rgba(201, 79, 22, 0.09);
-  --danger: #b03434;
-  --warn: #8f6410;
-  --ok: #2c7a45;
-  --shadow: 0 1px 2px rgba(23, 19, 16, 0.05), 0 10px 30px rgba(23, 19, 16, 0.06);
+  --bg: #f6f0e2;
+  --bg-raised: #fcf8ec;
+  --bg-sunken: #ede4d0;
+  --panel: rgba(61, 45, 30, 0.04);
+  --line: rgba(61, 45, 30, 0.13);
+  --line-strong: rgba(61, 45, 30, 0.26);
+  --ink: #2f2418;
+  --ink-dim: #6b5c4a;
+  --ink-faint: #9c8c76;
+  --mark-bg: #2f2418;
+  --accent: #c2452c;
+  --accent-soft: rgba(194, 69, 44, 0.1);
+  /* the palette — every pigment a classical hue */
+  --paint-red: #bf3b2b;    /* madder / cadmium red */
+  --paint-blue: #2f5da8;   /* ultramarine */
+  --paint-yellow: #d1961c; /* yellow ochre */
+  --paint-green: #47795b;  /* viridian */
+  --paint-violet: #7c5fa5; /* cobalt violet */
+  --weave: rgba(61, 45, 30, 0.035);
+  --danger: #ae3629;
+  --warn: #9a7115;
+  --ok: #3f7a55;
+  --shadow: 0 1px 2px rgba(61, 45, 30, 0.06), 0 10px 30px rgba(61, 45, 30, 0.08);
   color-scheme: light;
 }
 
+/* night studio: lamplit umber, pigments glow a little brighter */
 :root[data-theme='dark'] {
-  --bg: #141210;
-  --bg-raised: #1b1815;
-  --bg-sunken: #0f0d0b;
-  --panel: rgba(255, 255, 255, 0.03);
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.17);
-  --ink: #eae4dc;
-  --ink-dim: #a49b90;
-  --ink-faint: #6e665d;
-  --mark-bg: #eae4dc;
-  --accent: #f06a3f;
-  --accent-soft: rgba(240, 106, 63, 0.1);
+  --bg: #1b1512;
+  --bg-raised: #241c16;
+  --bg-sunken: #140f0c;
+  --panel: rgba(255, 244, 224, 0.03);
+  --line: rgba(255, 244, 224, 0.09);
+  --line-strong: rgba(255, 244, 224, 0.18);
+  --ink: #ede4d3;
+  --ink-dim: #b3a48e;
+  --ink-faint: #7d6f5c;
+  --mark-bg: #ede4d3;
+  --accent: #e5674a;
+  --accent-soft: rgba(229, 103, 74, 0.13);
+  --paint-red: #d85a45;
+  --paint-blue: #6f96d8;
+  --paint-yellow: #e0b13c;
+  --paint-green: #6fae87;
+  --paint-violet: #a58bd0;
+  --weave: rgba(255, 244, 224, 0.02);
   --danger: #e06c6c;
   --warn: #d3a04a;
   --ok: #6fbe85;
@@ -58,7 +79,11 @@ html, body {
 }
 
 body {
-  background: var(--bg);
+  background-color: var(--bg);
+  /* canvas weave: two perpendicular thread lines, barely visible */
+  background-image:
+    repeating-linear-gradient(0deg, var(--weave) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, var(--weave) 0 1px, transparent 1px 4px);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 15px;
@@ -74,7 +99,7 @@ body::after {
   inset: 0;
   pointer-events: none;
   z-index: 999;
-  opacity: 0.035;
+  opacity: 0.045;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
 }
 
@@ -187,26 +212,28 @@ select optgroup {
   padding: 54px 0 44px;
 }
 
-/* blueprint grid backdrop */
+/* watercolour wash backdrop — pigment blobs blurred into the canvas */
 .hero::before {
   content: '';
   position: absolute;
-  inset: 0 -24px;
+  inset: -20px -24px;
   pointer-events: none;
   background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 52px 52px;
-  background-position: center top;
-  mask-image: radial-gradient(ellipse 75% 85% at 50% 42%, #000 25%, transparent 78%);
-  -webkit-mask-image: radial-gradient(ellipse 75% 85% at 50% 42%, #000 25%, transparent 78%);
-  opacity: 0.55;
-  animation: gridPan 60s linear infinite;
+    radial-gradient(closest-side, var(--paint-blue), transparent 72%),
+    radial-gradient(closest-side, var(--paint-red), transparent 72%),
+    radial-gradient(closest-side, var(--paint-yellow), transparent 70%),
+    radial-gradient(closest-side, var(--paint-green), transparent 74%),
+    radial-gradient(closest-side, var(--paint-violet), transparent 76%);
+  background-repeat: no-repeat;
+  background-size: 300px 220px, 260px 200px, 220px 180px, 200px 170px, 170px 150px;
+  background-position: 6% 18%, 92% 26%, 14% 82%, 86% 84%, 50% 2%;
+  filter: blur(26px);
+  opacity: 0.17;
+  mask-image: radial-gradient(ellipse 85% 95% at 50% 45%, #000 35%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse 85% 95% at 50% 45%, #000 35%, transparent 85%);
 }
 
-@keyframes gridPan {
-  to { background-position: center 52px; }
-}
+:root[data-theme='dark'] .hero::before { opacity: 0.22; }
 
 .hero > :not(.hero-backdrop) {
   position: relative;
@@ -214,14 +241,19 @@ select optgroup {
 }
 
 .hero-tagline {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-family: var(--font-hand);
+  font-size: 21px;
   font-weight: 500;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  margin: 0 0 12px;
-  animation: rise 0.6s ease both;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  margin: 0 0 8px;
+  /* retained rotate is safe here: a tagline never hosts fixed overlays */
+  animation: riseTilt 0.6s ease both;
+}
+
+@keyframes riseTilt {
+  from { opacity: 0; transform: translateY(14px) rotate(-1.2deg); }
+  to { opacity: 1; transform: rotate(-1.2deg); }
 }
 
 .hero-title {
@@ -235,8 +267,25 @@ select optgroup {
 }
 
 .hero-accent {
+  position: relative;
   font-style: italic;
   color: var(--accent);
+}
+
+/* brush-stroke highlight swiped behind the accent word */
+.hero-accent::after {
+  content: '';
+  position: absolute;
+  left: -3%;
+  right: -3%;
+  bottom: 0.04em;
+  height: 0.3em;
+  background: var(--accent);
+  opacity: 0.22;
+  border-radius: 58% 42% 55% 45% / 55% 45% 62% 38%;
+  transform: rotate(-1.4deg);
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* -------- conversion stage -------- */
@@ -394,7 +443,8 @@ select optgroup {
   font-weight: 600;
   font-size: 13.5px;
   letter-spacing: 0.01em;
-  border-radius: var(--radius);
+  /* hand-drawn dab: each button a slightly irregular blob */
+  border-radius: var(--wobble-sm);
   padding: 9px 20px;
   cursor: pointer;
   border: 1px solid transparent;
@@ -419,7 +469,7 @@ select optgroup {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-  transform: translateY(-1px);
+  transform: translateY(-1px) rotate(-0.8deg);
 }
 
 .btn-sub {
@@ -449,9 +499,10 @@ select optgroup {
 
 .workbench { padding: 26px 0 54px; }
 
+/* the blank canvas: stretched linen waiting for a first stroke */
 .dropzone {
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--wobble-lg);
   background: var(--bg-raised);
   padding: 42px 24px;
   text-align: center;
@@ -461,7 +512,7 @@ select optgroup {
 
 .dropzone:hover,
 .dropzone.over {
-  border-color: var(--ink);
+  border-color: var(--accent);
   background: var(--bg-sunken);
 }
 
@@ -469,11 +520,12 @@ select optgroup {
   width: 48px;
   height: 48px;
   margin: 0 auto 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  /* paint-blob outline instead of a compass-perfect circle */
+  border-radius: 47% 53% 50% 50% / 55% 48% 52% 45%;
   display: grid;
   place-items: center;
-  color: var(--ink);
+  color: var(--accent);
   background: var(--bg);
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
@@ -482,12 +534,13 @@ select optgroup {
 
 .dropzone:hover .dz-glyph,
 .dropzone.over .dz-glyph {
-  transform: translateY(-3px);
-  border-color: var(--ink);
+  transform: translateY(-3px) rotate(4deg);
+  border-color: var(--accent);
 }
 
 .dz-title {
   font-family: var(--font-display);
+  font-style: italic;
   font-weight: 400;
   font-size: 21px;
   margin: 0 0 3px;
@@ -511,7 +564,7 @@ select optgroup {
   align-items: center;
   gap: 11px;
   border: 1px solid var(--line);
-  border-left-width: 3px;
+  border-left-width: 4px;
   background: var(--bg-raised);
   color: var(--ink-dim);
   animation: rise 0.35s ease both;
@@ -572,17 +625,19 @@ select optgroup {
 .bb-progress {
   display: inline-block;
   width: 120px;
-  height: 4px;
+  height: 6px;
   border-radius: 999px;
   background: var(--bg-sunken);
   overflow: hidden;
 }
 
+/* a brush pulling through every pigment on the palette */
 .bb-bar {
   display: block;
   height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
+  border-radius: 2px 999px 999px 2px;
+  background: linear-gradient(90deg,
+    var(--paint-red), var(--paint-yellow), var(--paint-green), var(--paint-blue));
   transition: width 0.4s ease;
 }
 
@@ -799,7 +854,7 @@ select optgroup {
 
 .fc-progress {
   margin-top: 13px;
-  height: 4px;
+  height: 6px;
   border-radius: 999px;
   background: var(--bg-sunken);
   overflow: hidden;
@@ -807,8 +862,9 @@ select optgroup {
 
 .fc-bar {
   height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
+  border-radius: 2px 999px 999px 2px;
+  background: linear-gradient(90deg,
+    var(--paint-red), var(--paint-yellow), var(--paint-green), var(--paint-blue));
   transition: width 0.3s ease;
 }
 
@@ -1023,11 +1079,25 @@ select optgroup {
 }
 
 .matrix-title {
+  position: relative;
   font-family: var(--font-display);
   font-weight: 400;
   font-size: 26px;
   text-align: center;
   margin: 0 0 24px;
+}
+
+/* short brush dash under the section heading */
+.matrix-title::after {
+  content: '';
+  display: block;
+  width: 74px;
+  height: 5px;
+  margin: 10px auto 0;
+  background: var(--accent);
+  opacity: 0.55;
+  border-radius: 58% 42% 55% 45% / 60% 40% 62% 38%;
+  transform: rotate(-1.6deg);
 }
 
 .matrix-grid {
@@ -1038,13 +1108,22 @@ select optgroup {
 
 .mx-card {
   border: 1px solid var(--line);
+  border-top: 4px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
   padding: 20px 22px;
-  transition: border-color 0.22s ease;
+  transition: border-color 0.22s ease, transform 0.22s ease;
 }
 
-.mx-card:hover { border-color: var(--ink); }
+.mx-card:hover { border-color: var(--ink); transform: rotate(-0.4deg) translateY(-2px); }
+
+/* each medium keeps its own pigment: image=viridian, audio=ultramarine, video=madder */
+.mx-image { border-top-color: var(--paint-green); }
+.mx-audio { border-top-color: var(--paint-blue); }
+.mx-video { border-top-color: var(--paint-red); }
+.mx-image .mx-icon { color: var(--paint-green); border-color: var(--paint-green); }
+.mx-audio .mx-icon { color: var(--paint-blue); border-color: var(--paint-blue); }
+.mx-video .mx-icon { color: var(--paint-red); border-color: var(--paint-red); }
 
 .mx-head {
   display: flex;
@@ -1059,7 +1138,7 @@ select optgroup {
   width: 36px;
   height: 36px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
+  border-radius: 47% 53% 50% 50% / 55% 48% 52% 45%;
   display: grid;
   place-items: center;
   background: var(--bg);
@@ -1132,12 +1211,20 @@ select optgroup {
   letter-spacing: 0.05em;
   color: var(--ink-dim);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--wobble-sm);
   padding: 4px 12px;
   background: var(--bg-raised);
 }
 
 .feat svg { color: var(--accent); }
+
+/* each feature chip dipped in a different pigment */
+.feat:nth-child(1) { border-color: var(--paint-blue); }
+.feat:nth-child(1) svg { color: var(--paint-blue); }
+.feat:nth-child(2) { border-color: var(--paint-red); transform: rotate(0.8deg); }
+.feat:nth-child(2) svg { color: var(--paint-red); }
+.feat:nth-child(3) { border-color: var(--paint-green); transform: rotate(-0.8deg); }
+.feat:nth-child(3) svg { color: var(--paint-green); }
 
 .mx-edit {
   font-family: var(--font-mono);
@@ -1372,7 +1459,7 @@ select optgroup {
   height: 4px;
   transform: translateY(-50%);
   border-radius: 999px;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent), var(--paint-yellow));
 }
 
 .dual-handle {
@@ -2510,8 +2597,8 @@ kbd {
   font-size: 11.5px;
   line-height: 1.7;
   color: var(--ink-faint);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--wobble-lg);
   padding: 18px 12px;
   text-align: center;
 }
@@ -2694,6 +2781,13 @@ kbd {
   touch-action: none;
 }
 
+/* tracks cycle through the palette so lanes read at a glance
+   (row 1 is the ruler, so the cycle starts at nth-child(2)) */
+.tl-row:nth-child(4n+2) .clip { border-color: var(--paint-blue); background: color-mix(in srgb, var(--paint-blue) 13%, transparent); }
+.tl-row:nth-child(4n+3) .clip { border-color: var(--paint-red); background: color-mix(in srgb, var(--paint-red) 12%, transparent); }
+.tl-row:nth-child(4n+4) .clip { border-color: var(--paint-green); background: color-mix(in srgb, var(--paint-green) 13%, transparent); }
+.tl-row:nth-child(4n+5) .clip { border-color: var(--paint-yellow); background: color-mix(in srgb, var(--paint-yellow) 14%, transparent); }
+
 .clip.sel {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -2844,7 +2938,7 @@ kbd {
 
 .pj-card:hover {
   border-color: var(--ink);
-  transform: translateY(-3px);
+  transform: translateY(-3px) rotate(-0.5deg);
   box-shadow: var(--shadow);
 }
 
@@ -2916,10 +3010,11 @@ kbd {
   white-space: nowrap;
 }
 
-.tb-audio { border-color: var(--accent); color: var(--accent); }
-.tb-image { border-color: var(--ok); color: var(--ok); }
-.tb-gif { border-color: var(--warn); color: var(--warn); }
-.tb-video { border-color: var(--danger); color: var(--danger); }
+/* project types wear their pigment */
+.tb-audio { border-color: var(--paint-blue); color: var(--paint-blue); }
+.tb-image { border-color: var(--paint-green); color: var(--paint-green); }
+.tb-gif { border-color: var(--paint-yellow); color: var(--paint-yellow); }
+.tb-video { border-color: var(--paint-red); color: var(--paint-red); }
 
 .pj-type {
   align-items: flex-start;
@@ -2944,8 +3039,8 @@ kbd {
 }
 
 .picker-panel {
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--wobble-lg);
   background: var(--bg-raised);
   padding: 26px;
   display: flex;

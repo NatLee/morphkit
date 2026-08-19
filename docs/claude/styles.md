@@ -1,19 +1,23 @@
-# Map: styles.css (~3560 lines) + responsive architecture
+# Map: styles.css (~3650 lines) + responsive architecture
 
 > On-demand map for AI sessions. styles.css is the ONLY stylesheet (design system
-> "Drafting Table" + every component's CSS). Grep the `/* ============ name ============ */`
+> "Atelier" — painter's studio + every component's CSS). Grep the `/* ============ name ============ */`
 > banners to jump. Update this file when adding sections or breakpoints.
 
 ## Section order (banner names, top → bottom)
 
 1. `:root` tokens + `[data-theme='light'|'dark']` palettes (bg/bg-raised/bg-sunken/panel/line/
-   line-strong/ink/ink-dim/ink-faint/mark-bg/accent/accent-soft/danger/warn/ok/shadow) ·
-   fonts: display=Instrument Serif(+TC serifs), body=IBM Plex Sans(+TC/JP), mono=IBM Plex Mono ·
-   radii 8/12 · body 15px · `body::after` grain overlay (fixed, z999) · native `select` fix
+   line-strong/ink/ink-dim/ink-faint/mark-bg/accent/accent-soft/**paint-red/blue/yellow/green/
+   violet**/weave/danger/warn/ok/shadow) · fonts: display=Instrument Serif(+TC serifs),
+   body=IBM Plex Sans(+TC/JP), mono=IBM Plex Mono, **hand=Caveat (latin-only, CJK→serif)** ·
+   radii 8/12 + **--wobble-sm/-lg hand-drawn border radii** · body 15px + **canvas weave
+   background-image (var(--weave) thread lines)** · `body::after` grain overlay (fixed, z999) ·
+   native `select` fix
 2. `top bar` — .topbar .brand .brand-name .topbar-actions .lang-switch .theme-toggle
-3. `hero` — .hero + blueprint grid `.hero::before` (inset 0 -24px bleeds into .app gutter),
-   .hero-tagline/.hero-title (clamp 38–58px)/.hero-accent · **DEAD**: .hero-stage .format-card
-   .stage-* .fsel (Hero no longer renders the stage — don't style these) · .hero-cta
+3. `hero` — .hero + watercolour wash `.hero::before` (blurred pigment radial-gradients,
+   bleeds into .app gutter), .hero-tagline (font-hand, riseTilt keeps rotate) /.hero-title
+   (clamp 38–58px)/.hero-accent (+ ::after brush-stroke highlight) · **DEAD**: .hero-stage
+   .format-card .stage-* .fsel (Hero no longer renders the stage — don't style these) · .hero-cta
 4. `buttons` — .btn .btn-accent .btn-ghost .btn-lg .btn-sub (.btn-sm lives near matrix section)
 5. `workbench` — .workbench .dropzone .dz-glyph .dz-title .dz-hint
 6. `banners` — .banner .danger/.warn/.info/.note .spinner
@@ -26,9 +30,10 @@
     .drawer-head; `.drawer .sp-grid → 1fr` (drawer forces single column)
 11. `settings fields` — .settings-panel .sp-section .sp-sec-title .sp-grid(minmax 190px) .sp-check
     .sp-field .sp-label .sp-val .sp-hint
-12. `format matrix` — .matrix .matrix-title .matrix-grid(minmax 250px) .mx-card .mx-head .mx-icon
-    .mx-kind .mx-label .mx-chips .chip(.out) .mx-arrow .mx-edit
-13. `hero feature row` — .feat-row .feat · .fc-edited · .btn-sm
+12. `format matrix` — .matrix .matrix-title(+::after brush dash) .matrix-grid(minmax 250px)
+    .mx-card(+.mx-image/.mx-audio/.mx-video pigment top borders, set in FormatMatrix.tsx)
+    .mx-head .mx-icon .mx-kind .mx-label .mx-chips .chip(.out) .mx-arrow .mx-edit
+13. `hero feature row` — .feat-row .feat(nth-child pigments) · .fc-edited · .btn-sm
 14. `editors (shared shell)` — .editor-overlay(z110, fixed grid-center, padding 20) .editor
     (min(760px,100%), max-height calc(100vh−40px), scrolls) .editor-wide(980) .ed-head .ed-title
     .ed-preview .media-preview.mp-video(42vh)/.mp-audio(84px) .gif-preview .track-sec .replace-row
@@ -53,7 +58,8 @@
     .asset-icon .asset-name .asset-size .asset-btns · `mixer timeline`: .rec-btn .tl-scroll .tl-inner
     .tl-row .trk-head(**sticky left, 172px = HEAD_W in Mixer.tsx — never change one side alone**)
     .tl-corner .trk-name .trk-btns .trk-gain .tl-ruler(30px) .tick .tl-body .lane(**72px = LANE_H**)
-    .clip(**touch-action:none**) .clip-wave .clip-name .clip-edge(8px; 14 touch) .mix-empty(padding-left
+    .clip(**touch-action:none**; tracks cycle pigments via .tl-row:nth-child — row 1 is the ruler)
+    .clip-wave .clip-name .clip-edge(8px; 14 touch) .mix-empty(padding-left
     192 = HEAD_W+20) .playhead(top:-30px) · themed scrollbars group · `project launcher`: .st-launcher
     .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-new ·
     `typed projects`: .type-badge .tb-audio/image/gif/video .pj-type .type-icon .picker-panel .picker-list ·
