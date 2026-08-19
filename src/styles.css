@@ -3356,10 +3356,142 @@ kbd {
 /* ============ responsive & motion ============ */
 
 @media (max-width: 640px) {
-  .hero { padding-top: 36px; }
-  .format-card { width: 102px; height: 102px; }
-  .fsel select { width: 84px; font-size: 14px; }
+  .hero { padding: 30px 0 32px; }
   .fc-controls { width: 100%; justify-content: flex-end; }
+}
+
+/* ---- dynamic viewport units: mobile URL bars change 100vh while scrolling ---- */
+
+@supports (height: 100dvh) {
+  .studio { height: calc(100dvh - 96px); }
+  .st-launcher { height: auto; min-height: calc(100dvh - 96px); }
+  .editor { max-height: calc(100dvh - 40px); }
+  .type-modal { max-height: 84dvh; }
+}
+
+/* notch / home-indicator clearance (env() = 0 on desktop) */
+.st-note { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+
+/* lock page scroll behind full-screen surfaces (no-op where :has unsupported) */
+body:has(.editor-overlay),
+body:has(.drawer-overlay) { overflow: hidden; }
+
+/* ---- phones ---- */
+
+@media (max-width: 640px) {
+  .app { padding: 0 16px; }
+
+  /* top bar: brand on row 1, controls wrap below */
+  .topbar { flex-wrap: wrap; gap: 8px 10px; padding: 14px 0; }
+  .brand-name { font-size: 19px; }
+  .lang-switch button { padding: 5px 9px; }
+
+  .feat { font-size: 10px; padding: 3px 10px; }
+
+  .workbench { padding-top: 16px; }
+  .dropzone { padding: 30px 16px; }
+  .dz-title { font-size: 18px; }
+
+  .bb-actions { width: 100%; }
+  .bb-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+  .file-card { padding: 13px 14px; }
+  .fc-target { width: 100%; }
+  .fc-target select { flex: 1; min-width: 0; }
+  .fc-controls > .btn { flex: 1 1 auto; justify-content: center; }
+  .fc-details { grid-template-columns: 1fr; }
+  .fc-quality input[type='range'] { max-width: none; }
+
+  /* modal editors become full-width sheets */
+  .editor-overlay { padding: 0; }
+  .editor-overlay > .editor {
+    width: 100%;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+  .media-preview.mp-video { height: 34vh; }
+
+  /* image editor: shorter stage keeps the layer panel reachable */
+  .ie-viewport { max-height: 44vh; }
+  .ie-canvas, .ie-overlay { max-height: 44vh; }
+  .layers-panel { max-height: 240px; }
+  .fp-preview { height: 180px; }
+
+  /* long control strips wrap into rows instead of hiding off-screen
+     (.ed-options intentionally stays a nowrap scroller — fixed height, canvas never moves) */
+  .ed-toolbar { flex-wrap: wrap; }
+  .gif-transport { flex-wrap: wrap; }
+
+  .drawer { padding: 18px 18px calc(22px + env(safe-area-inset-bottom, 0px)); }
+
+  .matrix { padding: 26px 0 40px; }
+  .matrix-title { font-size: 22px; }
+
+  /* studio */
+  .app.studio-mode { padding: 0 12px; }
+  .st-name { max-width: 150px; font-size: 16px; }
+  .st-tabs button { padding: 5px 10px; }
+  /* NOTE: .trk-head width must stay 172px — it mirrors HEAD_W in Mixer.tsx
+     (tl-inner width, fit(), playhead offset); shrinking one side desyncs them */
+  .media-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .pj-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .vw-preview { height: 26vh; }
+  .picker-panel { padding: 18px 16px; }
+
+  /* iOS zooms into any focused field under 16px — main-flow controls only */
+  .ed-input, .cp-hex, .num-sm, .size-field input,
+  .gif-delay input[type='number'],
+  .fc-target select, .sp-field select, .tb-select { font-size: 16px; }
+
+  .footer { padding: 18px 0 26px; }
+}
+
+@media (max-width: 400px) {
+  .app { padding: 0 12px; }
+  .hero-title { font-size: 34px; }
+  .lang-switch button { padding: 5px 7px; }
+}
+
+/* stacked studio (≤760 = where .st-body/.vw-top collapse): let the page grow
+   and scroll like a normal mobile page instead of the fixed desktop workspace */
+@media (max-width: 760px) {
+  .studio { height: auto; min-height: calc(100vh - 96px); min-height: calc(100dvh - 96px); }
+  .st-assets { max-height: 30vh; }
+  .editor.ie-inline .ie-viewport { height: 42vh; }
+  .editor.ie-inline .layers-panel { max-height: 32vh; overflow-y: auto; }
+}
+
+/* ---- touch ergonomics ---- */
+
+@media (hover: none) {
+  /* hover-revealed layer actions must always be visible on touch */
+  .lp-actions { opacity: 1; }
+  /* clip trim zones get a standing visual hint */
+  .clip-edge { background: var(--accent-soft); }
+  /* keyboard shortcut hints are noise without a keyboard */
+  .kbd-hints, .dz-kbd { display: none; }
+}
+
+@media (pointer: coarse) {
+  .tool-btn { width: 40px; height: 40px; }
+  .zoom-ctrl .tool-btn { width: 32px; height: 32px; }
+  .tb-color { width: 38px; height: 38px; }
+  .dual-track { height: 34px; }
+  .dual-handle { width: 22px; height: 22px; }
+  .swatches { grid-template-columns: repeat(5, 18px); grid-auto-rows: 18px; }
+  .swatch { width: 18px; height: 18px; }
+  .lp-head-btns button, .lp-mask-btns button, .lp-actions button { width: 27px; height: 27px; }
+  .trk-btns button { width: 30px; height: 24px; }
+  .clip-edge { width: 14px; }
+  .asset-btns button { font-size: 15px; padding: 4px 7px; }
+  .thumb img { height: 56px; }
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 36px; }
+  .tl-scroll, .ie-viewport, .strip, .layers-panel, .editor { overscroll-behavior: contain; }
 }
 
 /* ============ micro-interactions (project-wide) ============ */

@@ -452,7 +452,7 @@ export function GifEditor({ item, onSave, onClose, inline, importFrames, onImpor
             onPointerDown={onCanvasDown}
             onPointerMove={onCanvasMove}
             onPointerUp={onCanvasUp}
-            style={{ touchAction: 'none', cursor: caps.length ? 'move' : 'default' }}
+            style={{ touchAction: caps.length ? 'none' : 'auto', cursor: caps.length ? 'move' : 'default' }}
           />
         </div>
 
