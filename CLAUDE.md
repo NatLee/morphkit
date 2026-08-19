@@ -21,6 +21,27 @@ npm run build    # tsc && vite build  (MUST pass before committing)
 Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 `npx vite build --outDir /tmp/morphkit-dist --emptyOutDir` to verify instead.
 
+## Context economy — read maps, not source
+
+Per-subsystem maps live in `docs/claude/`. **Read the map INSTEAD of the big source file**
+for orientation; then grep the exact names it gives you. Do NOT `@import` them here
+(imports would load every session). When you change a mapped file's structure, spend the
+one or two lines to update its map.
+
+| Map | Read before opening |
+|---|---|
+| `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, SettingsPanel, FormatMatrix, DualRange, Overlay, FramePicker, InfoTip |
+| `docs/claude/editors.md` | ImageEditor.tsx (1.7k lines), GifEditor.tsx |
+| `docs/claude/studio.md` | Studio.tsx (1.1k), Mixer.tsx, VideoWorkspace.tsx, MediaEditor.tsx |
+| `docs/claude/libs.md` | every lib/*.ts, types.ts, i18n.tsx mechanics |
+| `docs/claude/styles.md` | styles.css section index + responsive/mobile architecture |
+
+Project skills: `/add-setting` (new converter param), `/add-format` (new format).
+`.claude/settings.json` pre-approves `npx tsc`, builds, and read-only git commands.
+Map maintenance is ENFORCED: `npm run check:context` (also a Stop hook + a CI job)
+fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key or
+`{placeholder}` gaps. Rules, triggers, and rationale: `docs/claude/README.md`.
+
 ## File map (src/)
 
 | File | Role |
@@ -44,7 +65,10 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
 | `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
-| `components/FramePicker.tsx` | Video → frames: single-frame (image projects) or clip w/ fps (GIF projects) |
+| `components/FramePicker.tsx` | Video → frames: single-frame (image projects) or clip w/ fps (GIF projects). Inlines its own portal — keep in sync with Overlay |
+| `components/SettingsPanel.tsx` | Controlled Settings form (5 sections), single `set(key,val)` mutator; only ever mounted inside the drawer |
+| `components/ColorPicker.tsx` | Inline HSV picker (SV square + hue strip + hex), used in ImageEditor layer panel |
+| `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
 | `components/Studio.tsx` | **Typed projects** (App `mode==='studio'`): launcher (type picker at creation — type is immutable; storage stats; zip import/export w/ id remap), 4-way workspace routing (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace), primary-asset pickers (◎), blank canvas, new-project-from-asset |
 | `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
@@ -80,6 +104,7 @@ Sandbox note: the mounted FS may refuse to delete `dist/`; build with
     0…10(best) — so `audioQuality` is mirrored for vorbis. Native AAC VBR is
     experimental, so m4a always uses `-b:a`.
 21. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
+22. **Mobile layer** (end of styles.css; details in `docs/claude/styles.md`): breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
 
 ## Design language ("Drafting Table")
 
@@ -90,6 +115,7 @@ No glows, no gradients on white, no purple. Dark theme via `:root[data-theme]` v
 
 ## Conventions
 
-- New converter feature → param in `settings.ts` + section in `SettingsPanel` + wire into `buildArgs`.
+- New converter feature → param in `settings.ts` + section in `SettingsPanel` + wire into `buildArgs` (recipe: `/add-setting`).
 - New editor capability → keep it object-model (ImageEditor) or frame-model (GifEditor); bake only geometry.
+- Structural change to a mapped file → update its `docs/claude/*.md` map in the same commit.
 - Commits: conventional-ish (`feat:`, `fix:`, `design:`, `docs:`), one logical change each, always build first.

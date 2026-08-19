@@ -15,6 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # AI-context docs drift check (CLAUDE.md / docs/claude vs source).
+  # Visible when red, but deliberately does NOT gate the deploy.
+  context-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node .claude/scripts/check-context.mjs
+
   build:
     runs-on: ubuntu-latest
     steps:

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:context": "node .claude/scripts/check-context.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.10",

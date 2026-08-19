@@ -1,0 +1,110 @@
+# Map: lib/ modules, types.ts, i18n.tsx
+
+> On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
+> orientation; grep the names below to jump precisely. Update when structure changes.
+
+## lib/ffmpegClient.ts (319)
+
+Exports: `isEngineReady()` · `convertMedia(file, target, settings, edit, onProgress, onDownload?)` ·
+`muxVideo(video, audioWav|null, trimStart, trimEnd, settings, onProgress, onDownload?)` · `type DownloadProgress`.
+
+Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-thread**, CDN-pinned) ·
+`getCoreBlobs` (memoized, resets to null on failure for retry) · `pool`/`acquireEngine`/`releaseEngine`
+(one job per instance; app semaphore caps growth) · `ART_CAPABLE = {mp3,m4a,flac}` ·
+`metaOpts` (`-map_metadata 0`; mp3 += `-id3v2_version 3 -write_id3v1 1`) ·
+`artOpts` (`-vn` unless keep+present+capable, else `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic`) ·
+`rateOpts(codec, s)` — CBR/VBR split: mp3 VBR `-q:a q`; vorbis ALWAYS quality-driven (`-q:a 10-q` VBR, `5` CBR);
+aac/m4a always `-b:a` (native AAC VBR is experimental) · `audioOpts` (`-ar`/`-ac` when >0) ·
+`trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → scale) · `afChain` (volume → atempo) ·
+`buildArgs(target, input, output, s, e?, input2?, hasArt)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
+`sniffCoverArt` (first 64KiB latin1: APIC | covr | fLaC+image/).
+
+Gotchas: art skipped whenever trim present (desync); convertMedia retries exec ONCE without art;
+`data.slice()` copies out of wasm heap (keep); temp names `${Date.now()}_${rand}`; progress handler
+removed in finally; muxVideo has its own trim thresholds + fixed `-b:a 192k`, ignores vfChain/videoMaxH.
+
+## lib/animImage.ts (165)
+
+Exports: `AnimFrame {img: ImageData; delay: ms}` · `Anim {frames, width, height}` · `decodeAnim(file)`
+(GIF→gifuct manual disposal compositing / PNG|APNG→upng / static→createImageBitmap) · `encodeAPNG(anim)`
+(UPNG.encode lossless, cnum 0) · `writeGifFrame(enc, data, w, h, delay, keepAlpha)` (shared with GifEditor) ·
+`encodeGIFBlob(anim, matte|null)` (null keeps binary alpha) · `convertAnimImage(file, 'apng'|'gif')`.
+
+Internals: `FRAME_CAP = 300` (both decoders; UI key `gifTooLong`) · delay floor `max(delay||100, 20)` ·
+alpha GIF path = `quantize(rgba4444)` + `applyPalette rgba4444` + `{transparent:true, dispose:2}` (invariant 4) ·
+`encodeGIFBlob` yields to event loop every 6th frame and composites through a tmp canvas (direct
+putImageData would wipe the matte — keep).
+
+## lib/imageConvert.ts (32)
+
+`convertImage(file, 'png'|'jpeg'|'webp', quality, maxDim=0)` — createImageBitmap → optional
+longest-edge downscale (never upscales) → toBlob. jpeg pre-fills `#ffffff`. Throws sentinel strings
+`'decode' | 'canvas' | 'encode'`. Animated inputs collapse to frame 1 (animated targets → animImage).
+
+## lib/metadata.ts (200)
+
+Exports: `FileMeta` (all-optional: dims/duration/mime/modified/mp/aspect/bitrate/preview/title/artist/
+album/hasCover/camera/lens/iso/exposure/aperture/focal/taken/gps) · `extractMeta(file, kind)` · `fmtDuration`.
+Internals: `imageMeta` (preview = objectURL — caller revokes! · createImageBitmap dims · exifr.parse gps) ·
+`mediaMeta` (detached video/audio el, idempotent `done()`, 5s watchdog, bitrate = size*8/dur/1000 estimate,
+video thumb = 180px JPEG dataURL @ seek min(0.5, 10%)) · `readAudioTags` (first 256KiB latin1; ID3v2
+syn-safe size, size sanity ≤400; MP4 atoms ©nam/©ART/©alb; hasCover = APIC|covr|fLaC+image/).
+Never throws — missing fields are the failure mode.
+
+## lib/formats.ts (81)
+
+Exports: `Kind` · `IMAGE_OUTPUTS [webp png jpeg apng gif]` · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
+`VIDEO_OUTPUTS [mp4 webm gif mp3]` · `LARGE_FILE_BYTES 200MB` · `HUGE_FILE_BYTES 1.8GB` · `extOf` ·
+`detectKind` (MIME prefix then ext allow-lists; null = unsupported) · `outputsFor` · `defaultTarget`
+(gif→apng / apng→gif FIRST, else webp/mp3/mp4 preference, jpg≡jpeg) · `outputFileName` (jpeg→.jpg) ·
+`mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
+`apng` has NO ffmpeg path — must route to convertAnimImage.
+
+## lib/settings.ts (64)
+
+`Settings` + `DEFAULT_SETTINGS` + `loadSettings` (`{...defaults, ...parsed}` forward-compatible) +
+`saveSettings` (swallows quota errors). Key `'morphkit-settings'`, unversioned — renaming a field
+silently drops the user's value.
+Fields (defaults): concurrency 2 · imageMaxDim 0 · audioBitrate '192k' · audioRateMode 'cbr' ·
+audioQuality 2 · audioSampleRate 0 · audioChannels 0 · videoCrf 23 · videoPreset 'veryfast' ·
+videoMaxH 0 · videoFps 0 · videoMute false · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true.
+
+## lib/idb.ts (62)
+
+DB `'morphkit-studio'` v1: store `projects` (keyPath id) + `assets` (keyPath id, index `projectId`).
+Exports: putProject/listProjects/deleteProject/putAsset/listAssets/deleteAsset. Each helper opens a
+fresh one-shot transaction → `deleteProject` is NOT atomic (sequential asset deletes). Version bump
+requires guarding the unconditional createObjectStore calls in onupgradeneeded.
+
+## lib/wav.ts (35)
+
+`audioBufferToWav(buf)` → 16-bit PCM WAV blob. Channels clamped to 2 (dropped, not downmixed);
+asymmetric scale (±0x8000/0x7fff); per-sample JS loop (long mixes block the main thread).
+
+## lib/audioEngine.ts (130)
+
+`audioCtx()` (lazy singleton — never at module load, invariant 12) · `decodeAssetBuffer(id, blob)`
+(memoized in module `cache`) · `getCachedBuffer(id)` (sync peek) · `dropAssetBuffer(id)` ·
+`mixDuration(doc)` · `PlayHandle {stop, t0, from}` · `playMix(doc, from)` · `renderMixWav(doc)`
+(OfflineAudioContext 2ch/44.1k; throws `'empty mix'`) · `peaks(buf, offset, duration, count)`.
+Private `buildGraph` honours mute + any-solo (non-solo → gain 0). Playback pos = `from + (currentTime - t0)`.
+
+## types.ts (40)
+
+`Status = ready|queued|converting|done|error` · `MediaEdit {trimStart? trimEnd? volume?(0–2)
+speed?(0.5–2, atempo limit) rotate?(0|90|180|270) mute? audioTrack?: File}` · `Item {id file kind target
+quality status progress meta? edit? edited? outUrl? outName? outSize?}`.
+`edit` = deferred (applied at ffmpeg time) vs `edited` = source File already rewritten by image/GIF editor.
+`target` is a plain string — nothing type-checks it against the OUTPUT tuples.
+
+## i18n.tsx (908)
+
+Three flat dicts `zh` / `en` / `ja` (~281 keys each) at fixed ranges (zh ≈13–295, en ≈297–579, ja ≈581–863);
+add new keys to ALL THREE at the matching position. `t(key, vars?)`: current lang → en → raw key
+(missing keys render literally, no warning). Interpolation replaces only the FIRST `{var}` occurrence.
+`detectLang`: localStorage `'morphkit-lang'` → navigator prefix → en. `LANGS` drives the switcher;
+`setLang` also sets `document.documentElement.lang` (zh → 'zh-Hant').
+Key families: `tool_*`, `warn*`, `sec*`, `audio*/video*/gif*`, `tag*`, `type*(+Desc)`, `tip*`, `kbd*`,
+`mx*`, `feat*`. Interpolated keys: warnLarge{size} unsupported{names} filesSummary{n,size}
+progressSummary{done,total} gifTooLong{n} dedupeDone{n} trackName{n} filesCount{n} tooBigGif{n} objectsCount{n}.
+`t`/`setLang` are recreated every render (context identity changes each provider render).
