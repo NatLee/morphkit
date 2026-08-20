@@ -319,9 +319,15 @@ export default function App() {
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32">
-              {/* paint-blob mark, mirrors the favicon */}
-              <path d="M16 1.5c8.5-.8 14.8 6 14.4 14.3C30 24.2 24.3 30.8 15.6 30.4 7.5 30 1.2 24.3 1.6 15.7 2 8 8 2.2 16 1.5z" fill="var(--accent)" />
-              <path d="M10 21V11l6 6 6-6v10" stroke="#fcf8ec" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              {/* chamfered cyber mark, mirrors the favicon */}
+              <defs>
+                <linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="var(--accent)" />
+                  <stop offset="1" stopColor="var(--paint-red)" />
+                </linearGradient>
+              </defs>
+              <path d="M6 1h20l5 5v20l-5 5H6l-5-5V6z" fill="var(--mark-bg)" />
+              <path d="M10 21V11l6 6 6-6v10" stroke="url(#brand-g)" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
           <span className="brand-name">MorphKit</span>

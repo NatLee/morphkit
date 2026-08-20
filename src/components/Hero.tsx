@@ -8,7 +8,7 @@ export function Hero() {
       <p className="hero-tagline">{t('tagline')}</p>
       <h1 className="hero-title">
         {t('heroA')}
-        <span className="hero-accent">{t('heroB')}</span>
+        <span className="hero-accent" data-text={t('heroB')}>{t('heroB')}</span>
       </h1>
 
       <div className="feat-row">

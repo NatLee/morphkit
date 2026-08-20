@@ -50,7 +50,7 @@ const maskBmpCache = new Map<string, ImageBitmap>();
 
 /** Always-visible palette — no picker click needed for common colours. */
 const SWATCHES = [
-  '#000000', '#ffffff', '#8a8f98', '#c94f16', '#e0a020',
+  '#000000', '#ffffff', '#8a8f98', '#38dfff', '#ffc23e',
   '#2f9e57', '#2f7fd1', '#7a4fd1', '#d13f6e', '#8a5a2b',
 ];
 
@@ -149,7 +149,7 @@ export function ImageEditor({
   const activeLayer = layers.find((l) => l.id === activeId) ?? null;
 
   const [tool, setTool] = useState<Tool>('pan');
-  const [color, setColor] = useState('#c94f16');
+  const [color, setColor] = useState('#38dfff');
   const [size, setSize] = useState(4);
   const [fontSize, setFontSize] = useState(32);
   const [fontFam, setFontFam] = useState<FontFam>('sans');
@@ -537,7 +537,7 @@ export function ImageEditor({
     const g = c.getContext('2d')!;
     g.drawImage(m, 0, 0);
     g.globalCompositeOperation = 'source-in';
-    g.fillStyle = '#c94f16';
+    g.fillStyle = '#38dfff';
     g.fillRect(0, 0, c.width, c.height);
     tintRef.current = c;
   };

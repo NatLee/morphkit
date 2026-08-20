@@ -49,7 +49,7 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `App.tsx` | All app state: items list, settings, scheduler (counting semaphore capped at `settings.concurrency`), engine banners, editors routing, batch bar, ZIP download (fflate), global Ctrl+V paste-file |
 | `types.ts` | `Item` (per-file state incl. `edit`, `edited`, `meta`, `outUrl`), `MediaEdit` (trim/volume/speed/rotate), `Status` |
 | `i18n.tsx` | Custom context. THREE dicts: zh / en / ja — **every new UI string needs all 3 keys** |
-| `styles.css` | Design system "Atelier": warm canvas ground, sepia ink, five-pigment palette (`--paint-*`), hand-drawn wobble borders, Instrument Serif display + Caveat hand accents, IBM Plex Sans/Mono, light default theme. All editors' CSS lives here too |
+| `styles.css` | Design system "Cyberdeck": circuit-grid ground + scanlines, neon signal palette (`--paint-*`), `--glow`/`--accent-ink` tokens, synthwave hero, Chakra Petch display, IBM Plex Sans/Mono, light default theme. All editors' CSS lives here too |
 | `lib/formats.ts` | Kind detection, output lists, default targets (gif→apng, apng→gif), size thresholds, mime map |
 | `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only) |
 | `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) |
@@ -106,19 +106,22 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 21. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
 22. **Mobile layer** (end of styles.css; details in `docs/claude/styles.md`): breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
 
-## Design language ("Atelier")
+## Design language ("Cyberdeck")
 
-Painter's-studio aesthetic, light default ("day studio"; dark = "night studio"). Warm canvas
-ground (`--bg` linen + body weave lines + film-grain overlay), sepia ink (`--ink`), vermilion
-accent, and a five-pigment palette (`--paint-red/blue/yellow/green/violet`) used semantically:
-image=viridian, audio=ultramarine, video=madder, gif=ochre (type badges, mx-cards, feat chips,
-mixer clips cycle it). Hand-drawn wobbly borders via `--wobble-sm` (buttons/chips) and
-`--wobble-lg` (dashed panels); blob radii for icon circles. Watercolour-wash hero backdrop
-(blurred pigment radial-gradients), brush-stroke underlines (`.hero-accent::after`,
-`.matrix-title::after`), pigment-gradient progress bars, `--font-hand` (Caveat, latin-only —
-CJK falls back to display serif) for the tagline. Tiny rotations (≤1.6deg) on hover/decoration
-only — never on text-heavy containers. Serif display headings, mono data labels stay.
-Dark theme via `:root[data-theme]` variables only.
+Neon-tech aesthetic, light default ("day lab" — cool white + electric indigo; dark = "night
+grid" — deep-space navy `#0a0e1c`, NEVER pure black: surfaces must step up visibly bg→raised
+→sunken and lines run brighter for contrast). Circuit-grid body background (`--weave` graph
+lines) + CRT scanline overlay (`body::after`). Signal palette `--paint-red/blue/yellow/green/
+violet` (token names kept from the pigment era) used semantically: image=lime, audio=cyan,
+video=magenta, gif=amber (type badges, mx-cards, feat chips, mixer clips cycle it).
+`--accent-ink` = text colour on accent surfaces (dark theme accent is light cyan → dark text).
+`--glow` = standard neon box-shadow for hover/focus/selection. Fancy layer: synthwave
+perspective grid + drifting orbs in hero (`.hero::before/::after`), RGB-split glitch on
+`.hero-accent` (needs `data-text` attr), terminal cursor tagline, button sheen sweep
+(`.btn::after`), progress-bar travelling sheen (`barSheen`), HUD corner brackets on dropzone.
+Display font Chakra Petch (CJK falls back to Noto Sans); mono data labels stay. Sharp radii
+(6/10px), no rotations, no hand-drawn shapes. `prefers-reduced-motion` kills all of it (last
+block in styles.css). Dark theme via `:root[data-theme]` variables only.
 
 ## Conventions
 

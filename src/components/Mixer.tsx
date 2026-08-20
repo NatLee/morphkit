@@ -51,7 +51,7 @@ function ClipWave({ assetId, offset, duration, zoom, ver }: {
     g.clearRect(0, 0, w, 52);
     const buf = getCachedBuffer(assetId);
     if (!buf) return;
-    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c94f16';
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#38dfff';
     g.fillStyle = accent;
     g.globalAlpha = 0.75;
     const pk = peaks(buf, offset, duration, w);

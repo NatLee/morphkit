@@ -1,25 +1,31 @@
-# Map: styles.css (~3650 lines) + responsive architecture
+# Map: styles.css (~3800 lines) + responsive architecture
 
 > On-demand map for AI sessions. styles.css is the ONLY stylesheet (design system
-> "Atelier" — painter's studio + every component's CSS). Grep the `/* ============ name ============ */`
+> "Cyberdeck" — neon tech + every component's CSS). Grep the `/* ============ name ============ */`
 > banners to jump. Update this file when adding sections or breakpoints.
 
 ## Section order (banner names, top → bottom)
 
 1. `:root` tokens + `[data-theme='light'|'dark']` palettes (bg/bg-raised/bg-sunken/panel/line/
-   line-strong/ink/ink-dim/ink-faint/mark-bg/accent/accent-soft/**paint-red/blue/yellow/green/
-   violet**/weave/danger/warn/ok/shadow) · fonts: display=Instrument Serif(+TC serifs),
-   body=IBM Plex Sans(+TC/JP), mono=IBM Plex Mono, **hand=Caveat (latin-only, CJK→serif)** ·
-   radii 8/12 + **--wobble-sm/-lg hand-drawn border radii** · body 15px + **canvas weave
-   background-image (var(--weave) thread lines)** · `body::after` grain overlay (fixed, z999) ·
+   line-strong/ink/ink-dim/ink-faint/mark-bg/accent/accent-soft/**accent-ink (text on accent)**/
+   **paint-red/blue/yellow/green/violet (signal palette)**/weave/danger/warn/ok/shadow/**glow
+   (neon box-shadow)**) · dark = deep-space navy, surfaces step up clearly (contrast rule) ·
+   fonts: display=Chakra Petch(+Noto Sans CJK), body=IBM Plex Sans(+TC/JP), mono=IBM Plex Mono ·
+   radii 6/10 (--wobble-sm/-lg are legacy aliases, now sharp) · body 15px + **circuit-grid
+   background (var(--weave) graph lines, 28px)** · `body::after` CRT scanlines (fixed, z999) ·
    native `select` fix
 2. `top bar` — .topbar .brand .brand-name .topbar-actions .lang-switch .theme-toggle
-3. `hero` — .hero + watercolour wash `.hero::before` (blurred pigment radial-gradients,
-   bleeds into .app gutter), .hero-tagline (font-hand, riseTilt keeps rotate) /.hero-title
-   (clamp 38–58px)/.hero-accent (+ ::after brush-stroke highlight) · **DEAD**: .hero-stage
-   .format-card .stage-* .fsel (Hero no longer renders the stage — don't style these) · .hero-cta
-4. `buttons` — .btn .btn-accent .btn-ghost .btn-lg .btn-sub (.btn-sm lives near matrix section)
-5. `workbench` — .workbench .dropzone .dz-glyph .dz-title .dz-hint
+3. `hero` — .hero + synthwave floor `.hero::before` (perspective grid, gridFlow anim) +
+   drifting neon orbs `.hero::after` (orbDrift) · .hero-tagline (mono terminal prompt,
+   ::before '>' + ::after blinking cursor) /.hero-title (clamp 36–54px)/.hero-accent
+   (glow text-shadow + RGB-split glitch ::before/::after via `data-text` attr, glitchA/B
+   keyframes) · **DEAD**: .hero-stage .format-card .stage-* .fsel (Hero no longer renders
+   the stage — don't style these) · .hero-cta
+4. `buttons` — .btn (**::after = hover sheen sweep; position:relative + overflow:hidden**)
+   .btn-accent (gradient accent→violet, --accent-ink text, --glow hover) .btn-ghost .btn-lg
+   .btn-sub (.btn-sm lives near matrix section)
+5. `workbench` — .workbench .dropzone (**HUD corner brackets = 8 background gradients,
+   --dz-b/--dz-l**) .dz-glyph .dz-title .dz-hint
 6. `banners` — .banner .danger/.warn/.info/.note .spinner
 7. `batch bar` — .batch-bar .bb-info .bb-count .bb-progress(.bb-bar) .bb-done .bb-actions
 8. `file list` — .file-card(.status-*) .fc-main .fc-icon .fc-thumb .fc-meta .fc-name .fc-info
