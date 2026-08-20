@@ -89,7 +89,7 @@
 |---|---|
 | `≤900px` | .ie-layout side panel 262→220px |
 | `≤760px` | .st-body + .vw-top collapse to 1 column; **.studio → height:auto (page scrolls like a normal mobile page)**; .st-assets max-height 30vh; inline .ie-viewport 42vh + inline .layers-panel 32vh |
-| `≤720px` (image editor) | **.layers-panel → fixed bottom sheet** (translateY 105% ↔ .open, z130, 62dvh) + .lp-scrim (z129) + .lp-fab shown (toggle lives in ImageEditor.tsx `panelOpen`); inline .ie-viewport bumps to 56vh |
+| `≤720px` (image editor) | **.layers-panel → fixed bottom sheet** (translateY 105% ↔ .open, z130, 62dvh) + .lp-scrim (z129) + .lp-fab shown (toggle lives in ImageEditor.tsx panelOpen state); inline .ie-viewport bumps to 56vh |
 | `≤640px` (image editor) | `.editor-overlay > .editor:has(.ie-layout)` → **fixed 100dvh flex column, children reordered** (head 0 → ie-layout 1 flex-fill w/ align-items:stretch → options 2 → toolbar 3 nowrap-scroll → foot 4); .ie-viewport flex + .ie-inner margin:auto centers the canvas |
 | `≤720px` | .ie-layout → 1 column (layers panel stacks below canvas) |
 | `≤640px` (phone) | .app gutter 16px; .topbar wraps; hero compact; dropzone compact; .bb-actions full-width grow; file-card controls grow + .fc-details 1col; **modal editors become full-width sheets** (.editor-overlay padding 0, .editor 100% wide, radius 0, safe-area padding, 100dvh cap); .media-preview.mp-video 34vh; .ie-viewport/.ie-canvas 44vh + .layers-panel 240px; .ed-toolbar + .gif-transport wrap into rows (.ed-options stays a nowrap scroller on purpose); drawer + studio compact; **text/number inputs + selects → 16px font (iOS focus-zoom guard)**; .fp-preview 180px; .vw-preview 26vh |
