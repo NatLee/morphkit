@@ -25,6 +25,15 @@ Gotchas: art skipped whenever trim present (desync); convertMedia retries exec O
 `data.slice()` copies out of wasm heap (keep); temp names `${Date.now()}_${rand}`; progress handler
 removed in finally; muxVideo has its own trim thresholds + fixed `-b:a 192k`, ignores vfChain/videoMaxH.
 
+## lib/useSplitter.ts (70)
+
+`useSplitter(key, def, min, max, {invert?, axis?: 'x'|'y'})` → `{size, gutterProps}`. Draggable
+panel-size state persisted to localStorage; spread `gutterProps` onto a `.split-gutter`/`.ie-gutter`
+element (CSS must set touch-action:none). Pointer-captured drag clamps to [min,max]; dblclick resets
+to `def`; `invert` = panel sits after the gutter (drag toward it grows). Used by ImageEditor
+(layers panel), Studio (assets panel), VideoWorkspace (side width + preview height), GifEditor
+(preview height).
+
 ## lib/animImage.ts (165)
 
 Exports: `AnimFrame {img: ImageData; delay: ms}` · `Anim {frames, width, height}` · `decodeAnim(file)`

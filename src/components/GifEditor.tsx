@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { GIFEncoder } from 'gifenc';
 import UPNG from 'upng-js';
 import { decodeAnim, writeGifFrame } from '../lib/animImage';
 import { extOf } from '../lib/formats';
+import { useSplitter } from '../lib/useSplitter';
 import { useI18n } from '../i18n';
 import { DualRange } from './DualRange';
 import type { Item } from '../types';
@@ -69,6 +70,8 @@ export function GifEditor({ item, onSave, onClose, inline, importFrames, onImpor
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // draggable preview height (caps canvas max-height via --gif-ph)
+  const prevSplit = useSplitter('morphkit-gifph', Math.round(window.innerHeight * 0.4), 120, 700, { axis: 'y' });
   const dragCapRef = useRef<{ id: number; dx: number; dy: number } | null>(null);
 
   const flattenActive = flatten;
@@ -446,7 +449,7 @@ export function GifEditor({ item, onSave, onClose, inline, importFrames, onImpor
           </div>
         )}
 
-        <div className="ed-preview gif-preview">
+        <div className="ed-preview gif-preview" style={{ '--gif-ph': `${prevSplit.size}px` } as CSSProperties}>
           <canvas
             ref={canvasRef}
             onPointerDown={onCanvasDown}
@@ -455,6 +458,8 @@ export function GifEditor({ item, onSave, onClose, inline, importFrames, onImpor
             style={{ touchAction: caps.length ? 'none' : 'auto', cursor: caps.length ? 'move' : 'default' }}
           />
         </div>
+
+        <div className="split-gutter h" role="separator" aria-orientation="horizontal" {...prevSplit.gutterProps} />
 
         <div className="gif-transport">
           <button className="tool-btn" onClick={() => step(-1)} title={t('prevFrame')} disabled={!loaded}>

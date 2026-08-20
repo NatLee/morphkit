@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useI18n } from '../i18n';
 import { Mixer } from './Mixer';
 import { DualRange } from './DualRange';
@@ -6,6 +6,7 @@ import { InfoTip } from './InfoTip';
 import { mixDuration, renderMixWav } from '../lib/audioEngine';
 import { extractAudio, muxVideo } from '../lib/ffmpegClient';
 import { loadSettings } from '../lib/settings';
+import { useSplitter } from '../lib/useSplitter';
 import type { AssetRec, VideoDoc } from '../lib/studioTypes';
 
 /* Video project (openreel-style): preview + trim on top,
@@ -42,6 +43,9 @@ export function VideoWorkspace({
   const [busy, setBusy] = useState(false);
   const [prog, setProg] = useState(0);
   const [note, setNote] = useState('');
+  // draggable layout: side-panel width + preview height (desktop only, CSS hides gutters ≤760)
+  const sideSplit = useSplitter('morphkit-vwsw', 250, 200, 460, { invert: true });
+  const prevSplit = useSplitter('morphkit-vwph', Math.round(window.innerHeight * 0.34), 140, 600, { axis: 'y' });
 
   const url = useMemo(
     () => (videoAsset ? URL.createObjectURL(videoAsset.blob) : ''),
@@ -116,7 +120,10 @@ export function VideoWorkspace({
   // doubles as an inline video picker until one is chosen
   return (
     <div className="vw">
-      <div className="vw-top">
+      <div
+        className="vw-top"
+        style={{ '--vw-side-w': `${sideSplit.size}px`, '--vw-ph': `${prevSplit.size}px` } as CSSProperties}
+      >
         <div className="vw-preview">
           {videoAsset ? (
             <video ref={videoRef} src={url} controls playsInline onLoadedMetadata={onLoaded} />
@@ -138,6 +145,7 @@ export function VideoWorkspace({
             </div>
           )}
         </div>
+        <div className="split-gutter" role="separator" aria-orientation="vertical" {...sideSplit.gutterProps} />
         <div className="vw-side">
           <span className="sp-label">
             {t('trim')} <InfoTip text={t('tipVideoWs')} />
@@ -169,6 +177,8 @@ export function VideoWorkspace({
           )}
         </div>
       </div>
+
+      <div className="split-gutter h" role="separator" aria-orientation="horizontal" {...prevSplit.gutterProps} />
 
       <Mixer
         doc={doc.mixer}

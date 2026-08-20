@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
+import { useSplitter } from '../lib/useSplitter';
 import { Overlay } from './Overlay';
 import { ColorPicker } from './ColorPicker';
 import type { Item } from '../types';
@@ -182,38 +183,7 @@ export function ImageEditor({
   // mobile bottom-sheet state for the layers panel (desktop ignores it — CSS)
   const [panelOpen, setPanelOpen] = useState(false);
   // desktop layers-panel width, draggable via the .ie-gutter splitter (persisted)
-  const [panelW, setPanelW] = useState(() => {
-    const v = Number(localStorage.getItem('morphkit-iepw'));
-    return Number.isFinite(v) && v >= PANEL_MIN && v <= PANEL_MAX ? v : PANEL_DEF;
-  });
-  const gutterDragRef = useRef<{ x0: number; w0: number; last: number } | null>(null);
-
-  const onGutterDown = (e: PointerEvent) => {
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    gutterDragRef.current = { x0: e.clientX, w0: panelW, last: panelW };
-  };
-
-  const onGutterMove = (e: PointerEvent) => {
-    const d = gutterDragRef.current;
-    if (!d) return;
-    // panel sits on the right: dragging left grows it
-    const w = Math.max(PANEL_MIN, Math.min(PANEL_MAX, d.w0 + (d.x0 - e.clientX)));
-    d.last = w;
-    setPanelW(w);
-  };
-
-  const onGutterUp = () => {
-    const d = gutterDragRef.current;
-    if (!d) return;
-    gutterDragRef.current = null;
-    try { localStorage.setItem('morphkit-iepw', String(d.last)); } catch { /* private mode */ }
-  };
-
-  const resetGutter = () => {
-    setPanelW(PANEL_DEF);
-    try { localStorage.setItem('morphkit-iepw', String(PANEL_DEF)); } catch { /* private mode */ }
-  };
+  const { size: panelW, gutterProps } = useSplitter('morphkit-iepw', PANEL_DEF, PANEL_MIN, PANEL_MAX, { invert: true });
   const [rzMode, setRzMode] = useState<'pct' | 'abs'>('pct');
   const [rzPct, setRzPct] = useState(50);
   const [rzW, setRzW] = useState(0);
@@ -1534,11 +1504,7 @@ export function ImageEditor({
             role="separator"
             aria-orientation="vertical"
             aria-label={t('layers')}
-            onPointerDown={onGutterDown}
-            onPointerMove={onGutterMove}
-            onPointerUp={onGutterUp}
-            onPointerCancel={onGutterUp}
-            onDoubleClick={resetGutter}
+            {...gutterProps}
           />
 
           {/* tap-to-dismiss scrim behind the mobile layers sheet */}

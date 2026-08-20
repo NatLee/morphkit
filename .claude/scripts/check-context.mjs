@@ -59,7 +59,7 @@ try {
     'app-shell.md': ['src/App.tsx', 'src/components/Hero.tsx', 'src/components/DropZone.tsx', 'src/components/FileCard.tsx', 'src/components/SettingsPanel.tsx', 'src/components/FormatMatrix.tsx', 'src/components/DualRange.tsx', 'src/components/Overlay.tsx', 'src/components/FramePicker.tsx', 'src/components/InfoTip.tsx', 'src/styles.css'],
     'editors.md': ['src/components/ImageEditor.tsx', 'src/components/GifEditor.tsx', 'src/components/ColorPicker.tsx', 'src/styles.css'],
     'studio.md': ['src/components/Studio.tsx', 'src/components/Mixer.tsx', 'src/components/VideoWorkspace.tsx', 'src/components/MediaEditor.tsx', 'src/lib/studioTypes.ts', 'src/lib/audioEngine.ts', 'src/styles.css'],
-    'libs.md': ['src/lib/ffmpegClient.ts', 'src/lib/animImage.ts', 'src/lib/imageConvert.ts', 'src/lib/metadata.ts', 'src/lib/formats.ts', 'src/lib/settings.ts', 'src/lib/idb.ts', 'src/lib/wav.ts', 'src/lib/audioEngine.ts', 'src/lib/studioTypes.ts', 'src/types.ts', 'src/i18n.tsx'],
+    'libs.md': ['src/lib/ffmpegClient.ts', 'src/lib/animImage.ts', 'src/lib/imageConvert.ts', 'src/lib/metadata.ts', 'src/lib/formats.ts', 'src/lib/settings.ts', 'src/lib/idb.ts', 'src/lib/wav.ts', 'src/lib/audioEngine.ts', 'src/lib/studioTypes.ts', 'src/lib/useSplitter.ts', 'src/types.ts', 'src/i18n.tsx'],
     'styles.md': ['src/styles.css', 'src/components/Mixer.tsx', 'index.html'],
   };
   const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]{2,}$/;

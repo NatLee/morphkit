@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { GIFEncoder } from 'gifenc';
 import { writeGifFrame } from '../lib/animImage';
@@ -13,6 +13,7 @@ import { Overlay } from './Overlay';
 import { createPortal } from 'react-dom';
 import { detectKind, extOf, formatBytes } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer } from '../lib/audioEngine';
+import { useSplitter } from '../lib/useSplitter';
 import { decodeAnim } from '../lib/animImage';
 import { convertMedia } from '../lib/ffmpegClient';
 import { loadSettings } from '../lib/settings';
@@ -112,6 +113,8 @@ export function Studio() {
   const [bufVer, setBufVer] = useState(0);
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
   const [entered, setEntered] = useState(false);
+  // draggable asset-panel width (desktop; ≤760 stacks and hides the gutter)
+  const assetsSplit = useSplitter('morphkit-stw', 252, 180, 460);
   const [pickType, setPickType] = useState(false);
   const [pjStats, setPjStats] = useState<Record<string, { n: number; bytes: number }>>({});
   const [thumbs, setThumbs] = useState<Record<string, { url: string; video: boolean }>>({});
@@ -864,7 +867,7 @@ export function Studio() {
         </button>
       </div>
 
-      <div className="st-body">
+      <div className="st-body" style={{ '--st-assets-w': `${assetsSplit.size}px` } as CSSProperties}>
         <aside className="st-assets" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
           <div className="st-assets-head">
             <span className="mx-label">
@@ -936,6 +939,8 @@ export function Studio() {
             </div>
           ))}
         </aside>
+
+        <div className="split-gutter" role="separator" aria-orientation="vertical" {...assetsSplit.gutterProps} />
 
         <main
           className={`st-main${dropHot ? ' drop-hot' : ''}`}

@@ -50,7 +50,9 @@
     .tool-btn(34px; 40 touch) .tb-sep .tb-color .swatches .swatch · .lp-colour .cp .cp-sv .cp-hue
     .cp-foot .cp-preview .cp-hex (ColorPicker) · .tb-slider · .ie-stage/.ie-canvas/.ie-overlay (legacy) ·
     .ie-textinput · `image editor v2`: .ie-layout(1fr | 8px .ie-gutter | min(--ie-panel-w,42vw)
-    resizable 3-col; 1fr ≤720) .ie-gutter(col-resize splitter, touch-action:none, hidden ≤720)
+    resizable 3-col; 1fr ≤720) .ie-gutter(col-resize splitter, touch-action:none, hidden ≤720) ·
+    .split-gutter(generic splitter, same look as .ie-gutter; .h variant = row-resize 8px tall;
+    hidden ≤760 — all driven by lib/useSplitter)
     .ie-vpwrap .zoom-float
     .ie-viewport(max-h 54vh) .ie-inner .ie-canvas2(**touch-action:none**, checkerboard bg) .zoom-ctrl
     .zoom-val · .layers-panel(max-h 54vh) .layer-* .lp-head .lp-props .lp-row .lp-blend .lp-mask-btns
@@ -61,7 +63,8 @@
     .strip(horizontal film strip) .thumb(.active/.dim) · .tb-select .cap-panel .cap-row .cap-text
     .num-sm .cap-dash
 18. `studio` — .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
-    calc(100vh−96px); ≤760: height auto, page scrolls**) .st-bar .st-name .st-body(252px|1fr; 1fr ≤760)
+    calc(100vh−96px); ≤760: height auto, page scrolls**) .st-bar .st-name
+    .st-body(min(--st-assets-w,40vw)|8px .split-gutter|1fr, resizable; 1fr ≤760)
     .st-assets .st-main .view-anim .mixer .media-view .st-assets-head .st-import .st-empty .asset-row
     .asset-icon .asset-name .asset-size .asset-btns · `mixer timeline`: .rec-btn .tl-scroll .tl-inner
     .tl-row .trk-head(**sticky left, 172px = HEAD_W in Mixer.tsx — never change one side alone**)
@@ -72,7 +75,8 @@
     .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-new ·
     `typed projects`: .type-badge .tb-audio/image/gif/video .pj-type .type-icon .picker-panel .picker-list ·
     `inline editors`: .ie-inline-wrap .editor.ie-inline(flex column, overflow hidden, viewport fills) ·
-    `video workspace`: .vw .vw-top(1fr|250px; 1fr ≤760) .vw-preview(34vh; 26vh ≤640) .vw-side ·
+    `video workspace`: .vw .vw-top(1fr|8px .split-gutter|min(--vw-side-w,44vw); 1fr ≤760)
+    .vw-preview(var(--vw-ph, 34vh) via .split-gutter.h; 26vh ≤640) .vw-side .vw-extract .vw-note ·
     `launcher v2`: .pj-thumb .pj-body .pj-list .type-modal .mini-modal .meta-list .rz-grid .bg-check
     .vw-pick .frame-modal .fp-preview(240px; 180 ≤640) .st-note(fixed toast z150, safe-area aware) ·
     .footer-link · .st-tabs · `media view`: .media-grid .media-card .media-thumb .media-name .media-actions ·
@@ -88,7 +92,7 @@
 | Query | What |
 |---|---|
 | `≤900px` | .ie-layout side panel 262→220px |
-| `≤760px` | .st-body + .vw-top collapse to 1 column; **.studio → height:auto (page scrolls like a normal mobile page)**; .st-assets max-height 30vh; inline .ie-viewport 42vh + inline .layers-panel 32vh |
+| `≤760px` | .st-body + .vw-top collapse to 1 column; .split-gutter hidden; **.studio → height:auto (page scrolls like a normal mobile page)**; .st-assets max-height 30vh; inline .ie-viewport 42vh + inline .layers-panel 32vh |
 | `≤720px` (image editor) | **.layers-panel → fixed bottom sheet** (translateY 105% ↔ .open, z130, 62dvh) + .lp-scrim (z129) + .lp-fab shown (toggle lives in ImageEditor.tsx panelOpen state); inline .ie-viewport bumps to 56vh |
 | `≤640px` (image editor) | `.editor-overlay > .editor:has(.ie-layout)` → **fixed 100dvh flex column, children reordered** (head 0 → ie-layout 1 flex-fill w/ align-items:stretch → options 2 → toolbar 3 nowrap-scroll → foot 4); .ie-viewport flex + .ie-inner margin:auto centers the canvas |
 | `≤720px` | .ie-layout → 1 column (layers panel stacks below canvas) |

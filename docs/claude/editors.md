@@ -22,9 +22,9 @@ fill`) · color · size (1–40) · fontSize · fontFam (FONT_MAP) · bold · ou
 distance) · brushType (pen|marker|highlight) · zoom (0.05–6) · baseVer/pixVer/selVer/histVer · cropSel
 {a,b} · selDraft · lassoPts · textEdit {pos,value} · ready · copied · panning · cursor · renaming ·
 bgColor/bgOn · resizeOpen · rzMode pct|abs · rzPct · rzW/rzH · **panelOpen (mobile layers
-bottom-sheet; ≤720px only — desktop CSS ignores it)** · **panelW (desktop layers-panel width,
-PANEL_MIN 200–PANEL_MAX 520, default 262; dragged via .ie-gutter, dblclick resets, persisted
-to localStorage `morphkit-iepw`, applied as `--ie-panel-w` inline on .ie-layout)**.
+bottom-sheet; ≤720px only — desktop CSS ignores it)** · **panelW (desktop layers-panel width via
+`useSplitter('morphkit-iepw', PANEL_DEF, PANEL_MIN 200, PANEL_MAX 520, {invert})` — dragged via
+.ie-gutter, dblclick resets, applied as `--ie-panel-w` inline on .ie-layout)**.
 **Refs**: canvasRef (.ie-canvas2) · viewportRef · baseRef · histRef/redoRef · scratchRef (mask/blend
 compositing) · previewRef (live shape preview) · pixRef · dragRef (gesture tagged union) · layersRef ·
 maskRef/tintRef/maskBBoxRef · antsRef (marching-ants phase) · firstBaseRef.
@@ -88,7 +88,9 @@ dragged directly on the preview canvas, baked at export (stroke-then-fill, IBM P
 (keepAlpha = !flatten); APNG via UPNG.encode; yields every 4th frame. NO undo/history. 300-frame cap.
 
 **State**: ver · cur · playing (default TRUE) · range [s,e] inclusive · speed (SPEEDS .5–2) · reverse ·
-boomerang · caps · outFmt gif|apng (seeded from srcIsApng) · flatten · matte · note (4s) · busy · loaded.
+boomerang · caps · outFmt gif|apng (seeded from srcIsApng) · flatten · matte · note (4s) · busy · loaded ·
+`prevSplit` = useSplitter('morphkit-gifph', 40vh-based px, 120–700, axis y) → `--gif-ph` caps the
+preview canvas max-height; `.split-gutter.h` sits between preview and transport (hidden ≤760).
 **Refs**: canvasRef · framesRef · bitmapsRef · timerRef · posRef · dragCapRef.
 
 **Functions**: `drawCaptions toCanvasPt capAt onCanvasDown/Move/Up` (down pauses playback + capture;

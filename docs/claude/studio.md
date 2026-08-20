@@ -14,7 +14,8 @@ and **workspace** (~line 821). Only component touching IndexedDB.
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
 entered · pickType · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
 sortBy (`'mk-sort'`) · metaPj · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
-framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720).
+framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
+`assetsSplit` = useSplitter('morphkit-stw', 252, 180–460) → `--st-assets-w` on .st-body + .split-gutter.
 **Refs**: importRef, pjImportRef, saveTimer (500ms putProject debounce), `curRef` (fresh project across
 rapid patches — invariant 14), persistedRef (untouched new projects dropped on exit), thumbUrlsRef,
 baseSaveTimer (600ms raster-base debounce).
@@ -36,7 +37,7 @@ for inline editors — invariant 15) · `persistBase`. Window `paste` listener w
 Overlay→`.editor.type-modal > .pj-grid > .pj-card.pj-type×4` · Overlay→`.editor.mini-modal` (metadata dl).
 
 **Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete)` +
-`.st-body (252px | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon
+`.st-body (resizable assets | .split-gutter | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon
 + .asset-name + .asset-size + .asset-btns (＋ addToMix · ◎ pickBase/pickGif/pickVideo · import-to-editor ·
 new-from-asset · download · ×)) + main.st-main[.drop-hot] > .view-anim key={ptype+curId} >
 (Mixer | picker-panel/ImageEditor-inline | picker-panel/GifEditor-inline | VideoWorkspace)` ·
@@ -86,15 +87,18 @@ have NO touch-action — touch-drag there must keep scrolling the timeline; rule
 
 Props: videoAsset|null, candidates, doc: VideoDoc, onDoc(fn) (functional patch), onRecorded,
 onAudioExtracted(wav, srcName), bufVer, names, activeTrackId, onActiveTrack, projectName.
-State: duration (loadedmetadata; back-fills trimEnd once) · busy · prog · note (extract failure, 4s).
+State: duration (loadedmetadata; back-fills trimEnd once) · busy · prog · note (extract failure, 4s) ·
+`sideSplit`/`prevSplit` = useSplitter('morphkit-vwsw' 200–460 / 'morphkit-vwph' 140–600 axis y) →
+`--vw-side-w`/`--vw-ph` vars on .vw-top + two .split-gutter elements (side width, preview height).
 Memo `url` objectURL (revoked). `onTrim(s,e)` scrubs `video.currentTime` to the moved handle (never
 seek-back — invariant 13). `extract()` = `extractAudio(file, trimStart, trimEnd||duration)` →
 onAudioExtracted (catch → `extractNoAudio` note); shares `busy` with export.
 `exportMp4()` = optional renderMixWav → `muxVideo(file, wav, trimStart, trimEnd, loadSettings(), setProg)`
 → `{projectName}.mp4` (name sanitised). Audio timeline aligns to TRIMMED video start (invariant 16).
-DOM: `.vw > .vw-top (minmax(0,1fr)|250px; 1fr ≤760) > .vw-preview(video[controls playsInline] | .vw-pick
-picker) + .vw-side (sp-label+InfoTip, sp-val, DualRange, .vw-extract(btn+InfoTip), .vw-note?, export btn,
-.fc-progress)` + `<Mixer>`. `.vw-preview` 34vh (26vh ≤640).
+DOM: `.vw > .vw-top (minmax(0,1fr)|gutter|side, resizable; 1fr ≤760) > .vw-preview(video[controls
+playsInline] | .vw-pick picker) + .split-gutter + .vw-side (sp-label+InfoTip, sp-val, DualRange,
+.vw-extract(btn+InfoTip), .vw-note?, export btn, .fc-progress)` + `.split-gutter.h` + `<Mixer>`.
+`.vw-preview` height var(--vw-ph, 34vh) (26vh ≤640).
 
 ## MediaEditor.tsx (276) — converter-queue A/V edit modal
 
