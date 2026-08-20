@@ -21,7 +21,8 @@ Zoom is CSS-only (`style.width = w * zoom`) inside scrolling `.ie-viewport`. Ver
 fill`) · color · size (1–40) · fontSize · fontFam (FONT_MAP) · bold · outlineOn · wandTol (5–90, ×4.4 RGB
 distance) · brushType (pen|marker|highlight) · zoom (0.05–6) · baseVer/pixVer/selVer/histVer · cropSel
 {a,b} · selDraft · lassoPts · textEdit {pos,value} · ready · copied · panning · cursor · renaming ·
-bgColor/bgOn · resizeOpen · rzMode pct|abs · rzPct · rzW/rzH.
+bgColor/bgOn · resizeOpen · rzMode pct|abs · rzPct · rzW/rzH · **panelOpen (mobile layers
+bottom-sheet; ≤720px only — desktop CSS ignores it)**.
 **Refs**: canvasRef (.ie-canvas2) · viewportRef · baseRef · histRef/redoRef · scratchRef (mask/blend
 compositing) · previewRef (live shape preview) · pixRef · dragRef (gesture tagged union) · layersRef ·
 maskRef/tintRef/maskBBoxRef · antsRef (marching-ants phase) · firstBaseRef.
@@ -45,8 +46,9 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
     · .tb-slider tolerance · applyCrop/fillSel/clearSel/deselect btns · .opt-spacer · .zoom-ctrl(−/val/+/fit)
   .ie-layout (grid 1fr|262px; 220px ≤900; 1fr ≤720)
     .ie-vpwrap > .ie-viewport(ref, scroll) > .ie-inner{width:w*zoom} > canvas.ie-canvas2 + input.ie-textinput
-              + span.zoom-float (readout)
-    aside.layers-panel
+              + button.lp-fab (mobile-only layers toggle, .on when open) + span.zoom-float (readout)
+    [panelOpen && div.lp-scrim (tap closes sheet)]
+    aside.layers-panel[.open ⇒ mobile sheet slides up]
       .lp-colour > .mx-label + <ColorPicker> (.cp > .cp-sv/.cp-hue/.cp-foot>.cp-preview+.cp-hex)
       .lp-head > .mx-label + .lp-head-btns (＋ ⧉ ⤓ ×)
       .lp-props (active layer): .lp-row opacity range · .lp-row select.lp-blend · .lp-row.lp-mask

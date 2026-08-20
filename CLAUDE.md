@@ -105,6 +105,7 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     experimental, so m4a always uses `-b:a`.
 21. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
 22. **Mobile layer** (end of styles.css; details in `docs/claude/styles.md`): breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
+23. **Mobile image editor** (≤720): layers panel becomes a fixed bottom sheet (`.layers-panel.open`, `panelOpen` state + `.lp-fab` toggle + `.lp-scrim` in ImageEditor.tsx); ≤640 the modal editor with `.ie-layout` becomes a fixed 100dvh flex column with children REORDERED via `order` (head → canvas fills → options → toolbar → foot) — the base `.ie-layout` is `align-items:start`, the mobile override needs `stretch` or the viewport collapses.
 
 ## Design language ("Cyberdeck")
 

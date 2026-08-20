@@ -1937,6 +1937,33 @@ kbd {
 
 .ie-vpwrap .ie-viewport { flex: 1; min-width: 0; }
 
+/* mobile-only layers FAB + sheet scrim (shown ≤720px via the mobile layer) */
+.lp-fab {
+  display: none;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 6;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-raised);
+  color: var(--ink-dim);
+  place-items: center;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.lp-fab.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--glow);
+}
+
+.lp-scrim { display: none; }
+
 .zoom-float {
   position: absolute;
   right: 12px;
@@ -3691,6 +3718,83 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .st-assets { max-height: 30vh; }
   .editor.ie-inline .ie-viewport { height: 42vh; }
   .editor.ie-inline .layers-panel { max-height: 32vh; overflow-y: auto; }
+}
+
+/* ---- mobile image editor: bottom-sheet layers panel (≤720, where the
+   side panel would otherwise stack below the canvas and force scrolling;
+   pattern: canvas stays put, secondary panel slides up — Snapseed-style) ---- */
+@media (max-width: 720px) {
+  .lp-fab { display: grid; }
+
+  .lp-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 129;
+    background: rgba(4, 6, 15, 0.45);
+    animation: fadeIn 0.2s ease both;
+  }
+
+  .layers-panel,
+  .editor.ie-inline .layers-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 130;
+    max-height: 62vh;
+    max-height: 62dvh;
+    overflow-y: auto;
+    margin: 0;
+    border: 1px solid var(--line-strong);
+    border-bottom: none;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(105%);
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  .layers-panel.open { transform: none; }
+
+  /* with the panel off-flow the inline canvas can breathe */
+  .editor.ie-inline .ie-viewport { height: 56vh; }
+}
+
+/* full-height editing column on phones: head → canvas (fills) → options →
+   toolbar → footer, so tools sit at thumb reach and nothing scrolls away */
+@media (max-width: 640px) {
+  .editor-overlay > .editor:has(.ie-layout) {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .editor-overlay > .editor:has(.ie-layout) > * { flex-shrink: 0; }
+  .editor-overlay > .editor:has(.ie-layout) .ed-head { order: 0; }
+  .editor-overlay > .editor:has(.ie-layout) .ie-layout {
+    order: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    /* base rule says align-items:start — here the viewport must stretch */
+    align-items: stretch;
+  }
+  .editor-overlay > .editor:has(.ie-layout) .ed-options { order: 2; margin-bottom: 8px; }
+  .editor-overlay > .editor:has(.ie-layout) .ed-toolbar {
+    order: 3;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-bottom: 0;
+  }
+  .editor-overlay > .editor:has(.ie-layout) .ed-foot { order: 4; margin-top: 10px; padding-top: 10px; }
+
+  .editor-overlay > .editor:has(.ie-layout) .ie-vpwrap { flex: 1; min-width: 0; min-height: 0; }
+  .editor-overlay > .editor:has(.ie-layout) .ie-viewport { height: 100%; max-height: none; display: flex; }
+  /* margin:auto centers the canvas, and degrades to scrollable when zoomed past the viewport */
+  .editor-overlay > .editor:has(.ie-layout) .ie-inner { margin: auto; }
 }
 
 /* ---- touch ergonomics ---- */

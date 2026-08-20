@@ -174,6 +174,8 @@ export function ImageEditor({
   const [bgColor, setBgColor] = useState<string>(bg ?? '#ffffff');
   const [bgOn, setBgOn] = useState<boolean>(bg != null);
   const [resizeOpen, setResizeOpen] = useState(false);
+  // mobile bottom-sheet state for the layers panel (desktop ignores it — CSS)
+  const [panelOpen, setPanelOpen] = useState(false);
   const [rzMode, setRzMode] = useState<'pct' | 'abs'>('pct');
   const [rzPct, setRzPct] = useState(50);
   const [rzW, setRzW] = useState(0);
@@ -1468,6 +1470,17 @@ export function ImageEditor({
                 )}
               </div>
             </div>
+            {/* mobile-only FAB: opens the layers bottom sheet (hidden ≥721px via CSS) */}
+            <button
+              type="button"
+              className={`lp-fab${panelOpen ? ' on' : ''}`}
+              aria-label={t('layers')}
+              onClick={() => setPanelOpen((v) => !v)}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M12 3l9 5-9 5-9-5 9-5zM4.5 12.5L12 16.7l7.5-4.2M4.5 16.5L12 20.7l7.5-4.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
             <span className="zoom-float">
               {w}×{h}px
               <span className="zf-sep">·</span>
@@ -1477,7 +1490,10 @@ export function ImageEditor({
             </span>
           </div>
 
-          <aside className="layers-panel">
+          {/* tap-to-dismiss scrim behind the mobile layers sheet */}
+          {panelOpen && <div className="lp-scrim" onClick={() => setPanelOpen(false)} />}
+
+          <aside className={`layers-panel${panelOpen ? ' open' : ''}`}>
             {/* inline colour picker — always available, synced with the swatches */}
             <div className="lp-colour">
               <span className="mx-label">{t('colorLabel')}</span>
