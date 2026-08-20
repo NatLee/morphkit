@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { Overlay } from './Overlay';
@@ -47,6 +47,11 @@ export const newLayer = (name: string): Layer => ({
 });
 
 const maskBmpCache = new Map<string, ImageBitmap>();
+
+/** Desktop layers-panel width bounds (px) for the .ie-gutter splitter. */
+const PANEL_MIN = 200;
+const PANEL_MAX = 520;
+const PANEL_DEF = 262;
 
 /** Always-visible palette — no picker click needed for common colours. */
 const SWATCHES = [
@@ -176,6 +181,39 @@ export function ImageEditor({
   const [resizeOpen, setResizeOpen] = useState(false);
   // mobile bottom-sheet state for the layers panel (desktop ignores it — CSS)
   const [panelOpen, setPanelOpen] = useState(false);
+  // desktop layers-panel width, draggable via the .ie-gutter splitter (persisted)
+  const [panelW, setPanelW] = useState(() => {
+    const v = Number(localStorage.getItem('morphkit-iepw'));
+    return Number.isFinite(v) && v >= PANEL_MIN && v <= PANEL_MAX ? v : PANEL_DEF;
+  });
+  const gutterDragRef = useRef<{ x0: number; w0: number; last: number } | null>(null);
+
+  const onGutterDown = (e: PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    gutterDragRef.current = { x0: e.clientX, w0: panelW, last: panelW };
+  };
+
+  const onGutterMove = (e: PointerEvent) => {
+    const d = gutterDragRef.current;
+    if (!d) return;
+    // panel sits on the right: dragging left grows it
+    const w = Math.max(PANEL_MIN, Math.min(PANEL_MAX, d.w0 + (d.x0 - e.clientX)));
+    d.last = w;
+    setPanelW(w);
+  };
+
+  const onGutterUp = () => {
+    const d = gutterDragRef.current;
+    if (!d) return;
+    gutterDragRef.current = null;
+    try { localStorage.setItem('morphkit-iepw', String(d.last)); } catch { /* private mode */ }
+  };
+
+  const resetGutter = () => {
+    setPanelW(PANEL_DEF);
+    try { localStorage.setItem('morphkit-iepw', String(PANEL_DEF)); } catch { /* private mode */ }
+  };
   const [rzMode, setRzMode] = useState<'pct' | 'abs'>('pct');
   const [rzPct, setRzPct] = useState(50);
   const [rzW, setRzW] = useState(0);
@@ -1433,7 +1471,7 @@ export function ImageEditor({
           </div>
         </div>
 
-        <div className="ie-layout">
+        <div className="ie-layout" style={{ '--ie-panel-w': `${panelW}px` } as CSSProperties}>
           <div className="ie-vpwrap">
             <div className="ie-viewport" ref={viewportRef}>
               <div className="ie-inner" style={{ width: w * zoom || undefined }}>
@@ -1489,6 +1527,19 @@ export function ImageEditor({
               {Math.round(zoom * 100)}%
             </span>
           </div>
+
+          {/* draggable splitter: resize the layers panel (desktop only; dblclick resets) */}
+          <div
+            className="ie-gutter"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t('layers')}
+            onPointerDown={onGutterDown}
+            onPointerMove={onGutterMove}
+            onPointerUp={onGutterUp}
+            onPointerCancel={onGutterUp}
+            onDoubleClick={resetGutter}
+          />
 
           {/* tap-to-dismiss scrim behind the mobile layers sheet */}
           {panelOpen && <div className="lp-scrim" onClick={() => setPanelOpen(false)} />}

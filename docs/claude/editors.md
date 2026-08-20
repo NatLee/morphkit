@@ -22,7 +22,9 @@ fill`) · color · size (1–40) · fontSize · fontFam (FONT_MAP) · bold · ou
 distance) · brushType (pen|marker|highlight) · zoom (0.05–6) · baseVer/pixVer/selVer/histVer · cropSel
 {a,b} · selDraft · lassoPts · textEdit {pos,value} · ready · copied · panning · cursor · renaming ·
 bgColor/bgOn · resizeOpen · rzMode pct|abs · rzPct · rzW/rzH · **panelOpen (mobile layers
-bottom-sheet; ≤720px only — desktop CSS ignores it)**.
+bottom-sheet; ≤720px only — desktop CSS ignores it)** · **panelW (desktop layers-panel width,
+PANEL_MIN 200–PANEL_MAX 520, default 262; dragged via .ie-gutter, dblclick resets, persisted
+to localStorage `morphkit-iepw`, applied as `--ie-panel-w` inline on .ie-layout)**.
 **Refs**: canvasRef (.ie-canvas2) · viewportRef · baseRef · histRef/redoRef · scratchRef (mask/blend
 compositing) · previewRef (live shape preview) · pixRef · dragRef (gesture tagged union) · layersRef ·
 maskRef/tintRef/maskBBoxRef · antsRef (marching-ants phase) · firstBaseRef.
@@ -47,6 +49,7 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
   .ie-layout (grid 1fr|262px; 220px ≤900; 1fr ≤720)
     .ie-vpwrap > .ie-viewport(ref, scroll) > .ie-inner{width:w*zoom} > canvas.ie-canvas2 + input.ie-textinput
               + button.lp-fab (mobile-only layers toggle, .on when open) + span.zoom-float (readout)
+    div.ie-gutter (desktop col-resize splitter: pointer-captured drag → panelW; hidden ≤720)
     [panelOpen && div.lp-scrim (tap closes sheet)]
     aside.layers-panel[.open ⇒ mobile sheet slides up]
       .lp-colour > .mx-label + <ColorPicker> (.cp > .cp-sv/.cp-hue/.cp-foot>.cp-preview+.cp-hex)

@@ -1914,18 +1914,51 @@ kbd {
 
 .ie-layout {
   display: grid;
-  /* roomier panel: labels + controls sit on one line without wrapping */
-  grid-template-columns: minmax(0, 1fr) 262px;
-  gap: 12px;
+  /* canvas | drag gutter | resizable panel (--ie-panel-w set inline from
+     ImageEditor's panelW state; min() keeps it sane on narrow windows) */
+  grid-template-columns: minmax(0, 1fr) 8px min(var(--ie-panel-w, 262px), 42vw);
+  gap: 6px;
   align-items: start;
 }
 
-@media (max-width: 900px) {
-  .ie-layout { grid-template-columns: minmax(0, 1fr) 220px; }
+@media (max-width: 720px) {
+  .ie-layout { grid-template-columns: 1fr; gap: 12px; }
+}
+
+/* splitter between canvas and layers panel — drag to resize, dblclick resets */
+.ie-gutter {
+  align-self: stretch;
+  cursor: col-resize;
+  touch-action: none;
+  position: relative;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.ie-gutter::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 38px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ie-gutter:hover { background: var(--panel); }
+
+.ie-gutter:hover::before,
+.ie-gutter:active::before {
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 @media (max-width: 720px) {
-  .ie-layout { grid-template-columns: 1fr; }
+  /* panel is a bottom sheet on mobile — no splitter */
+  .ie-gutter { display: none; }
 }
 
 .ie-vpwrap {
@@ -2026,6 +2059,7 @@ kbd {
 }
 
 .layers-panel {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-raised);

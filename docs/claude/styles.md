@@ -49,7 +49,9 @@
     fixed-height scroller — canvas must never move**) .opt-tool .opt-spacer · kbd/.kbd-hints/.dz-kbd ·
     .tool-btn(34px; 40 touch) .tb-sep .tb-color .swatches .swatch · .lp-colour .cp .cp-sv .cp-hue
     .cp-foot .cp-preview .cp-hex (ColorPicker) · .tb-slider · .ie-stage/.ie-canvas/.ie-overlay (legacy) ·
-    .ie-textinput · `image editor v2`: .ie-layout(1fr|262px; 220 ≤900; 1fr ≤720) .ie-vpwrap .zoom-float
+    .ie-textinput · `image editor v2`: .ie-layout(1fr | 8px .ie-gutter | min(--ie-panel-w,42vw)
+    resizable 3-col; 1fr ≤720) .ie-gutter(col-resize splitter, touch-action:none, hidden ≤720)
+    .ie-vpwrap .zoom-float
     .ie-viewport(max-h 54vh) .ie-inner .ie-canvas2(**touch-action:none**, checkerboard bg) .zoom-ctrl
     .zoom-val · .layers-panel(max-h 54vh) .layer-* .lp-head .lp-props .lp-row .lp-blend .lp-mask-btns
     .lp-layer .lp-layer-head .lp-title .lp-thumb .lp-actions(**hover-revealed; forced visible on touch**)
