@@ -6,7 +6,9 @@
 ## lib/ffmpegClient.ts (319)
 
 Exports: `isEngineReady()` · `convertMedia(file, target, settings, edit, onProgress, onDownload?)` ·
-`muxVideo(video, audioWav|null, trimStart, trimEnd, settings, onProgress, onDownload?)` · `type DownloadProgress`.
+`muxVideo(video, audioWav|null, trimStart, trimEnd, settings, onProgress, onDownload?)` ·
+`extractAudio(video, trimStart, trimEnd, onDownload?)` (trim-aligned 44.1k stereo WAV; throws when
+the video has no audio stream — header-only output is treated as failure) · `type DownloadProgress`.
 
 Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-thread**, CDN-pinned) ·
 `getCoreBlobs` (memoized, resets to null on failure for retry) · `pool`/`acquireEngine`/`releaseEngine`

@@ -333,6 +333,31 @@ export function Studio() {
     await addToMix(rec, atSec);
   };
 
+  /** Extracted video audio → WAV asset on its own mixer track at timeline 0. */
+  const onAudioExtracted = async (wav: Blob, srcName: string) => {
+    if (!curId) return;
+    const rec: AssetRec = {
+      id: uid(), projectId: curId,
+      name: `${srcName.replace(/\.[^.]+$/, '')}_audio.wav`,
+      kind: 'audio', blob: wav, addedAt: Date.now(),
+    };
+    await putAsset(rec);
+    setAssets((prev) => [...prev, rec]);
+    const buf = await decodeAssetBuffer(rec.id, rec.blob);
+    const trId = uid();
+    patchVideoDoc((d) => ({
+      ...d,
+      mixer: {
+        tracks: [...d.mixer.tracks, {
+          id: trId, name: t('srcAudioTrack'), gain: 1, muted: false, solo: false,
+          clips: [{ id: uid(), assetId: rec.id, start: 0, offset: 0, duration: buf.duration, gain: 1 }],
+        }],
+      },
+    }));
+    setActiveTrackId(trId);
+    setBufVer((v) => v + 1);
+  };
+
   /** Spin an asset off into its own typed project. */
   const newFromAsset = async (a: AssetRec) => {
     const type = projectTypeFor(a);
@@ -1041,6 +1066,7 @@ export function Studio() {
                 doc={cur.videoDoc ?? emptyVideoDoc()}
                 onDoc={patchVideoDoc}
                 onRecorded={onRecorded}
+                onAudioExtracted={onAudioExtracted}
                 bufVer={bufVer}
                 names={names}
                 activeTrackId={activeTrackId}

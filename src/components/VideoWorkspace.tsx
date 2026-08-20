@@ -4,7 +4,7 @@ import { Mixer } from './Mixer';
 import { DualRange } from './DualRange';
 import { InfoTip } from './InfoTip';
 import { mixDuration, renderMixWav } from '../lib/audioEngine';
-import { muxVideo } from '../lib/ffmpegClient';
+import { extractAudio, muxVideo } from '../lib/ffmpegClient';
 import { loadSettings } from '../lib/settings';
 import type { AssetRec, VideoDoc } from '../lib/studioTypes';
 
@@ -18,6 +18,8 @@ interface Props {
   doc: VideoDoc;
   onDoc: (fn: (d: VideoDoc) => VideoDoc) => void;
   onRecorded: (blob: Blob, atSec: number) => void;
+  /** trimmed video audio extracted as WAV — Studio turns it into an asset + track */
+  onAudioExtracted: (wav: Blob, srcName: string) => Promise<void>;
   bufVer: number;
   names: Record<string, string>;
   activeTrackId: string | null;
@@ -32,13 +34,14 @@ function fmtT(sec: number): string {
 }
 
 export function VideoWorkspace({
-  videoAsset, candidates, doc, onDoc, onRecorded, bufVer, names, activeTrackId, onActiveTrack, projectName,
+  videoAsset, candidates, doc, onDoc, onRecorded, onAudioExtracted, bufVer, names, activeTrackId, onActiveTrack, projectName,
 }: Props) {
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
   const [busy, setBusy] = useState(false);
   const [prog, setProg] = useState(0);
+  const [note, setNote] = useState('');
 
   const url = useMemo(
     () => (videoAsset ? URL.createObjectURL(videoAsset.blob) : ''),
@@ -89,6 +92,26 @@ export function VideoWorkspace({
     }
   };
 
+  /** Separate the video's own audio into an editable mixer track. */
+  const extract = async () => {
+    if (!videoAsset || busy) return;
+    setBusy(true);
+    setNote('');
+    try {
+      const wav = await extractAudio(
+        new File([videoAsset.blob], videoAsset.name, { type: videoAsset.blob.type }),
+        doc.trimStart,
+        doc.trimEnd || duration
+      );
+      await onAudioExtracted(wav, videoAsset.name);
+    } catch {
+      setNote(t('extractNoAudio'));
+      window.setTimeout(() => setNote(''), 4000);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // blank-start friendly: the workspace always renders; the preview slot
   // doubles as an inline video picker until one is chosen
   return (
@@ -129,6 +152,13 @@ export function VideoWorkspace({
             onChange={onTrim}
             format={fmtT}
           />
+          <div className="vw-extract">
+            <button className="btn btn-ghost" onClick={() => void extract()} disabled={busy || !videoAsset}>
+              {t('extractAudio')}
+            </button>
+            <InfoTip text={t('tipExtract')} />
+          </div>
+          {note && <p className="vw-note">{note}</p>}
           <button className="btn btn-accent" onClick={() => void exportMp4()} disabled={busy}>
             {busy ? `${t('processing')} ${Math.round(prog * 100)}%` : t('exportMp4')}
           </button>

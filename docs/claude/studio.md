@@ -23,7 +23,8 @@ baseSaveTimer (600ms raster-base debounce).
 (merge curRef → setProjects → debounced putProject) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
 `createProject`/`removeProject`/`renameProject` · `importFiles` · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
-`withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `newFromAsset` · `blankCanvas`
+`withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `onAudioExtracted` (extracted WAV →
+`*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` · `blankCanvas`
 (clamp 8–4096) · `blankGif` (480×360) · `remapMixer` + `exportProjectZip`/`importProjectZip` (id remap) ·
 `importAssetToEditor` (routes by ptype; video→framePick modal; GIF→decodeAnim; GIF→MP4 via convertMedia,
 15MB cap `tooBigGif`) · `dropExternalToEditor` · `onFramesPicked` · `pseudoItem(a)` (**memoized** pseudo-Item
@@ -81,17 +82,19 @@ input.trk-gain) + .lane > .clip[.sel]{left:start*zoom, width:duration*zoom} (can
 have NO touch-action — touch-drag there must keep scrolling the timeline; ruler seek is tap-only.
 `.clip-edge` widened to 14px + visible tint on touch via media queries.
 
-## VideoWorkspace.tsx (154)
+## VideoWorkspace.tsx (~185)
 
-Props: videoAsset|null, candidates, doc: VideoDoc, onDoc(fn) (functional patch), onRecorded, bufVer,
-names, activeTrackId, onActiveTrack, projectName.
-State: duration (loadedmetadata; back-fills trimEnd once) · busy · prog. Memo `url` objectURL (revoked).
-`onTrim(s,e)` scrubs `video.currentTime` to the moved handle (never seek-back — invariant 13).
+Props: videoAsset|null, candidates, doc: VideoDoc, onDoc(fn) (functional patch), onRecorded,
+onAudioExtracted(wav, srcName), bufVer, names, activeTrackId, onActiveTrack, projectName.
+State: duration (loadedmetadata; back-fills trimEnd once) · busy · prog · note (extract failure, 4s).
+Memo `url` objectURL (revoked). `onTrim(s,e)` scrubs `video.currentTime` to the moved handle (never
+seek-back — invariant 13). `extract()` = `extractAudio(file, trimStart, trimEnd||duration)` →
+onAudioExtracted (catch → `extractNoAudio` note); shares `busy` with export.
 `exportMp4()` = optional renderMixWav → `muxVideo(file, wav, trimStart, trimEnd, loadSettings(), setProg)`
 → `{projectName}.mp4` (name sanitised). Audio timeline aligns to TRIMMED video start (invariant 16).
 DOM: `.vw > .vw-top (minmax(0,1fr)|250px; 1fr ≤760) > .vw-preview(video[controls playsInline] | .vw-pick
-picker) + .vw-side (sp-label+InfoTip, sp-val, DualRange, export btn, .fc-progress)` + `<Mixer>`.
-`.vw-preview` 34vh (26vh ≤640).
+picker) + .vw-side (sp-label+InfoTip, sp-val, DualRange, .vw-extract(btn+InfoTip), .vw-note?, export btn,
+.fc-progress)` + `<Mixer>`. `.vw-preview` 34vh (26vh ≤640).
 
 ## MediaEditor.tsx (276) — converter-queue A/V edit modal
 

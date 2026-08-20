@@ -273,6 +273,39 @@ export async function muxVideo(
   }
 }
 
+/**
+ * Video-project helper: pull the audio track out of a video as 44.1 kHz stereo
+ * WAV, honouring the project trim so the result aligns with mixer timeline 0
+ * (= trimmed video start, invariant 16). Throws if there is no audio stream.
+ */
+export async function extractAudio(
+  video: File,
+  trimStart: number,
+  trimEnd: number,
+  onDownload?: DownloadProgress
+): Promise<Blob> {
+  const ff = await acquireEngine(onDownload);
+  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const inName = `v_${stamp}.${extOf(video.name) || 'mp4'}`;
+  const outName = `a_${stamp}.wav`;
+  const trim: string[] = [];
+  if (trimStart > 0.01) trim.push('-ss', trimStart.toFixed(3));
+  if (trimEnd > trimStart + 0.01) trim.push('-t', (trimEnd - trimStart).toFixed(3));
+  try {
+    await ff.writeFile(inName, await fetchFile(video));
+    const code = await ff.exec([...trim, '-i', inName, '-vn', '-ac', '2', '-ar', '44100', outName]);
+    if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
+    const data = await ff.readFile(outName);
+    // a header-only WAV means ffmpeg found no decodable audio
+    if (typeof data === 'string' || data.length < 128) throw new Error('no audio stream');
+    return new Blob([data.slice()], { type: 'audio/wav' });
+  } finally {
+    try { await ff.deleteFile(inName); } catch { /* ignore */ }
+    try { await ff.deleteFile(outName); } catch { /* ignore */ }
+    releaseEngine(ff);
+  }
+}
+
 /** Convert audio/video in the browser. Job progress callback receives 0..1. */
 export async function convertMedia(
   file: File,
