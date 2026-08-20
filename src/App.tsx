@@ -16,6 +16,8 @@ import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
+import { createProjectWithAsset } from './lib/idb';
+import type { ProjectType } from './lib/studioTypes';
 import type { Item, MediaEdit } from './types';
 
 let uid = 0;
@@ -46,6 +48,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [mode, setMode] = useState<'convert' | 'studio'>('convert');
+  // set by "open as project" so Studio skips its launcher and opens the new project
+  const [studioEnterId, setStudioEnterId] = useState<string | null>(null);
 
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -264,6 +268,17 @@ export default function App() {
       it.file.type === 'image/apng'
     );
 
+  /** Send a queued file into Studio as a fresh typed project and jump there. */
+  const openAsProject = async (id: string) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (!it) return;
+    const type: ProjectType = isGifItem(it) ? 'gif' : (it.kind as ProjectType);
+    const p = await createProjectWithAsset(it.file.name, it.kind, it.file, type);
+    try { localStorage.setItem('morphkit-project', p.id); } catch { /* ignore */ }
+    setStudioEnterId(p.id);
+    setMode('studio');
+  };
+
   const saveMediaEdit = (id: string, edit: MediaEdit | undefined) => {
     const it = itemsRef.current.find((i) => i.id === id);
     if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
@@ -336,7 +351,10 @@ export default function App() {
         <div className="topbar-actions">
           <button
             className={`studio-toggle${mode === 'studio' ? ' active' : ''}`}
-            onClick={() => setMode((m) => (m === 'studio' ? 'convert' : 'studio'))}
+            onClick={() => {
+              setMode((m) => (m === 'studio' ? 'convert' : 'studio'));
+              setStudioEnterId(null); // manual toggle always lands on the launcher
+            }}
           >
             <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {mode === 'studio' ? t('backLabel') : 'Studio'}
@@ -372,14 +390,14 @@ export default function App() {
 
       {mode === 'studio' ? (
         <main>
-          <Studio />
+          <Studio enterProjectId={studioEnterId} />
         </main>
       ) : (
       <main>
         <Hero />
 
         <section className="workbench">
-          <DropZone onFiles={addFiles} />
+          <DropZone onFiles={addFiles} compact={items.length > 0} />
 
           {engine === 'loading' && (
             <div className="banner info engine-banner">
@@ -445,6 +463,7 @@ export default function App() {
                     onConvert={schedule}
                     onRemove={remove}
                     onEdit={setEditingId}
+                    onToProject={(id) => void openAsProject(id)}
                   />
                 ))}
               </div>

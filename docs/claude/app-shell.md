@@ -9,7 +9,8 @@
 
 **State**: `items: Item[]` · `engine: 'idle'|'loading'|'ready'|'error'` · `engineDl {received,total}` ·
 `skipped` (rejected names, 6s auto-clear) · `settings` (persisted via saveSettings) · `showSettings` ·
-`editingId` · `mode: 'convert'|'studio'`. Refs: `itemsRef`, `settingsRef` (stale-closure mirrors),
+`editingId` · `mode: 'convert'|'studio'` · `studioEnterId` (Studio skips launcher; cleared on manual
+toggle). Refs: `itemsRef`, `settingsRef` (stale-closure mirrors),
 `runningRef` + `waitersRef` (counting semaphore, cap = `settings.concurrency`). Module `let uid = 0`.
 Local `useTheme()` hook flips `document.documentElement.dataset.theme` + `localStorage['morphkit-theme']`.
 
@@ -18,6 +19,8 @@ Local `useTheme()` hook flips `document.documentElement.dataset.theme` + `localS
 apng|gif→convertAnimImage / else convertMedia) · `schedule(id)` (images run immediately; a/v queue through
 semaphore) · `convertAll` · `revokePreview(it)` · `remove`/`clearAll` (must revoke `outUrl` + `meta.preview`) ·
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
+`openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
+`<Studio enterProjectId>` jumps into the workspace) ·
 `saveMediaEdit`/`saveEditedImage`/`saveEditedGif` (gif save marks item done immediately).
 Effects: window `paste` (skipped while editor/drawer open), `keydown` Escape closes drawer.
 
@@ -29,7 +32,7 @@ div.app (+ .studio-mode)
     div.topbar-actions > button.studio-toggle + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(sun/moon)
   main → <Studio/>  |  <Hero/> + section.workbench + <FormatMatrix/>
     section.workbench
-      <DropZone onFiles=addFiles/>
+      <DropZone onFiles=addFiles compact={items.length>0}/>
       div.banner.info.engine-banner (loading: .spinner + .engine-dl > .fc-progress > .fc-bar + .fc-pct)
       div.banner.danger|warn|note (engine error / skipped / hasVideo)
       div.batch-bar > div.bb-info (.bb-count, .bb-progress-wrap > .bb-progress > .bb-bar, .bb-done)
@@ -46,14 +49,14 @@ warnVideo filesSummary{n,size} progressSummary{done,total} convertAll downloadAl
 ## FileCard.tsx (268)
 
 State: `showDetails`, `copied` (1.5s). `copyResult()` fetches outUrl → canvas → ClipboardItem PNG.
-Props: `{item, onTarget, onQuality, onConvert, onRemove, onEdit}`.
+Props: `{item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject}`.
 
 ```
 article.file-card.kind-*.status-*
   div.fc-main (flex, wraps)
     div.fc-thumb>img | div.fc-icon>svg
     div.fc-meta (min-width:180px) > p.fc-name + p.fc-info (.fc-kind .fc-size×n .fc-edited)
-    div.fc-controls > btn fc-edit · btn fc-detail-btn · label.fc-target>select · a|button.btn-accent (download/convert) · btn copy · btn.fc-remove
+    div.fc-controls > btn fc-edit · btn.fc-to-studio (openAsProject) · btn fc-detail-btn · label.fc-target>select · a|button.btn-accent (download/convert) · btn copy · btn.fc-remove
   dl.fc-details (grid; 1 col ≤640) > div.fc-detail-row > dt/dd  (+GPS → Google Maps link)
   div.fc-quality (image jpeg|webp) > input[range .4–1]
   div.fc-progress-row (converting media) > .fc-progress>.fc-bar + .fc-pct
@@ -93,8 +96,10 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 - **Hero.tsx (30)**: static — `.hero > p.hero-tagline + h1.hero-title(>span.hero-accent) + div.feat-row>span.feat×3`.
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
-- **DropZone.tsx (50)**: `div.dropzone(+.over)[role=button]` wrapping hidden `input[type=file multiple accept=image/*,audio/*,video/*]`;
-  drag handlers + click + Enter/Space; input value reset after pick so same file re-picks.
+- **DropZone.tsx (80)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden
+  `input[type=file multiple accept=image/*,audio/*,video/*]`; drag handlers + click + Enter/Space;
+  input value reset after pick so same file re-picks. Prop `compact` (App: items exist) swaps the
+  hero layout for a slim row (plus glyph + `dropMore` + kbd hint, `.dz-compact` CSS).
   `.dz-kbd` (Ctrl+V hint) is hidden on touch via `@media (hover:none)`.
 - **Overlay.tsx (14)**: `createPortal(div.editor-overlay, document.body)` — invariant 17 lives here.
   Children must stopPropagation. Page scroll behind overlays is locked via `body:has(.editor-overlay)` CSS.

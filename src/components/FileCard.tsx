@@ -24,6 +24,8 @@ interface Props {
   onConvert: (id: string) => void;
   onRemove: (id: string) => void;
   onEdit: (id: string) => void;
+  /** send this file to Studio as a new typed project */
+  onToProject: (id: string) => void;
 }
 
 const EDIT_ICONS = {
@@ -32,7 +34,7 @@ const EDIT_ICONS = {
   gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
 };
 
-export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit }: Props) {
+export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject }: Props) {
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -147,6 +149,15 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
           >
             <svg viewBox="0 0 24 24" width="14" height="14"><path d={editIcon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {t('edit')}
+          </button>
+          <button
+            className="btn btn-ghost btn-sm fc-to-studio"
+            disabled={busy}
+            onClick={() => onToProject(item.id)}
+            title={t('tipOpenAsProject')}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M8 8h12v12H8zM4 16V4h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
+            {t('openAsProject')}
           </button>
           {hasDetails && (
             <button

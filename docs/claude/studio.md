@@ -9,6 +9,8 @@
 
 Two mutually exclusive trees in one component: **launcher** (early return when `!entered`, ~line 688)
 and **workspace** (~line 821). Only component touching IndexedDB.
+Prop `enterProjectId?` (from App's "open as project"): init effect jumps straight into that
+workspace, skipping the launcher; App clears it on manual studio-toggle.
 
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
@@ -25,7 +27,8 @@ baseSaveTimer (600ms raster-base debounce).
 `createProject`/`removeProject`/`renameProject` · `importFiles` · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
 `withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `onAudioExtracted` (extracted WAV →
-`*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` · `blankCanvas`
+`*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` (delegates to
+idb `createProjectWithAsset`, then enters) · `blankCanvas`
 (clamp 8–4096) · `blankGif` (480×360) · `remapMixer` + `exportProjectZip`/`importProjectZip` (id remap) ·
 `importAssetToEditor` (routes by ptype; video→framePick modal; GIF→decodeAnim; GIF→MP4 via convertMedia,
 15MB cap `tooBigGif`) · `dropExternalToEditor` · `onFramesPicked` · `pseudoItem(a)` (**memoized** pseudo-Item

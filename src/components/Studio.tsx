@@ -18,6 +18,7 @@ import { decodeAnim } from '../lib/animImage';
 import { convertMedia } from '../lib/ffmpegClient';
 import { loadSettings } from '../lib/settings';
 import {
+  createProjectWithAsset,
   deleteAsset as idbDeleteAsset,
   deleteProject as idbDeleteProject,
   listAssets,
@@ -105,7 +106,8 @@ const isGifAsset = (a: AssetRec) =>
 const projectTypeFor = (a: AssetRec): ProjectType =>
   isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : 'audio';
 
-export function Studio() {
+/** `enterProjectId`: skip the launcher and open this project directly (one-shot, read at mount). */
+export function Studio({ enterProjectId = null }: { enterProjectId?: string | null }) {
   const { t } = useI18n();
   const [projects, setProjects] = useState<ProjectRec[]>([]);
   const [curId, setCurId] = useState<string | null>(null);
@@ -160,6 +162,12 @@ export function Studio() {
       const list = (await listProjects()).map((p) => ({ ...p, type: p.type ?? ('audio' as ProjectType) }));
       persistedRef.current = new Set(list.map((p) => p.id));
       setProjects(list.sort((a, b) => b.updatedAt - a.updatedAt));
+      if (enterProjectId && list.some((p) => p.id === enterProjectId)) {
+        // converter hand-off ("open as project"): jump straight into the workspace
+        setCurId(enterProjectId);
+        setEntered(true);
+        return;
+      }
       const saved = localStorage.getItem('morphkit-project');
       if (list.some((p) => p.id === saved)) setCurId(saved);
       else if (list.length) setCurId(list[0].id);
@@ -363,21 +371,9 @@ export function Studio() {
 
   /** Spin an asset off into its own typed project. */
   const newFromAsset = async (a: AssetRec) => {
-    const type = projectTypeFor(a);
-    const pid = uid();
-    const nid = uid();
-    await putAsset({ id: nid, projectId: pid, name: a.name, kind: a.kind, blob: a.blob, addedAt: Date.now() });
-    const p: ProjectRec = {
-      id: pid,
-      name: a.name.replace(/\.[^.]+$/, '').slice(0, 20) || 'Project',
-      type, createdAt: Date.now(), updatedAt: Date.now(), mixer: emptyMixer(),
-      ...(type === 'image' ? { imageDoc: { baseAssetId: nid, objects: [] } } : {}),
-      ...(type === 'gif' ? { gifAssetId: nid } : {}),
-      ...(type === 'video' ? { videoDoc: { ...emptyVideoDoc(), videoAssetId: nid } } : {}),
-    };
-    await putProject(p);
+    const p = await createProjectWithAsset(a.name, a.kind, a.blob, projectTypeFor(a));
     setProjects((prev) => [p, ...prev]);
-    setCurId(pid);
+    setCurId(p.id);
     setEntered(true);
   };
 

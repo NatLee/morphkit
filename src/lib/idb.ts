@@ -1,4 +1,7 @@
-import type { AssetRec, ProjectRec } from './studioTypes';
+import {
+  emptyMixer, emptyVideoDoc, uid,
+  type AssetRec, type ProjectRec, type ProjectType,
+} from './studioTypes';
 
 /** Tiny IndexedDB wrapper — projects + assets persist across sessions. */
 
@@ -59,4 +62,30 @@ export async function listAssets(projectId: string): Promise<AssetRec[]> {
 
 export async function deleteAsset(id: string): Promise<void> {
   await req((await store('assets', 'readwrite')).delete(id));
+}
+
+/**
+ * One-shot: persist a blob as a new typed project + its primary asset.
+ * Wires the asset in as base image / GIF / video according to `type`.
+ * Shared by Studio's newFromAsset and the converter's "open as project".
+ */
+export async function createProjectWithAsset(
+  name: string,
+  kind: string,
+  blob: Blob,
+  type: ProjectType
+): Promise<ProjectRec> {
+  const pid = uid();
+  const aid = uid();
+  await putAsset({ id: aid, projectId: pid, name, kind, blob, addedAt: Date.now() });
+  const p: ProjectRec = {
+    id: pid,
+    name: name.replace(/\.[^.]+$/, '').slice(0, 20) || 'Project',
+    type, createdAt: Date.now(), updatedAt: Date.now(), mixer: emptyMixer(),
+    ...(type === 'image' ? { imageDoc: { baseAssetId: aid, objects: [] } } : {}),
+    ...(type === 'gif' ? { gifAssetId: aid } : {}),
+    ...(type === 'video' ? { videoDoc: { ...emptyVideoDoc(), videoAssetId: aid } } : {}),
+  };
+  await putProject(p);
+  return p;
 }

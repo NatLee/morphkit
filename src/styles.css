@@ -653,6 +653,28 @@ select optgroup {
   margin: 0 0 3px;
 }
 
+/* compact add-more strip — swaps in once the file list exists below */
+.dropzone.dz-compact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 18px;
+  text-align: left;
+}
+
+.dz-compact .dz-glyph {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.dz-compact .dz-glyph svg { width: 15px; height: 15px; }
+
+.dz-compact .dz-title { font-size: 15px; margin: 0; }
+
+.dz-compact .dz-kbd { margin: 0 0 0 auto; }
+
 .dz-hint {
   font-family: var(--font-mono);
   color: var(--ink-faint);

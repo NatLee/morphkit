@@ -80,12 +80,15 @@ Fields (defaults): concurrency 2 · imageMaxDim 0 · audioBitrate '192k' · audi
 audioQuality 2 · audioSampleRate 0 · audioChannels 0 · videoCrf 23 · videoPreset 'veryfast' ·
 videoMaxH 0 · videoFps 0 · videoMute false · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true.
 
-## lib/idb.ts (62)
+## lib/idb.ts (95)
 
 DB `'morphkit-studio'` v1: store `projects` (keyPath id) + `assets` (keyPath id, index `projectId`).
-Exports: putProject/listProjects/deleteProject/putAsset/listAssets/deleteAsset. Each helper opens a
-fresh one-shot transaction → `deleteProject` is NOT atomic (sequential asset deletes). Version bump
-requires guarding the unconditional createObjectStore calls in onupgradeneeded.
+Exports: putProject/listProjects/deleteProject/putAsset/listAssets/deleteAsset ·
+`createProjectWithAsset(name, kind, blob, type)` → ProjectRec (persists asset + typed project,
+wiring baseAssetId/gifAssetId/videoAssetId per type; shared by Studio.newFromAsset and App's
+"open as project"). Each helper opens a fresh one-shot transaction → `deleteProject` is NOT atomic
+(sequential asset deletes). Version bump requires guarding the unconditional createObjectStore
+calls in onupgradeneeded.
 
 ## lib/wav.ts (35)
 
