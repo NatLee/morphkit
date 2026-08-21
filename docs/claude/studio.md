@@ -15,14 +15,20 @@ workspace, skipping the launcher; App clears it on manual studio-toggle.
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
 entered · pickType · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
-sortBy (`'mk-sort'`) · metaPj · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
+sortBy (`'mk-sort'`) · metaPj · metaFacts {id, name, meta: FileMeta} (info-modal probe, keyed by project
+id so a slow probe can't paint another project's rows) · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
 framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
 `assetsSplit` = useSplitter('morphkit-stw', 252, 180–460) → `--st-assets-w` on .st-body + .split-gutter.
 **Refs**: importRef, pjImportRef, saveTimer (500ms putProject debounce), `curRef` (fresh project across
 rapid patches — invariant 14), persistedRef (untouched new projects dropped on exit), thumbUrlsRef,
 baseSaveTimer (600ms raster-base debounce).
 
-**Functions**: `flattenImageProject` (≤320px launcher thumb) · `savePatch(patch)` — THE mutation funnel
+**Functions**: `primaryAsset(p, list)` (module: wired-in base/gif/video asset, else first image/video —
+shared by the thumb effect and the info modal) · `openMeta(p)` (probes the primary asset via
+`extractMeta`, drops the blob preview per invariant 2) · `metaRows` (useMemo: **per-type** info rows —
+audio/video get tracks+clips+timeline, video adds dims/duration/trim, image adds canvas/layers/bg,
+gif adds dims; never show track counts on an image project) ·
+`flattenImageProject` (≤320px launcher thumb) · `savePatch(patch)` — THE mutation funnel
 (merge curRef → setProjects → debounced putProject) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
 `createProject`/`removeProject`/`renameProject` · `importFiles` · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
@@ -37,7 +43,7 @@ for inline editors — invariant 15) · `persistBase`. Window `paste` listener w
 **Launcher DOM**: `.studio.st-launcher > .st-bar (h2.launcher-title, InfoTip, .opt-spacer, select.tb-select,
 .st-tabs grid|list, import btn)` + `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body
 (.type-badge.tb-{type}, .pj-name, .pj-meta)) + .pj-actions (info/export/delete)` + `.pj-card.pj-new` ·
-Overlay→`.editor.type-modal > .pj-grid > .pj-card.pj-type×4` · Overlay→`.editor.mini-modal` (metadata dl).
+Overlay→`.editor.type-modal > .pj-grid > .pj-card.pj-type×4` · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
 **Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete)` +
 `.st-body (resizable assets | .split-gutter | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon

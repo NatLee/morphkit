@@ -12,7 +12,8 @@ import { InfoTip } from './InfoTip';
 import { Overlay } from './Overlay';
 import { createPortal } from 'react-dom';
 import { detectKind, extOf, formatBytes } from '../lib/formats';
-import { decodeAssetBuffer, dropAssetBuffer } from '../lib/audioEngine';
+import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
+import { extractMeta, fmtDuration, type FileMeta } from '../lib/metadata';
 import { useSplitter } from '../lib/useSplitter';
 import { decodeAnim } from '../lib/animImage';
 import { convertMedia } from '../lib/ffmpegClient';
@@ -106,6 +107,17 @@ const isGifAsset = (a: AssetRec) =>
 const projectTypeFor = (a: AssetRec): ProjectType =>
   isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : 'audio';
 
+/** The asset a project is "about": its wired-in primary, else the first visual one. */
+const primaryAsset = (p: ProjectRec, list: AssetRec[]): AssetRec | null => {
+  const id = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? null;
+  return (
+    list.find((a) => a.id === id) ??
+    list.find((a) => a.kind === 'image') ??
+    list.find((a) => a.kind === 'video') ??
+    null
+  );
+};
+
 /** `enterProjectId`: skip the launcher and open this project directly (one-shot, read at mount). */
 export function Studio({ enterProjectId = null }: { enterProjectId?: string | null }) {
   const { t } = useI18n();
@@ -127,6 +139,9 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     () => (localStorage.getItem('mk-sort') as 'updated' | 'name' | 'size') || 'updated'
   );
   const [metaPj, setMetaPj] = useState<ProjectRec | null>(null);
+  // primary-asset facts for the info modal, keyed by project so a slow probe
+  // can never paint onto a different project's rows
+  const [metaFacts, setMetaFacts] = useState<{ id: string; name: string; meta: FileMeta } | null>(null);
   const [blankOpen, setBlankOpen] = useState(false);
   const [imgImport, setImgImport] = useState<Blob | null>(null);
   const [gifImportFrames, setGifImportFrames] = useState<{ img: ImageData; delay: number }[] | null>(null);
@@ -377,6 +392,63 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     setEntered(true);
   };
 
+  /** Open the info modal and probe the primary asset for real facts. */
+  const openMeta = async (p: ProjectRec) => {
+    setMetaPj(p);
+    setMetaFacts(null);
+    const prim = primaryAsset(p, await listAssets(p.id));
+    if (!prim) return;
+    const kind = prim.kind === 'video' ? 'video' : prim.kind === 'audio' ? 'audio' : 'image';
+    const meta = await extractMeta(new File([prim.blob], prim.name, { type: prim.blob.type }), kind);
+    // we only want the numbers — drop the thumbnail URL (invariant 2)
+    if (meta.preview?.startsWith('blob:')) URL.revokeObjectURL(meta.preview);
+    delete meta.preview;
+    setMetaFacts({ id: p.id, name: prim.name, meta });
+  };
+
+  /** Info rows for the open project — per type, so an image never shows track counts. */
+  const metaRows = useMemo<[string, string][]>(() => {
+    const p = metaPj;
+    if (!p) return [];
+    const ty = p.type ?? 'audio';
+    const facts = metaFacts?.id === p.id ? metaFacts : null;
+    const dims = facts?.meta.width && facts.meta.height
+      ? `${facts.meta.width}×${facts.meta.height}`
+      : null;
+    const rows: [string, string][] = [
+      [t('fileType'), t(TYPE_META[ty].labelKey)],
+      [t('createdLabel'), new Date(p.createdAt).toLocaleString()],
+      [t('updatedLabel'), new Date(p.updatedAt).toLocaleString()],
+      [
+        t('assetsLabel'),
+        `${t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · ${formatBytes(pjStats[p.id]?.bytes ?? 0)}`,
+      ],
+    ];
+    if (ty !== 'audio' && facts) rows.push([t('sourceLabel'), facts.name]);
+
+    if (ty === 'audio' || ty === 'video') {
+      const mix = ty === 'video' ? p.videoDoc?.mixer ?? emptyMixer() : p.mixer;
+      const span = mixDuration(mix);
+      rows.push([t('tracksLabel'), String(mix.tracks.length)]);
+      rows.push([t('clipsLabel'), String(mix.tracks.reduce((s, tr) => s + tr.clips.length, 0))]);
+      if (span > 0) rows.push([t('timelineLabel'), fmtDuration(span)]);
+    }
+    if (ty === 'video') {
+      if (dims) rows.push([t('dimensionsLabel'), dims]);
+      if (facts?.meta.duration != null) rows.push([t('duration'), fmtDuration(facts.meta.duration)]);
+      const d = p.videoDoc;
+      if (d && d.trimEnd > 0) rows.push([t('trim'), `${fmtDuration(d.trimStart)} – ${fmtDuration(d.trimEnd)}`]);
+    }
+    if (ty === 'image') {
+      if (dims) rows.push([t('canvasLabel'), dims]);
+      rows.push([t('layers'), String(p.imageDoc?.layers?.length ?? 0)]);
+      rows.push([t('bgLayer'), p.imageDoc?.bg ?? t('transparentBg')]);
+    }
+    if (ty === 'gif' && dims) rows.push([t('dimensionsLabel'), dims]);
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaPj, metaFacts, pjStats, t]);
+
   // ---- launcher stats + thumbnails ----
   useEffect(() => {
     if (entered || !projects.length) return;
@@ -388,12 +460,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       for (const p of projects) {
         const list = await listAssets(p.id);
         stats[p.id] = { n: list.length, bytes: list.reduce((s, a) => s + a.blob.size, 0) };
-        const primId = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? null;
-        const prim =
-          list.find((a) => a.id === primId) ??
-          list.find((a) => a.kind === 'image') ??
-          list.find((a) => a.kind === 'video') ??
-          null;
+        const prim = primaryAsset(p, list);
 
         // image projects: flatten base + layers so the card shows real work,
         // not the untouched source asset
@@ -769,7 +836,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
                 </span>
               </button>
               <div className="pj-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setMetaPj(p)} title={t('projectInfo')}>
+                <button className="btn btn-ghost btn-sm" onClick={() => void openMeta(p)} title={t('projectInfo')}>
                   <svg viewBox="0 0 24 24" width="13" height="13"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 7.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
                 </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
@@ -819,17 +886,18 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           </Overlay>
         )}
 
-        {/* project metadata modal */}
+        {/* project metadata modal — rows differ per project type (see metaRows) */}
         {metaPj && (
           <Overlay onClick={() => setMetaPj(null)}>
             <div className="editor mini-modal" onClick={(e) => e.stopPropagation()}>
               <p className="mx-label">{t('projectInfo')}</p>
               <dl className="fc-details meta-list">
-                <div className="fc-detail-row"><dt>{t('fileType')}</dt><dd>{t(TYPE_META[metaPj.type ?? 'audio'].labelKey)}</dd></div>
-                <div className="fc-detail-row"><dt>{t('createdLabel')}</dt><dd>{new Date(metaPj.createdAt).toLocaleString()}</dd></div>
-                <div className="fc-detail-row"><dt>{t('updatedLabel')}</dt><dd>{new Date(metaPj.updatedAt).toLocaleString()}</dd></div>
-                <div className="fc-detail-row"><dt>{t('assetsLabel')}</dt><dd>{t('filesCount', { n: String(pjStats[metaPj.id]?.n ?? 0) })} · {formatBytes(pjStats[metaPj.id]?.bytes ?? 0)}</dd></div>
-                <div className="fc-detail-row"><dt>{t('tracksLabel')}</dt><dd>{(metaPj.type === 'video' ? metaPj.videoDoc?.mixer.tracks.length : metaPj.mixer.tracks.length) ?? 0}</dd></div>
+                {metaRows.map(([label, value]) => (
+                  <div className="fc-detail-row" key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
               </dl>
               <div className="ed-foot-main">
                 <button className="btn btn-ghost" onClick={() => setMetaPj(null)}>{t('close')}</button>
