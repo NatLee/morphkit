@@ -11,7 +11,7 @@ import type { Item } from '../types';
    sub-objects. Layers stack with opacity / blend mode / mask. */
 
 type Tool =
-  | 'pan' | 'move' | 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
+  | 'pan' | 'move' | 'pen' | 'eraser' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'crop'
   | 'wand' | 'rectsel' | 'lasso' | 'fill';
 type FontFam = 'sans' | 'serif' | 'mono';
 type Brush = 'pen' | 'marker' | 'highlight';
@@ -79,6 +79,7 @@ const TOOL_ICONS: Record<Tool, string> = {
   pan: 'M12 2v20M2 12h20M12 2l-2.5 2.5M12 2l2.5 2.5M12 22l-2.5-2.5M12 22l2.5-2.5M2 12l2.5-2.5M2 12l2.5 2.5M22 12l-2.5-2.5M22 12l-2.5 2.5',
   move: 'M6 3l12 9-6 1 3 6-3 1.5L9 14l-3 4z',
   pen: 'M4 20l1-4L16 5l3 3L8 19l-4 1zM14.5 6.5l3 3',
+  eraser: 'M4 16l8-8 5 5-8 8zM7.5 12.5l5 5M5 22h15',
   line: 'M5 19L19 5',
   rect: 'M5 6h14v12H5z',
   ellipse: 'M12 6c4.4 0 8 2.7 8 6s-3.6 6-8 6-8-2.7-8-6 3.6-6 8-6z',
@@ -136,9 +137,15 @@ export function ImageEditor({
   const previewRef = useRef<HTMLCanvasElement | null>(null); // live shape preview
   /** runtime pixels per layer */
   const pixRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  /** base already baked into a layer by the eraser (see promoteBase) */
+  const basePromotedRef = useRef(false);
+  /** transparent stand-in base at the current dims, kept ready for promoteBase */
+  const blankBaseRef = useRef<{ blob: Blob; bmp: ImageBitmap } | null>(null);
 
   const dragRef = useRef<
-    | { mode: 'paint'; last: Pt }
+    // layerId pins the stroke to a layer created mid-gesture (eraser base promotion),
+    // whose id has not reached React state yet
+    | { mode: 'paint'; last: Pt; layerId?: string }
     | { mode: 'shape'; a: Pt }
     | { mode: 'movepx'; last: Pt }
     | { mode: 'crop'; a: Pt }
@@ -258,6 +265,7 @@ export function ImageEditor({
       const bmp = await createImageBitmap(blob);
       if (cancelled) { bmp.close(); return; }
       baseRef.current = { blob, bmp };
+      basePromotedRef.current = false;
 
       const restored = initialLayers?.length ? initialLayers : [newLayer('Layer 1')];
       pixRef.current.clear();
@@ -303,6 +311,31 @@ export function ImageEditor({
     onBaseChange?.(baseRef.current.blob);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseVer, ready]);
+
+  /* Keep a transparent base of the current size on hand so the eraser can
+     promote the base synchronously mid-gesture (see promoteBase). */
+  useEffect(() => {
+    if (!ready) return;
+    const w = W();
+    const h = H();
+    if (!w || !h) return;
+    const have = blankBaseRef.current;
+    if (have && have.bmp.width === w && have.bmp.height === h) return;
+    let stale = false;
+    void (async () => {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+      if (!blob || stale) return;
+      const bmp = await createImageBitmap(blob);
+      if (stale) { bmp.close(); return; }
+      blankBaseRef.current?.bmp.close();
+      blankBaseRef.current = { blob, bmp };
+    })();
+    return () => { stale = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, baseVer]);
 
   // decode masks
   useEffect(() => {
@@ -494,6 +527,8 @@ export function ImageEditor({
       const bmp = await createImageBitmap(e.baseBlob);
       baseRef.current.bmp.close();
       baseRef.current = { blob: e.baseBlob, bmp };
+      // this may restore a base the eraser had baked away — let it promote again
+      basePromotedRef.current = false;
       setBaseVer((v) => v + 1);
     }
     pixRef.current.clear();
@@ -560,7 +595,7 @@ export function ImageEditor({
   };
 
   // ---- painting ----
-  const strokeStyleFor = (ctx: CanvasRenderingContext2D) => {
+  const strokeStyleFor = (ctx: CanvasRenderingContext2D, erase = false) => {
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = size;
@@ -568,8 +603,57 @@ export function ImageEditor({
     ctx.lineJoin = 'round';
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
+    if (erase) {
+      // punch alpha out of the layer instead of adding paint — brush styles don't apply
+      ctx.globalCompositeOperation = 'destination-out';
+      return;
+    }
     if (brushType === 'marker') { ctx.globalAlpha = 0.7; ctx.lineWidth = size * 1.8; }
     else if (brushType === 'highlight') { ctx.globalAlpha = 0.32; ctx.lineWidth = size * 3; ctx.lineCap = 'butt'; }
+  };
+
+  /** Cheap "are these pixels fully transparent?" probe (downscaled alpha sample). */
+  const looksBlank = (src: CanvasImageSource | null | undefined): boolean => {
+    if (!src) return true;
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 256;
+    const g = c.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(src, 0, 0, 256, 256);
+    const d = g.getImageData(0, 0, 256, 256).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return false;
+    return true;
+  };
+
+  /**
+   * The base image is immutable and composited UNDER every layer, so a
+   * destination-out stroke could never reach it — erasing an untouched photo
+   * would look broken. On the first eraser stroke we promote the base into a
+   * real bottom layer and swap in the pre-built transparent base, after which
+   * erasing behaves like any raster editor. Returns the canvas to stroke into
+   * (the caller is mid-gesture, so it cannot wait for React state).
+   * Synchronous by design: an async base swap could land after an undo.
+   */
+  const promoteBase = (): { id: string; canvas: HTMLCanvasElement } | null => {
+    const base = baseRef.current;
+    const blank = blankBaseRef.current;
+    if (!base || !blank) return null;
+    basePromotedRef.current = true;
+    const c = document.createElement('canvas');
+    c.width = W();
+    c.height = H();
+    c.getContext('2d')!.drawImage(base.bmp, 0, 0);
+    const l = newLayer(t('baseLayerName'));
+    pixRef.current.set(l.id, c);
+    // index 0 = bottom of the stack; src is filled in by commitPixels at gesture end
+    setLayers((prev) => [l, ...prev]);
+    setActiveId(l.id);
+    // history holds the old blob, so the bitmap can go; blobs are never closed
+    base.bmp.close();
+    baseRef.current = blank;
+    blankBaseRef.current = null; // consumed — the effect below builds the next one
+    setBaseVer((v) => v + 1);
+    return { id: l.id, canvas: c };
   };
 
   const drawShape = (ctx: CanvasRenderingContext2D, a: Pt, b: Pt, kind: Tool) => {
@@ -1075,15 +1159,31 @@ export function ImageEditor({
     const ctx = activeCtx();
     if (!ctx) return; // locked layer
     pushHist();
-    if (tool === 'pen') {
-      ctx.save();
-      strokeStyleFor(ctx);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      dragRef.current = { mode: 'paint', last: p };
+    if (tool === 'pen' || tool === 'eraser') {
+      /* Erasing a layer that has nothing on it means the user is aiming at the
+         image below, so promote the base into a layer first (same undo step).
+         A layer WITH pixels erases its own pixels, like any raster editor. */
+      const needsBase =
+        tool === 'eraser' &&
+        !basePromotedRef.current &&
+        looksBlank(pixRef.current.get(activeLayer!.id)) &&
+        !looksBlank(baseRef.current?.bmp);
+      const promoted = needsBase ? promoteBase() : null;
+      const target = promoted ? promoted.canvas.getContext('2d')! : ctx;
+      target.save();
+      strokeStyleFor(target, tool === 'eraser');
+      target.beginPath();
+      target.moveTo(p.x, p.y);
+      dragRef.current = { mode: 'paint', last: p, layerId: promoted?.id };
     } else {
       dragRef.current = { mode: 'shape', a: p };
     }
+  };
+
+  /** Ctx a paint gesture strokes into — a mid-gesture layer wins over state. */
+  const paintCtx = (layerId?: string): CanvasRenderingContext2D | null => {
+    if (!layerId) return activeCtx();
+    return pixRef.current.get(layerId)?.getContext('2d') ?? null;
   };
 
   const onMove = (e: PointerEvent<HTMLCanvasElement>) => {
@@ -1110,7 +1210,7 @@ export function ImageEditor({
     if (d.mode === 'lasso') { setLassoPts((prev) => (prev ? [...prev, p] : [p])); return; }
     if (d.mode === 'crop') { setCropSel({ a: d.a, b: p }); return; }
     if (d.mode === 'paint') {
-      const ctx = activeCtx();
+      const ctx = paintCtx(d.layerId);
       if (!ctx) return;
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
@@ -1161,12 +1261,14 @@ export function ImageEditor({
       return;
     }
     if (d.mode === 'crop') return;
-    if (!activeLayer) return;
     if (d.mode === 'paint') {
-      activeCtx()?.restore();
-      commitPixels(activeLayer.id);
+      const id = d.layerId ?? activeLayer?.id;
+      if (!id) return;
+      paintCtx(d.layerId)?.restore();
+      commitPixels(id);
       return;
     }
+    if (!activeLayer) return;
     if (d.mode === 'shape') {
       const ctx = activeCtx();
       if (ctx) drawShape(ctx, d.a, toPt(e), tool);

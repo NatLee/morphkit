@@ -60,7 +60,7 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `components/DropZone.tsx` | Accepts image/audio/video, multi-file |
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings |
 | `components/MediaEditor.tsx` | A/V trim (DualRange + playhead buttons), volume/speed/rotate → saved as `Item.edit`, applied at ffmpeg time |
-| `components/ImageEditor.tsx` | **Raster layer editor**: layer = canvas surface. Tools: pan/move/pen(3 brushes)/line/rect/ellipse/arrow/text/crop/wand/rectsel/lasso/fill — all paint into the active layer. Layer panel (add/dup/merge-down/delete/reorder/opacity/blend/lock/mask), pixel history, wheel zoom, marching-ants selections, bg layer |
+| `components/ImageEditor.tsx` | **Raster layer editor**: layer = canvas surface. Tools: pan/move/pen(3 brushes)/eraser/line/rect/ellipse/arrow/text/crop/wand/rectsel/lasso/fill — all paint into the active layer. Layer panel (add/dup/merge-down/delete/reorder/opacity/blend/lock/mask), pixel history, wheel zoom, marching-ants selections, bg layer |
 | `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
@@ -99,6 +99,11 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 16. **muxVideo**: audio timeline aligns to the TRIMMED video start; wav is rendered by OfflineAudioContext first, then mapped `-map 0:v -map 1:a -shortest`.
 17. **Modals MUST portal to `<body>`** (`components/Overlay.tsx`, or `createPortal` directly). Any ancestor transform/filter makes itself the containing block for `position:fixed`, which clips the backdrop. Keyframe endings should also be `transform: none` for the same reason.
 18. **Layer model is RASTER**: a `Layer` IS a canvas (`pixRef: Map<id, HTMLCanvasElement>`, persisted as `src` dataURL). Every tool paints into the active layer; there are no sub-objects. Rendering composites each layer through a scratch canvas (mask via `destination-in`, then alpha+blend). Geometry ops (crop/rotate/resize) must run `transformLayers` so every layer canvas follows the base. History snapshots ALL layer pixels (cap 14) — keep it that way or undo desyncs.
+    **Eraser** = `destination-out` stroke into the active layer. Because the base is composited
+    UNDER every layer, erasing a blank active layer first *promotes* the base into a bottom layer
+    (`promoteBase`) and swaps in a pre-built transparent base — this MUST stay synchronous
+    (an async base swap can land after an undo) and only fires when the active layer is empty
+    (a layer with pixels erases its own pixels, like any raster editor).
 19. **Metadata**: tags need `-map_metadata 0`; MP3 additionally needs `-id3v2_version 3` (v2.4 breaks Windows/older players) + `-write_id3v1 1`. Cover art is a single-frame video stream — it requires an explicit `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic` and must NOT be attempted for WAV/OGG (unplayable output) or when trimming (stream desync). `convertMedia` retries once without art if the mapped run fails.
 20. **Audio bitrate mode**: `rateOpts` owns the CBR/VBR split. `-q:a` scales are
     encoder-specific and point opposite ways — libmp3lame 0(best)…9, libvorbis

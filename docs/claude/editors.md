@@ -17,8 +17,8 @@ Record<id,dataURL>, baseBlob}`, cap `HIST_CAP = 14`, in histRef/redoRef — snap
 Zoom is CSS-only (`style.width = w * zoom`) inside scrolling `.ie-viewport`. Version-bump state pattern:
 `baseVer pixVer selVer histVer` (refs are authoritative, bumps force render).
 
-**State**: layers · activeId · tool (`pan move pen line rect ellipse arrow text crop wand rectsel lasso
-fill`) · color · size (1–40) · fontSize · fontFam (FONT_MAP) · bold · outlineOn · wandTol (5–90, ×4.4 RGB
+**State**: layers · activeId · tool (`pan move pen eraser line rect ellipse arrow text crop wand rectsel
+lasso fill`) · color · size (1–40) · fontSize · fontFam (FONT_MAP) · bold · outlineOn · wandTol (5–90, ×4.4 RGB
 distance) · brushType (pen|marker|highlight) · zoom (0.05–6) · baseVer/pixVer/selVer/histVer · cropSel
 {a,b} · selDraft · lassoPts · textEdit {pos,value} · ready · copied · panning · cursor · renaming ·
 bgColor/bgOn · resizeOpen · rzMode pct|abs · rzPct · rzW/rzH · **panelOpen (mobile layers
@@ -26,14 +26,18 @@ bottom-sheet; ≤720px only — desktop CSS ignores it)** · **panelW (desktop l
 `useSplitter('morphkit-iepw', PANEL_DEF, PANEL_MIN 200, PANEL_MAX 520, {invert})` — dragged via
 .ie-gutter, dblclick resets, applied as `--ie-panel-w` inline on .ie-layout)**.
 **Refs**: canvasRef (.ie-canvas2) · viewportRef · baseRef · histRef/redoRef · scratchRef (mask/blend
-compositing) · previewRef (live shape preview) · pixRef · dragRef (gesture tagged union) · layersRef ·
-maskRef/tintRef/maskBBoxRef · antsRef (marching-ants phase) · firstBaseRef.
+compositing) · previewRef (live shape preview) · pixRef · dragRef (gesture tagged union; paint mode
+carries an optional `layerId` pinning the stroke to a layer created mid-gesture) · layersRef ·
+maskRef/tintRef/maskBBoxRef · antsRef (marching-ants phase) · firstBaseRef · basePromotedRef ·
+blankBaseRef (transparent same-size base kept ready by an effect on [ready, baseVer]).
 
 **Functions**: pixels/layers `W H layerCanvas activeCtx commitPixels patchLayer applyBg` · render
 `paintLayers render composite preview clearPreview` (paintLayers: per-layer scratch → mask
 destination-in → opacity+blend) · history `snapshot pushHist applyHist undo redo` · selection
 `buildTint deselect floodRegion wandSelect commitRectSel commitLasso applyToSelection maskFromSelection
-invertMask clearMask` · painting `strokeStyleFor drawShape bucketFill commitText` · geometry `swapBase
+invertMask clearMask` · painting `strokeStyleFor(ctx, erase?) drawShape bucketFill commitText paintCtx looksBlank promoteBase`
+(eraser = destination-out; `promoteBase` bakes the base into a bottom layer + swaps in blankBaseRef —
+**synchronous on purpose**, fires only when the active layer is blank; see CLAUDE.md invariant 18) · geometry `swapBase
 transformLayers applyCrop transform applyResize` (geometry ops re-bake EVERY layer + rewrite src) ·
 layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `importImageBlob copyCanvas save`
 (export `${base}_edited.png`) · pointer `toPt startPan onDown onMove onUp cssScale`.
@@ -42,7 +46,7 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
 ```
 {.ie-inline-wrap | .editor-overlay} > .editor.editor-wide[.ie-inline]
   .ed-head (!inline): .ed-title + .theme-toggle close
-  .ed-toolbar: 13 tool-btn (TOOL_ICONS) · sep · rotate/flipH/resize · sep · undo/redo/copy   (wraps ≤640)
+  .ed-toolbar: 14 tool-btn (TOOL_ICONS) · sep · rotate/flipH/resize · sep · undo/redo/copy   (wraps ≤640)
   .ed-options (fixed-height nowrap scroller — canvas must never move):
     .opt-tool · .swatches>.swatch×10 · .tb-slider(stroke|font) · .tb-select brush|font · bold/outline
     · .tb-slider tolerance · applyCrop/fillSel/clearSel/deselect btns · .opt-spacer · .zoom-ctrl(−/val/+/fit)
