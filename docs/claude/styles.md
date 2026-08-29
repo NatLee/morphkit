@@ -82,9 +82,12 @@
     .footer-link · .st-tabs · `media view`: .media-grid .media-card .media-thumb .media-name .media-actions ·
     `info tooltip`: .info-i .tip-pop(fixed z300)
 19. `footer` — .footer
-20. `shared motion` — `rise` keyframes (**end frames MUST be `transform:none`** — invariant 17)
-21. `responsive & motion` + **mobile optimization layer** (see below)
-22. `micro-interactions` — tap-highlight, :active press, focus-visible, .drop-hot, modalPop,
+20. `pwa / app shell` — .install-card (fixed corner card, z95; phone: full-width above tab bar)
+    .install-icon .install-text .install-btns · .m-tabbar (base display:none — shown ≤640 in the
+    mobile layer) · .wand-global lives in section 16 (text tool-btn, width:auto)
+21. `shared motion` — `rise` keyframes (**end frames MUST be `transform:none`** — invariant 17)
+22. `responsive & motion` + **mobile optimization layer** (see below)
+23. `micro-interactions` — tap-highlight, :active press, focus-visible, .drop-hot, modalPop,
     `prefers-reduced-motion` (last block in file)
 
 ## Responsive architecture (all breakpoints, why)
@@ -97,6 +100,8 @@
 | `≤640px` (image editor) | `.editor-overlay > .editor:has(.ie-layout)` → **fixed 100dvh flex column, children reordered** (head 0 → ie-layout 1 flex-fill w/ align-items:stretch → options 2 → toolbar 3 nowrap-scroll → foot 4); .ie-viewport flex + .ie-inner margin:auto centers the canvas |
 | `≤720px` | .ie-layout → 1 column (layers panel stacks below canvas) |
 | `≤640px` (phone) | .app gutter 16px; .topbar wraps; hero compact; dropzone compact; .bb-actions full-width grow; file-card controls grow + .fc-details 1col; **modal editors become full-width sheets** (.editor-overlay padding 0, .editor 100% wide, radius 0, safe-area padding, 100dvh cap); .media-preview.mp-video 34vh; .ie-viewport/.ie-canvas 44vh + .layers-panel 240px; .ed-toolbar + .gif-transport wrap into rows (.ed-options stays a nowrap scroller on purpose); drawer + studio compact; **text/number inputs + selects → 16px font (iOS focus-zoom guard)**; .fp-preview 180px; .vw-preview 26vh |
+| `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×3 (z95, safe-area padding); `.studio-toggle` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
+| `@media (display-mode: standalone)` | installed PWA: `.footer` hidden; `.topbar` padding-top honors `env(safe-area-inset-top)` (22px desktop / 14px ≤640) |
 | `≤400px` | gutter 12px, hero-title 34px, lang buttons tighter |
 | `@supports (height:100dvh)` | .studio/.st-launcher/.editor/.type-modal switch to dvh (mobile URL-bar resize) |
 | `@media (hover:none)` | .lp-actions always visible; .clip-edge tinted; .kbd-hints/.dz-kbd hidden |

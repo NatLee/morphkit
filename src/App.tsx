@@ -6,6 +6,7 @@ import { FileCard } from './components/FileCard';
 import { SettingsPanel } from './components/SettingsPanel';
 import { FormatMatrix } from './components/FormatMatrix';
 import { MediaEditor } from './components/MediaEditor';
+import { InstallPrompt } from './components/InstallPrompt';
 import { Studio } from './components/Studio';
 import { ImageEditor } from './components/ImageEditor';
 import { GifEditor } from './components/GifEditor';
@@ -31,6 +32,10 @@ function useTheme() {
     setTheme((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
       document.documentElement.dataset.theme = next;
+      // keep the browser/PWA chrome color in sync (initial value: index.html)
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute('content', next === 'dark' ? '#0a0e1c' : '#f2f5fb');
       try { localStorage.setItem('morphkit-theme', next); } catch { /* ignore */ }
       return next;
     });
@@ -507,6 +512,35 @@ export default function App() {
           </aside>
         </div>
       )}
+
+      <InstallPrompt />
+
+      {/* phone-only bottom tab bar (hidden >640px via CSS) — the app-like
+          primary nav; mirrors topbar Studio toggle + settings drawer */}
+      <nav className="m-tabbar" aria-label="MorphKit">
+        <button
+          className={mode === 'convert' && !showSettings ? 'active' : ''}
+          onClick={() => { setMode('convert'); setShowSettings(false); }}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h11m0 0-3-3m3 3-3 3M20 17H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <span>{t('tabConvert')}</span>
+        </button>
+        <button
+          className={mode === 'studio' && !showSettings ? 'active' : ''}
+          onClick={() => {
+            setMode('studio');
+            setStudioEnterId(null);
+            setShowSettings(false);
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <span>Studio</span>
+        </button>
+        <button className={showSettings ? 'active' : ''} onClick={() => setShowSettings((v) => !v)}>
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10.3 3.6a2 2 0 0 1 3.4 0l.6 1a2 2 0 0 0 2.1.9l1.1-.2a2 2 0 0 1 2.3 2.3l-.2 1.1a2 2 0 0 0 .9 2.1l1 .6a2 2 0 0 1 0 3.4l-1 .6a2 2 0 0 0-.9 2.1l.2 1.1a2 2 0 0 1-2.3 2.3l-1.1-.2a2 2 0 0 0-2.1.9l-.6 1a2 2 0 0 1-3.4 0l-.6-1a2 2 0 0 0-2.1-.9l-1.1.2a2 2 0 0 1-2.3-2.3l.2-1.1a2 2 0 0 0-.9-2.1l-1-.6a2 2 0 0 1 0-3.4l1-.6a2 2 0 0 0 .9-2.1l-.2-1.1A2 2 0 0 1 6.5 5.3l1.1.2a2 2 0 0 0 2.1-.9z" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
+          <span>{t('tabSettings')}</span>
+        </button>
+      </nav>
 
       <footer className="footer">
         <p>

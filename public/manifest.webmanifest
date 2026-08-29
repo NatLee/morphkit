@@ -1,0 +1,19 @@
+{
+  "name": "MorphKit",
+  "short_name": "MorphKit",
+  "description": "Convert & edit images, audio and video — 100% in your browser, no uploads.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0e1c",
+  "theme_color": "#0a0e1c",
+  "lang": "zh-Hant",
+  "categories": ["utilities", "productivity", "multimedia"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

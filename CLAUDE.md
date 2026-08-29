@@ -11,6 +11,10 @@ No backend, no uploads. Deployed to GitHub Pages via `.github/workflows/deploy.y
 Stack: Vite + React 18 + TypeScript (strict). No CSS framework — single `src/styles.css`
 with CSS variables. No state library — App.tsx owns all state.
 
+Installable PWA: `public/manifest.webmanifest` + `public/sw.js` (offline app-shell cache,
+registered PROD-only in `main.tsx`) + `public/icons/*` (brand-mark PNGs — regenerate with
+`node scripts/gen-icons.mjs` from the repo root).
+
 ## Commands
 
 ```bash
@@ -58,6 +62,8 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
 | `components/Hero.tsx` | Tagline + title + feature chips only (format pickers were removed on purpose — they misled users) |
 | `components/DropZone.tsx` | Accepts image/audio/video, multi-file |
+| `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
+| `vite-env.d.ts` | `vite/client` types (`import.meta.env`) |
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings |
 | `components/MediaEditor.tsx` | A/V trim (DualRange + playhead buttons), volume/speed/rotate → saved as `Item.edit`, applied at ffmpeg time |
 | `components/ImageEditor.tsx` | **Raster layer editor**: layer = canvas surface. Tools: pan/move/pen(3 brushes)/eraser/line/rect/ellipse/arrow/text/crop/wand/rectsel/lasso/fill — all paint into the active layer. Layer panel (add/dup/merge-down/delete/reorder/opacity/blend/lock/mask), pixel history, wheel zoom, marching-ants selections, bg layer |
@@ -114,6 +120,7 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 21. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
 22. **Mobile layer** (end of styles.css; details in `docs/claude/styles.md`): breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
 23. **Mobile image editor** (≤720): layers panel becomes a fixed bottom sheet (`.layers-panel.open`, `panelOpen` state + `.lp-fab` toggle + `.lp-scrim` in ImageEditor.tsx); ≤640 the modal editor with `.ie-layout` becomes a fixed 100dvh flex column with children REORDERED via `order` (head → canvas fills → options → toolbar → foot) — the base `.ie-layout` is `align-items:start`, the mobile override needs `stretch` or the viewport collapses.
+24. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). `theme-color` meta is synced in THREE places: index.html inline script (first paint), `useTheme` toggle (App.tsx), and the hex pairs must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
 
 ## Design language ("Cyberdeck")
 

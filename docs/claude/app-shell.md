@@ -40,11 +40,19 @@ div.app (+ .studio-mode)
       div.file-list > <FileCard/>×n
   {editingItem && (<GifEditor>|<ImageEditor>|<MediaEditor>)}   ← portaled to body
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
-  footer.footer
+  <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
+  nav.m-tabbar > button×3 convert/studio/settings (phone-only bottom tabs, hidden >640 via CSS;
+    mirrors studio-toggle + settings drawer — topbar .studio-toggle hides ≤640)
+  footer.footer   (hidden in display-mode: standalone)
 ```
 
+PWA: `useTheme.toggle` also syncs the `theme-color` meta (initial value set by the index.html
+inline script); `main.tsx` registers `public/sw.js` PROD-only (invariant 24).
+
 **i18n keys**: backLabel settings themeToggle engineLoading engineError unsupported{names}
-warnVideo filesSummary{n,size} progressSummary{done,total} convertAll downloadAll clearAll close.
+warnVideo filesSummary{n,size} progressSummary{done,total} convertAll downloadAll clearAll close
+tabConvert tabSettings (tab bar) · installTitle installBody installBtn installLater installIosHint
+(InstallPrompt).
 
 ## FileCard.tsx (268)
 
@@ -106,10 +114,16 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 - **FormatMatrix.tsx (56)**: static 3 cards from module const `MATRIX` (chips are hardcoded uppercase
   strings, NOT derived from lib/formats — update both when adding formats).
 - **InfoTip.tsx (47)**: `span.info-i` + portal `.tip-pop` (fixed-position tooltip, never clipped).
+- **InstallPrompt.tsx (~110)**: `.install-card > .install-icon + .install-text + .install-btns`.
+  Captures `beforeinstallprompt` (Android/desktop → real install button) or shows the iOS
+  Share → Add-to-Home-Screen hint; returns null when standalone or dismissed <14 days
+  (localStorage `morphkit-install-dismissed`). Desktop corner card, phone full-width above tab bar.
 
 ## Cross-cutting
 
-- localStorage: `morphkit-theme`, `morphkit-settings`, `morphkit-lang`, `morphkit-project`, `mk-layout`, `mk-sort`.
-- Fixed/sticky inventory: `.drawer-overlay`/`.drawer` (z100/101), `.editor-overlay` (z110, Overlay + FramePicker),
-  `.st-note` (z150), `.tip-pop` (z300), `.trk-head` (sticky left), grain `body::after` (z999).
+- localStorage: `morphkit-theme`, `morphkit-settings`, `morphkit-lang`, `morphkit-project`, `mk-layout`, `mk-sort`,
+  `morphkit-install-dismissed`.
+- Fixed/sticky inventory: `.m-tabbar`/`.install-card` (z95), `.drawer-overlay`/`.drawer` (z100/101),
+  `.editor-overlay` (z110, Overlay + FramePicker), `.st-note` (z150), `.tip-pop` (z300),
+  `.trk-head` (sticky left), grain `body::after` (z999).
 - Responsive architecture: see `docs/claude/styles.md`.
