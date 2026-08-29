@@ -169,6 +169,7 @@ export function ImageEditor({
   const [bold, setBold] = useState(false);
   const [outlineOn, setOutlineOn] = useState(false);
   const [wandTol, setWandTol] = useState(30);
+  const [wandGlobal, setWandGlobal] = useState(false); // wand matches the whole image, not just the touched region
   const [brushType, setBrushType] = useState<Brush>('pen');
   const [zoom, setZoom] = useState(1);
   const [baseVer, setBaseVer] = useState(0);
@@ -753,6 +754,33 @@ export function ImageEditor({
     return any;
   };
 
+  /** Global wand — marks EVERY pixel within tolerance of the touched color (non-contiguous). */
+  const matchColorGlobal = (p: Pt, apply: (i4: number) => void): boolean => {
+    const c = composite();
+    if (!c) return false;
+    const w = c.width;
+    const h = c.height;
+    const d = c.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, w, h).data;
+    const sx = Math.min(w - 1, Math.max(0, Math.round(p.x)));
+    const sy = Math.min(h - 1, Math.max(0, Math.round(p.y)));
+    const si = (sy * w + sx) * 4;
+    const r0 = d[si];
+    const g0 = d[si + 1];
+    const b0 = d[si + 2];
+    const tol = wandTol * 4.4;
+    const tol2 = tol * tol;
+    let any = false;
+    for (let i4 = 0; i4 < d.length; i4 += 4) {
+      const dr = d[i4] - r0;
+      const dg = d[i4 + 1] - g0;
+      const db = d[i4 + 2] - b0;
+      if (dr * dr + dg * dg + db * db > tol2) continue;
+      apply(i4);
+      any = true;
+    }
+    return any;
+  };
+
   /** Paint bucket — fills the clicked region INTO the active layer. */
   const bucketFill = (p: Pt) => {
     const ctx = activeCtx();
@@ -794,7 +822,7 @@ export function ImageEditor({
     const mctx = m.getContext('2d')!;
     const mimg = mctx.createImageData(w, h);
     let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
-    const ok = floodRegion(p, (i4) => {
+    const mark = (i4: number) => {
       mimg.data[i4] = 255; mimg.data[i4 + 1] = 255; mimg.data[i4 + 2] = 255; mimg.data[i4 + 3] = 255;
       const idx = i4 / 4;
       const x = idx % w;
@@ -803,7 +831,8 @@ export function ImageEditor({
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
-    });
+    };
+    const ok = wandGlobal ? matchColorGlobal(p, mark) : floodRegion(p, mark);
     if (!ok || maxX < 0) return;
     mctx.putImageData(mimg, 0, 0);
     maskRef.current = m;
@@ -853,10 +882,25 @@ export function ImageEditor({
 
   /** Fill or erase the selection — both happen inside the active layer. */
   const applyToSelection = (mode: 'fill' | 'clear') => {
-    const ctx = activeCtx();
+    let ctx = activeCtx();
     const m = maskRef.current;
     if (!ctx || !m || !activeLayer) return;
     pushHist();
+    let targetId = activeLayer.id;
+    if (mode === 'clear') {
+      /* Same trap as the eraser (invariant 18): the wand usually selects BASE
+         pixels, and destination-out into a blank layer deletes nothing. Promote
+         the base into a real layer first (same undo step), then punch through. */
+      const needsBase =
+        !basePromotedRef.current &&
+        looksBlank(pixRef.current.get(activeLayer.id)) &&
+        !looksBlank(baseRef.current?.bmp);
+      const promoted = needsBase ? promoteBase() : null;
+      if (promoted) {
+        ctx = promoted.canvas.getContext('2d')!;
+        targetId = promoted.id;
+      }
+    }
     ctx.save();
     if (mode === 'clear') {
       ctx.globalCompositeOperation = 'destination-out';
@@ -874,7 +918,7 @@ export function ImageEditor({
       ctx.drawImage(tinted, 0, 0);
     }
     ctx.restore();
-    commitPixels(activeLayer.id);
+    commitPixels(targetId);
     deselect();
   };
 
@@ -1515,12 +1559,21 @@ export function ImageEditor({
               <span className="zoom-val">{wandTol}</span>
             </label>
           )}
+          {tool === 'wand' && (
+            <button
+              className={`tool-btn wand-global${wandGlobal ? ' active' : ''}`}
+              onClick={() => setWandGlobal((v) => !v)}
+              title={t('wandGlobalTip')}
+            >
+              {t('wandGlobal')}
+            </button>
+          )}
 
           {cropSel && <button className="btn btn-accent btn-sm" onClick={() => void applyCrop()}>{t('applyCrop')}</button>}
           {maskRef.current && (
             <>
-              <button className="btn btn-accent btn-sm" onClick={() => applyToSelection('fill')}>{t('fillSel')}</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => applyToSelection('clear')}>{t('clearSel')}</button>
+              <button className="btn btn-accent btn-sm" onClick={() => applyToSelection('clear')}>{t('clearSel')}</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => applyToSelection('fill')}>{t('fillSel')}</button>
               <button className="btn btn-ghost btn-sm" onClick={deselect}>{t('deselect')}</button>
             </>
           )}

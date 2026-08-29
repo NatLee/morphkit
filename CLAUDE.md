@@ -103,7 +103,9 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     UNDER every layer, erasing a blank active layer first *promotes* the base into a bottom layer
     (`promoteBase`) and swaps in a pre-built transparent base — this MUST stay synchronous
     (an async base swap can land after an undo) and only fires when the active layer is empty
-    (a layer with pixels erases its own pixels, like any raster editor).
+    (a layer with pixels erases its own pixels, like any raster editor). The selection
+    「clear」 path (`applyToSelection`) MUST do the same promotion — the wand usually selects
+    base pixels, and destination-out into a blank layer silently deletes nothing.
 19. **Metadata**: tags need `-map_metadata 0`; MP3 additionally needs `-id3v2_version 3` (v2.4 breaks Windows/older players) + `-write_id3v1 1`. Cover art is a single-frame video stream — it requires an explicit `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic` and must NOT be attempted for WAV/OGG (unplayable output) or when trimming (stream desync). `convertMedia` retries once without art if the mapped run fails.
 20. **Audio bitrate mode**: `rateOpts` owns the CBR/VBR split. `-q:a` scales are
     encoder-specific and point opposite ways — libmp3lame 0(best)…9, libvorbis

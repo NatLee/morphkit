@@ -19,7 +19,8 @@ Zoom is CSS-only (`style.width = w * zoom`) inside scrolling `.ie-viewport`. Ver
 
 **State**: layers · activeId · tool (`pan move pen eraser line rect ellipse arrow text crop wand rectsel
 lasso fill`) · color · size (1–40) · fontSize · fontFam (FONT_MAP) · bold · outlineOn · wandTol (5–90, ×4.4 RGB
-distance) · brushType (pen|marker|highlight) · zoom (0.05–6) · baseVer/pixVer/selVer/histVer · cropSel
+distance) · wandGlobal (wand matches whole image, not just touched region — `.wand-global` toggle) ·
+brushType (pen|marker|highlight) · zoom (0.05–6) · baseVer/pixVer/selVer/histVer · cropSel
 {a,b} · selDraft · lassoPts · textEdit {pos,value} · ready · copied · panning · cursor · renaming ·
 bgColor/bgOn · resizeOpen · rzMode pct|abs · rzPct · rzW/rzH · **panelOpen (mobile layers
 bottom-sheet; ≤720px only — desktop CSS ignores it)** · **panelW (desktop layers-panel width via
@@ -34,8 +35,8 @@ blankBaseRef (transparent same-size base kept ready by an effect on [ready, base
 **Functions**: pixels/layers `W H layerCanvas activeCtx commitPixels patchLayer applyBg` · render
 `paintLayers render composite preview clearPreview` (paintLayers: per-layer scratch → mask
 destination-in → opacity+blend) · history `snapshot pushHist applyHist undo redo` · selection
-`buildTint deselect floodRegion wandSelect commitRectSel commitLasso applyToSelection maskFromSelection
-invertMask clearMask` · painting `strokeStyleFor(ctx, erase?) drawShape bucketFill commitText paintCtx looksBlank promoteBase`
+`buildTint deselect floodRegion matchColorGlobal wandSelect commitRectSel commitLasso applyToSelection
+(clear promotes a blank base first — invariant 18) maskFromSelection invertMask clearMask` · painting `strokeStyleFor(ctx, erase?) drawShape bucketFill commitText paintCtx looksBlank promoteBase`
 (eraser = destination-out; `promoteBase` bakes the base into a bottom layer + swaps in blankBaseRef —
 **synchronous on purpose**, fires only when the active layer is blank; see CLAUDE.md invariant 18) · geometry `swapBase
 transformLayers applyCrop transform applyResize` (geometry ops re-bake EVERY layer + rewrite src) ·
@@ -49,7 +50,8 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
   .ed-toolbar: 14 tool-btn (TOOL_ICONS) · sep · rotate/flipH/resize · sep · undo/redo/copy   (wraps ≤640)
   .ed-options (fixed-height nowrap scroller — canvas must never move):
     .opt-tool · .swatches>.swatch×10 · .tb-slider(stroke|font) · .tb-select brush|font · bold/outline
-    · .tb-slider tolerance · applyCrop/fillSel/clearSel/deselect btns · .opt-spacer · .zoom-ctrl(−/val/+/fit)
+    · .tb-slider tolerance · .wand-global toggle · applyCrop btn · clearSel(accent)/fillSel/deselect btns
+    · .opt-spacer · .zoom-ctrl(−/val/+/fit)
   .ie-layout (grid 1fr|262px; 220px ≤900; 1fr ≤720)
     .ie-vpwrap > .ie-viewport(ref, scroll) > .ie-inner{width:w*zoom} > canvas.ie-canvas2 + input.ie-textinput
               + button.lp-fab (mobile-only layers toggle, .on when open) + span.zoom-float (readout)
