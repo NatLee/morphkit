@@ -15,7 +15,8 @@
    background (var(--weave) graph lines, 28px)** · `body::after` CRT scanlines (fixed, z999) ·
    native `select` fix
 2. `top bar` — .topbar .brand .brand-name .topbar-actions .lang-switch .theme-toggle
-3. `hero` — .hero + synthwave floor `.hero::before` (perspective grid, gridFlow anim) +
+3. `hero` — .hero (**overflow:hidden — the floor/orb pseudos are wider than phone viewports**)
+   + synthwave floor `.hero::before` (perspective grid, gridFlow anim) +
    drifting neon orbs `.hero::after` (orbDrift) · .hero-tagline (mono terminal prompt,
    ::before '>' + ::after blinking cursor) /.hero-title (clamp 36–54px)/.hero-accent
    (glow text-shadow + RGB-split glitch ::before/::after via `data-text` attr, glitchA/B
@@ -108,7 +109,10 @@
 | `@media (pointer:coarse)` | .tool-btn 40px, dual-handle 22px, swatches 18px, clip-edge 14px, layer/track buttons enlarged, .btn min-height 40px, thumbs 56px, overscroll-behavior:contain on scrollers |
 
 Also: `body:has(.editor-overlay), body:has(.drawer-overlay) { overflow:hidden }` (scroll lock) ·
-`.st-note` bottom uses `env(safe-area-inset-bottom)` · viewport meta has `viewport-fit=cover` (index.html).
+`.st-note` bottom uses `env(safe-area-inset-bottom)` · viewport meta has `viewport-fit=cover` (index.html) ·
+**html/body: `overflow-x: clip` (+hidden fallback) and `overscroll-behavior-x: none`** — the page
+never pans sideways (a horizontal drag would trigger the browser's back/forward swipe); horizontal
+strips (.ed-options/.ed-toolbar/.gif-transport) get `overscroll-behavior-x: contain` on coarse pointers.
 
 ## Rules when touching CSS here
 
@@ -121,3 +125,5 @@ Also: `body:has(.editor-overlay), body:has(.drawer-overlay) { overflow:hidden }`
    devices — don't make them auto-height.
 6. Keyframes must end `transform:none`; modals must portal to body (invariant 17).
 7. `.tool-btn.active:hover` keeps `color: var(--bg)` (invariant 6).
+8. The page body must NEVER scroll horizontally (html/body overflow-x clip stays; a decorative
+   element wider than the viewport gets clipped by its own container, like `.hero`).

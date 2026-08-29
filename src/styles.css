@@ -79,6 +79,13 @@
 html, body {
   margin: 0;
   padding: 0;
+  /* the page must NEVER pan sideways — a horizontal drag on mobile can
+     trigger the browser's back/forward swipe. clip (no scroll container)
+     with hidden as the older-Safari fallback; overscroll-behavior-x stops
+     edge-swipe navigation from chaining out of the root scroller. */
+  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -218,6 +225,9 @@ select optgroup {
   position: relative;
   text-align: center;
   padding: 54px 0 44px;
+  /* the synthwave floor + orb pseudos are wider than the viewport on
+     phones — clip them here so the page never gains a horizontal pan */
+  overflow: hidden;
 }
 
 /* synthwave floor: perspective grid scrolling toward the viewer */
@@ -4022,6 +4032,8 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .btn { min-height: 40px; }
   .btn-sm { min-height: 36px; }
   .tl-scroll, .ie-viewport, .strip, .layers-panel, .editor { overscroll-behavior: contain; }
+  /* horizontal strips: reaching their end must not chain into a page swipe */
+  .ed-options, .ed-toolbar, .gif-transport { overscroll-behavior-x: contain; }
 }
 
 /* ============ micro-interactions (project-wide) ============ */
