@@ -97,6 +97,8 @@ interface HistEntry {
   /** layer id → pixels dataURL */
   pixels: Record<string, string>;
   baseBlob: Blob;
+  /** ≤96px composite preview for the history list */
+  thumb: string;
 }
 
 /** Thumbnail of a layer's pixels for the panel row. */
@@ -147,7 +149,9 @@ export function ImageEditor({
     // whose id has not reached React state yet
     | { mode: 'paint'; last: Pt; layerId?: string }
     | { mode: 'shape'; a: Pt }
-    | { mode: 'movepx'; last: Pt }
+    // move re-renders from the gesture-start snapshot at an INTEGER offset —
+    // per-event fractional self-redraws resample (and blur) the layer
+    | { mode: 'movepx'; start: Pt; snap: HTMLCanvasElement }
     | { mode: 'crop'; a: Pt }
     | { mode: 'rectsel'; a: Pt }
     | { mode: 'lasso' }
@@ -190,6 +194,8 @@ export function ImageEditor({
   const [resizeOpen, setResizeOpen] = useState(false);
   // mobile bottom-sheet state for the layers panel (desktop ignores it — CSS)
   const [panelOpen, setPanelOpen] = useState(false);
+  // collapsible undo-history list in the layers panel
+  const [histOpen, setHistOpen] = useState(false);
   // desktop layers-panel width, draggable via the .ie-gutter splitter (persisted)
   const { size: panelW, gutterProps } = useSplitter('morphkit-iepw', PANEL_DEF, PANEL_MIN, PANEL_MAX, { invert: true });
   const [rzMode, setRzMode] = useState<'pct' | 'abs'>('pct');
@@ -504,6 +510,18 @@ export function ImageEditor({
   }, []);
 
   // ---- history (pixels + metadata) ----
+  /** ≤96px composite preview — cheap next to snapshot()'s full-size dataURLs. */
+  const histThumb = (): string => {
+    const c = composite();
+    if (!c) return '';
+    const s = 96 / Math.max(c.width, c.height);
+    const tc = document.createElement('canvas');
+    tc.width = Math.max(1, Math.round(c.width * s));
+    tc.height = Math.max(1, Math.round(c.height * s));
+    tc.getContext('2d')!.drawImage(c, 0, 0, tc.width, tc.height);
+    return tc.toDataURL('image/png');
+  };
+
   const snapshot = (): HistEntry | null => {
     if (!baseRef.current) return null;
     const pixels: Record<string, string> = {};
@@ -511,7 +529,12 @@ export function ImageEditor({
       const c = pixRef.current.get(l.id);
       if (c) pixels[l.id] = c.toDataURL('image/png');
     }
-    return { meta: layersRef.current.map((l) => ({ ...l })), pixels, baseBlob: baseRef.current.blob };
+    return {
+      meta: layersRef.current.map((l) => ({ ...l })),
+      pixels,
+      baseBlob: baseRef.current.blob,
+      thumb: histThumb(),
+    };
   };
 
   const pushHist = () => {
@@ -570,6 +593,20 @@ export function ImageEditor({
     const cur = snapshot();
     if (cur) histRef.current.push(cur);
     await applyHist(e);
+    setHistVer((v) => v + 1);
+  };
+
+  /** History-list jump: restore step i; everything after it becomes redoable
+      (equivalent to undoing (length−i) times — entries are full snapshots). */
+  const jumpTo = async (i: number) => {
+    const h = histRef.current;
+    if (i < 0 || i >= h.length) return;
+    const cur = snapshot();
+    if (!cur) return;
+    const removed = h.splice(i); // [target, ...later states]
+    const target = removed.shift()!;
+    redoRef.current.push(cur, ...removed.reverse());
+    await applyHist(target);
     setHistVer((v) => v + 1);
   };
 
@@ -1195,7 +1232,14 @@ export function ImageEditor({
     if (tool === 'crop') { dragRef.current = { mode: 'crop', a: p }; setCropSel(null); return; }
     if (tool === 'fill') { bucketFill(p); return; }
     if (tool === 'move') {
-      if (!activeLayer?.locked) { pushHist(); dragRef.current = { mode: 'movepx', last: p }; }
+      if (activeLayer && !activeLayer.locked) {
+        pushHist();
+        const snap = document.createElement('canvas');
+        snap.width = W();
+        snap.height = H();
+        snap.getContext('2d')!.drawImage(layerCanvas(activeLayer.id), 0, 0);
+        dragRef.current = { mode: 'movepx', start: p, snap };
+      }
       return;
     }
     if (tool === 'text') { setTextEdit({ pos: p, value: '' }); return; }
@@ -1273,16 +1317,9 @@ export function ImageEditor({
     if (d.mode === 'movepx') {
       const src = activeLayer && pixRef.current.get(activeLayer.id);
       if (!src) return;
-      const dx = p.x - d.last.x;
-      const dy = p.y - d.last.y;
-      d.last = p;
-      const tmp = document.createElement('canvas');
-      tmp.width = src.width;
-      tmp.height = src.height;
-      tmp.getContext('2d')!.drawImage(src, dx, dy);
       const g = src.getContext('2d')!;
       g.clearRect(0, 0, src.width, src.height);
-      g.drawImage(tmp, 0, 0);
+      g.drawImage(d.snap, Math.round(p.x - d.start.x), Math.round(p.y - d.start.y));
       setPixVer((v) => v + 1);
     }
   };
@@ -1672,14 +1709,56 @@ export function ImageEditor({
               <ColorPicker value={color} onChange={setColor} />
             </div>
 
+            {/* undo history — collapsible thumbnail list, click a step to jump back */}
+            <div className="lp-hist">
+              <button className="lp-hist-head" onClick={() => setHistOpen((v) => !v)} aria-expanded={histOpen}>
+                <span className="mx-label">{t('histTitle')}</span>
+                <span className="lp-hist-count">{histRef.current.length}</span>
+                <span className={`lp-hist-chev${histOpen ? ' open' : ''}`} aria-hidden="true">▾</span>
+              </button>
+              {histOpen && (
+                histRef.current.length === 0 ? (
+                  <p className="st-empty lp-hist-empty">{t('histEmpty')}</p>
+                ) : (
+                  <div className="lp-hist-list">
+                    {histRef.current.map((h, i) => (
+                      <button
+                        key={i}
+                        className="hist-item"
+                        onClick={() => void jumpTo(i)}
+                        title={t('histJumpTip')}
+                      >
+                        {h.thumb ? <img src={h.thumb} alt="" /> : <span className="hist-noimg" />}
+                        <span>{t('histStep', { n: String(i + 1) })}</span>
+                      </button>
+                    )).reverse()}
+                  </div>
+                )
+              )}
+            </div>
+
             <div className="lp-head">
               <span className="mx-label">{t('layers')}</span>
-              <span className="lp-head-btns">
-                <button onClick={addLayer} title={t('addLayer')}>＋</button>
-                <button onClick={() => activeLayer && duplicateLayer(activeLayer.id)} title={t('dupLayer')}>⧉</button>
-                <button onClick={() => activeLayer && mergeDown(activeLayer.id)} disabled={!activeLayer} title={t('mergeDown')}>⤓</button>
-                <button onClick={() => activeLayer && deleteLayer(activeLayer.id)} disabled={!activeLayer} title={t('remove')}>×</button>
-              </span>
+            </div>
+
+            {/* labeled layer ops — self-documenting (hover hints don't exist on touch) */}
+            <div className="lp-ops">
+              <button onClick={addLayer} title={t('addLayer')}>
+                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                <span>{t('lopAdd')}</span>
+              </button>
+              <button onClick={() => activeLayer && duplicateLayer(activeLayer.id)} disabled={!activeLayer} title={t('dupLayer')}>
+                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M9 9h11v11H9zM4 15V4h11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
+                <span>{t('lopDup')}</span>
+              </button>
+              <button onClick={() => activeLayer && mergeDown(activeLayer.id)} disabled={!activeLayer} title={t('mergeDown')}>
+                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M12 4v9m0 0-4-4m4 4 4-4M5 17h14v3H5z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <span>{t('lopMerge')}</span>
+              </button>
+              <button onClick={() => activeLayer && deleteLayer(activeLayer.id)} disabled={!activeLayer} title={t('delLayer')}>
+                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M5 7h14M10 7V5h4v2m-7 0 1 13h8l1-13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <span>{t('lopDel')}</span>
+              </button>
             </div>
 
             {!activeLayer && (

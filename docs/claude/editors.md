@@ -13,7 +13,9 @@ persisted mirror written by `commitPixels()` after each gesture. `Layer = {id na
 blend mask maskEnabled src}`; `BLEND_MODES` (12 composite ops) exported; masks decode lazily into module
 `maskBmpCache`. Transient selection lives in refs only (`maskRef` white-on-transparent canvas, `tintRef`,
 `maskBBoxRef`) and can be promoted to a layer mask. History: `HistEntry = {meta: Layer[], pixels:
-Record<id,dataURL>, baseBlob}`, cap `HIST_CAP = 14`, in histRef/redoRef — snapshots ALL layer pixels.
+Record<id,dataURL>, baseBlob, thumb (≤96px composite dataURL via histThumb)}`, cap `HIST_CAP = 14`,
+in histRef/redoRef — snapshots ALL layer pixels. `jumpTo(i)` restores step i and moves the later
+entries (+current) onto redoRef, powering the collapsible `.lp-hist` list (histOpen state).
 Zoom is CSS-only (`style.width = w * zoom`) inside scrolling `.ie-viewport`. Version-bump state pattern:
 `baseVer pixVer selVer histVer` (refs are authoritative, bumps force render).
 
@@ -59,7 +61,11 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
     [panelOpen && div.lp-scrim (tap closes sheet)]
     aside.layers-panel[.open ⇒ mobile sheet slides up]
       .lp-colour > .mx-label + <ColorPicker> (.cp > .cp-sv/.cp-hue/.cp-foot>.cp-preview+.cp-hex)
-      .lp-head > .mx-label + .lp-head-btns (＋ ⧉ ⤓ ×)
+      .lp-hist > button.lp-hist-head (.mx-label + .lp-hist-count + .lp-hist-chev)
+        [histOpen && .lp-hist-list > button.hist-item×n (img thumb + step label, newest first,
+         onClick jumpTo) | .lp-hist-empty]
+      .lp-head > .mx-label
+      .lp-ops > button×4 (svg + text label: add/dup/mergeDown/delete — replaced the old glyph-only head buttons)
       .lp-props (active layer): .lp-row opacity range · .lp-row select.lp-blend · .lp-row.lp-mask
       [...layers].reverse(): .lp-layer[.active] > .lp-layer-head (layer-eye, .lp-thumb>img, .lp-name|
         .lp-title>.lp-title-row(+.lp-badge M/lock/dim), .lp-actions (lock ↑ ↓ — hover-revealed,

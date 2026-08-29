@@ -56,7 +56,8 @@
     hidden ≤760 — all driven by lib/useSplitter)
     .ie-vpwrap .zoom-float
     .ie-viewport(max-h 54vh) .ie-inner .ie-canvas2(**touch-action:none**, checkerboard bg) .zoom-ctrl
-    .zoom-val · .layers-panel(max-h 54vh) .layer-* .lp-head .lp-props .lp-row .lp-blend .lp-mask-btns
+    .zoom-val · .layers-panel(max-h 54vh) .layer-* .lp-head .lp-ops(labeled layer-ops grid ×4)
+    .lp-hist/.lp-hist-head/.lp-hist-list/.hist-item(undo-history list) .lp-props .lp-row .lp-blend .lp-mask-btns
     .lp-layer .lp-layer-head .lp-title .lp-thumb .lp-actions(**hover-revealed; forced visible on touch**)
     .lp-name .lp-badge .lp-obj .layer-bg-row · `canvas size modal`: .canvas-modal .preset-grid .preset
     .size-row .size-field
