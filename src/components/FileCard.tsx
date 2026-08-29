@@ -183,6 +183,22 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             </select>
           </label>
 
+          {/* phone replaces the select with a chip row — the native dropdown's
+              popup covered the card's convert/quality controls (looked broken) */}
+          <div className="fc-chips" role="radiogroup" aria-label={t('targetLabel')}>
+            <span className="fc-chips-label">{t('targetLabel')}</span>
+            {outputsFor(item.kind).map((o) => (
+              <button
+                key={o}
+                className={`fc-chip${item.target === o ? ' active' : ''}`}
+                disabled={busy}
+                onClick={() => onTarget(item.id, o)}
+              >
+                {o.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
           {item.status === 'done' && item.outUrl ? (
             <a className="btn btn-accent" href={item.outUrl} download={item.outName}>
               {t('download')}

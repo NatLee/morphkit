@@ -66,7 +66,10 @@ article.file-card.kind-*.status-*
   div.fc-main (flex, wraps)
     div.fc-thumb>img | div.fc-icon>svg
     div.fc-meta (min-width:180px) > p.fc-name + p.fc-info (.fc-kind .fc-size×n .fc-edited)
-    div.fc-controls > btn fc-edit · btn.fc-to-studio (openAsProject) · btn fc-detail-btn · label.fc-target>select · a|button.btn-accent (download/convert) · btn copy · btn.fc-remove
+    div.fc-controls > btn fc-edit · btn.fc-to-studio (openAsProject) · btn fc-detail-btn · label.fc-target>select
+      · div.fc-chips (.fc-chips-label + button.fc-chip×n — phone-only target picker; ≤640 CSS hides
+        .fc-target and shows the chips: the native select's popup covered the card's controls)
+      · a|button.btn-accent (download/convert) · btn copy · btn.fc-remove
   dl.fc-details (grid; 1 col ≤640) > div.fc-detail-row > dt/dd  (+GPS → Google Maps link)
   div.fc-quality (image jpeg|webp) > input[range .4–1]
   div.fc-progress-row (converting media) > .fc-progress>.fc-bar + .fc-pct
