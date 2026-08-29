@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { DualRange } from './DualRange';
@@ -35,6 +35,28 @@ export function MediaEditor({ item, onSave, onClose }: Props) {
   const [rotate, setRotate] = useState<0 | 90 | 180 | 270>(item.edit?.rotate ?? 0);
   const [mute, setMute] = useState(item.edit?.mute ?? false);
   const [audioTrack, setAudioTrack] = useState<File | null>(item.edit?.audioTrack ?? null);
+
+  // Sideways rotation keeps the element's LAYOUT box, so a rotated landscape
+  // video overflows the fixed-height stage. Scale it so the rotated bounding
+  // box fits. duration is a dep so the fit re-runs once metadata (and thus
+  // the element's aspect-driven size) arrives.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [rotScale, setRotScale] = useState(1);
+  useLayoutEffect(() => {
+    if (!isVideo) return;
+    const fit = () => {
+      const v = mediaRef.current;
+      const stage = stageRef.current;
+      if (!v || !stage || (rotate !== 90 && rotate !== 270)) { setRotScale(1); return; }
+      const ew = v.offsetWidth;
+      const eh = v.offsetHeight;
+      if (!ew || !eh) return;
+      setRotScale(Math.min(stage.clientWidth / eh, stage.clientHeight / ew));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [rotate, isVideo, duration]);
 
   // live preview: volume + speed + mute on the element
   useEffect(() => {
@@ -119,7 +141,7 @@ export function MediaEditor({ item, onSave, onClose }: Props) {
           </button>
         </div>
 
-        <div className={`ed-preview media-preview ${isVideo ? 'mp-video' : 'mp-audio'}`}>
+        <div ref={stageRef} className={`ed-preview media-preview ${isVideo ? 'mp-video' : 'mp-audio'}`}>
           {isVideo ? (
             <video
               ref={mediaRef}
@@ -128,7 +150,7 @@ export function MediaEditor({ item, onSave, onClose }: Props) {
               playsInline
               onLoadedMetadata={onLoaded}
               onTimeUpdate={onTime}
-              style={{ transform: rotate ? `rotate(${rotate}deg)` : undefined }}
+              style={{ transform: rotate ? `rotate(${rotate}deg)${rotScale !== 1 ? ` scale(${rotScale})` : ''}` : undefined }}
             />
           ) : (
             <audio

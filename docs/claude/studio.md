@@ -114,8 +114,10 @@ playsInline] | .vw-pick picker) + .split-gutter + .vw-side (sp-label+InfoTip, sp
 Portaled modal (createPortal direct, not Overlay). Collects a sparse `MediaEdit` for one Item —
 never touches bytes. Props `{item, onSave(id, edit|undefined), onClose}`.
 State: duration, start, end, volume (0–2, previewed clamped ≤1), speed (SPEEDS 0.5–2), rotate
-(live inline `transform: rotate()` on the video), mute, audioTrack (File|null; forces mute false,
-disables the checkbox). Refs: mediaRef, audioPickRef.
+(live inline `transform: rotate()` on the video; 90/270 append `scale(rotScale)` — a layout
+effect on [rotate, duration] fits the rotated bbox into the fixed-height stage via stageRef,
+else sideways video overflows it), mute, audioTrack (File|null; forces mute false,
+disables the checkbox). Refs: mediaRef, audioPickRef, stageRef. State also: rotScale.
 Functions: `onLoaded` · `onTime` (pause at end−0.02, NO seek-back — invariant 13) · `onTrimChange`
 (pause + scrub to moved handle) · `markStart`/`markEnd` (0.1s guard) · `playFromStart` · `reset` ·
 `save` (emit only non-defaults: trimStart if >0.05, trimEnd if < duration−0.05; rotate/mute/audioTrack video-only).
