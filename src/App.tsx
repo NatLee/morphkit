@@ -24,27 +24,65 @@ import type { Item, MediaEdit } from './types';
 let uid = 0;
 type EngineState = 'idle' | 'loading' | 'ready' | 'error';
 
+/** 'auto' follows the OS (app-like default); light/dark are manual overrides. */
+type ThemePref = 'auto' | 'light' | 'dark';
+
+const THEME_COLORS = { light: '#f2f5fb', dark: '#0a0e1c' } as const;
+
+/** Flip the page theme + keep the browser/PWA chrome color in sync
+    (initial values come from the index.html inline script). */
+function applyTheme(resolved: 'light' | 'dark') {
+  document.documentElement.dataset.theme = resolved;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', THEME_COLORS[resolved]);
+}
+
 function useTheme() {
+  const [pref, setPref] = useState<ThemePref>(() => {
+    try {
+      const s = localStorage.getItem('morphkit-theme');
+      return s === 'light' || s === 'dark' ? s : 'auto';
+    } catch {
+      return 'auto';
+    }
+  });
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
   );
+
+  // auto mode follows the OS live — flipping the system theme retints the app
+  useEffect(() => {
+    if (pref !== 'auto') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const r = mq.matches ? 'dark' : 'light';
+      setTheme(r);
+      applyTheme(r);
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [pref]);
+
+  // cycle auto → light → dark → auto (the auto effect above re-resolves)
   const toggle = () =>
-    setTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark';
-      document.documentElement.dataset.theme = next;
-      // keep the browser/PWA chrome color in sync (initial value: index.html)
-      document
-        .querySelector('meta[name="theme-color"]')
-        ?.setAttribute('content', next === 'dark' ? '#0a0e1c' : '#f2f5fb');
+    setPref((prev) => {
+      const next: ThemePref = prev === 'auto' ? 'light' : prev === 'light' ? 'dark' : 'auto';
+      if (next !== 'auto') {
+        setTheme(next);
+        applyTheme(next);
+      }
       try { localStorage.setItem('morphkit-theme', next); } catch { /* ignore */ }
       return next;
     });
-  return { theme, toggle };
+
+  return { theme, pref, toggle };
 }
 
 export default function App() {
   const { t, lang, setLang } = useI18n();
-  const { theme, toggle } = useTheme();
+  const { pref, toggle } = useTheme();
   const [items, setItems] = useState<Item[]>([]);
   const [engine, setEngine] = useState<EngineState>('idle');
   const [engineDl, setEngineDl] = useState<{ received: number; total: number } | null>(null);
@@ -383,8 +421,16 @@ export default function App() {
           >
             <svg viewBox="0 0 24 24" width="17" height="17"><path d="M10.3 3.6a2 2 0 0 1 3.4 0l.6 1a2 2 0 0 0 2.1.9l1.1-.2a2 2 0 0 1 2.3 2.3l-.2 1.1a2 2 0 0 0 .9 2.1l1 .6a2 2 0 0 1 0 3.4l-1 .6a2 2 0 0 0-.9 2.1l.2 1.1a2 2 0 0 1-2.3 2.3l-1.1-.2a2 2 0 0 0-2.1.9l-.6 1a2 2 0 0 1-3.4 0l-.6-1a2 2 0 0 0-2.1-.9l-1.1.2a2 2 0 0 1-2.3-2.3l.2-1.1a2 2 0 0 0-.9-2.1l-1-.6a2 2 0 0 1 0-3.4l1-.6a2 2 0 0 0 .9-2.1l-.2-1.1A2 2 0 0 1 6.5 5.3l1.1.2a2 2 0 0 0 2.1-.9z" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
           </button>
-          <button className="theme-toggle" onClick={toggle} aria-label={t('themeToggle')}>
-            {theme === 'dark' ? (
+          <button
+            className="theme-toggle"
+            onClick={toggle}
+            aria-label={t(pref === 'auto' ? 'themeAuto' : pref === 'light' ? 'themeLight' : 'themeDark')}
+            title={t(pref === 'auto' ? 'themeAuto' : pref === 'light' ? 'themeLight' : 'themeDark')}
+          >
+            {pref === 'auto' ? (
+              // half-filled circle = follow the system
+              <svg viewBox="0 0 24 24" width="17" height="17"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 3.8a8.2 8.2 0 0 1 0 16.4z" fill="currentColor" /></svg>
+            ) : pref === 'light' ? (
               <svg viewBox="0 0 24 24" width="17" height="17"><path d="M12 4V2m0 20v-2M4 12H2m20 0h-2M5.6 5.6 4.2 4.2m15.6 15.6-1.4-1.4m0-12.8 1.4-1.4M4.2 19.8l1.4-1.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
             ) : (
               <svg viewBox="0 0 24 24" width="17" height="17"><path d="M20.4 14.5A8.5 8.5 0 0 1 9.5 3.6a8.5 8.5 0 1 0 10.9 10.9z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>

@@ -12,7 +12,9 @@
 `editingId` · `mode: 'convert'|'studio'` · `studioEnterId` (Studio skips launcher; cleared on manual
 toggle). Refs: `itemsRef`, `settingsRef` (stale-closure mirrors),
 `runningRef` + `waitersRef` (counting semaphore, cap = `settings.concurrency`). Module `let uid = 0`.
-Local `useTheme()` hook flips `document.documentElement.dataset.theme` + `localStorage['morphkit-theme']`.
+Local `useTheme()` hook: 3-state `pref` auto|light|dark (cycled by `toggle`; persisted to
+`localStorage['morphkit-theme']`, anything else = auto) — auto follows `prefers-color-scheme`
+LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme-color` meta.
 
 **Functions** (greppable): `acquireSlot`/`releaseSlot` · `updateSettings` · `patch(id, partial)` ·
 `addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (image→convertImage /
@@ -29,7 +31,7 @@ Effects: window `paste` (skipped while editor/drawer open), `keydown` Escape clo
 div.app (+ .studio-mode)
   header.topbar
     div.brand > span.brand-mark + span.brand-name
-    div.topbar-actions > button.studio-toggle + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(sun/moon)
+    div.topbar-actions > button.studio-toggle + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(auto half-circle/sun/moon cycle)
   main → <Studio/>  |  <Hero/> + section.workbench + <FormatMatrix/>
     section.workbench
       <DropZone onFiles=addFiles compact={items.length>0}/>
@@ -46,10 +48,10 @@ div.app (+ .studio-mode)
   footer.footer   (hidden in display-mode: standalone)
 ```
 
-PWA: `useTheme.toggle` also syncs the `theme-color` meta (initial value set by the index.html
-inline script); `main.tsx` registers `public/sw.js` PROD-only (invariant 24).
+PWA: `applyTheme` (useTheme) syncs the `theme-color` meta; the index.html inline script sets the
+first-paint value (stored pref, else OS); `main.tsx` registers `public/sw.js` PROD-only (invariant 24).
 
-**i18n keys**: backLabel settings themeToggle engineLoading engineError unsupported{names}
+**i18n keys**: backLabel settings themeAuto themeLight themeDark engineLoading engineError unsupported{names}
 warnVideo filesSummary{n,size} progressSummary{done,total} convertAll downloadAll clearAll close
 tabConvert tabSettings (tab bar) · installTitle installBody installBtn installLater installIosHint
 (InstallPrompt).
