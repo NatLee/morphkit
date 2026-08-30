@@ -1717,6 +1717,8 @@ select optgroup {
 }
 
 .ed-toolbar > * { flex-shrink: 0; }
+.ed-toolbar { touch-action: pan-x pan-y; }
+.ed-options { touch-action: pan-x; }
 
 /* persistent options bar (Photoshop-style) — fixed height, canvas never moves */
 .ed-options {
@@ -4779,10 +4781,10 @@ body:has(.drawer-overlay) { overflow: hidden; }
   body:has(.studio.st-focus) .app.studio-mode { padding-bottom: 12px; }
 }
 
-/* ---- mobile image editor: bottom-sheet layers panel (≤720, where the
-   side panel would otherwise stack below the canvas and force scrolling;
+/* ---- mobile image editor: bottom-sheet layers panel (≤720 AND short viewports —
+   landscape phones / squat PWA windows would otherwise show the desktop side panel;
    pattern: canvas stays put, secondary panel slides up — Snapseed-style) ---- */
-@media (max-width: 720px) {
+@media (max-width: 720px), (max-height: 540px) {
   .lp-fab { display: grid; }
 
   .lp-scrim {
@@ -4833,13 +4835,19 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .editor.ie-inline:has(.ie-layout) .ed-toolbar { max-height: calc(56vh + 58px); }
 }
 
-/* app-style drawing layout on phones (mobile paint-app reference): the
+/* app-style drawing layout on phones AND short (landscape) viewports: the
    canvas owns the screen — tools live on a slim LEFT RAIL, options in a thin
    bottom strip, so chrome never buries the drawing */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 540px) {
+  /* self-sufficient outside the generic ≤640 rules (landscape is wider than 640) */
+  .editor-overlay:has(.ie-layout) { padding: 0; }
   .editor-overlay > .editor:has(.ie-layout) {
     height: 100vh;
     height: 100dvh;
+    max-height: none;
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
     padding: 0;
     display: grid;
     grid-template-columns: 50px minmax(0, 1fr);
@@ -4894,6 +4902,7 @@ body:has(.drawer-overlay) { overflow: hidden; }
     padding: 8px 14px calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
+  .editor-overlay > .editor:has(.ie-layout) .ie-gutter { display: none; } /* layers live in the sheet here */
   .editor-overlay > .editor:has(.ie-layout) .ie-vpwrap { flex: 1; min-width: 0; min-height: 0; }
   .editor-overlay > .editor:has(.ie-layout) .ie-viewport { height: 100%; max-height: none; display: flex; }
   /* margin:auto centers the canvas, and degrades to scrollable when zoomed past the viewport */
@@ -4906,11 +4915,17 @@ body:has(.drawer-overlay) { overflow: hidden; }
    screen, the timeline (film strip / trim) stays pinned, and secondary
    controls scroll in place — nothing pushes the preview around.
    (audio keeps the plain sheet — its content is short, 100dvh would be air) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 540px) {
+  .editor-overlay:has(.gif-preview),
+  .editor-overlay:has(.mp-video) { padding: 0; }
   .editor-overlay > .editor:has(.gif-preview),
   .editor-overlay > .editor:has(.mp-video) {
     height: 100vh;
     height: 100dvh;
+    max-height: none;
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
