@@ -51,7 +51,12 @@ export function MediaEditor({ item, onSave, onClose }: Props) {
       const ew = v.offsetWidth;
       const eh = v.offsetHeight;
       if (!ew || !eh) return;
-      setRotScale(Math.min(stage.clientWidth / eh, stage.clientHeight / ew));
+      // content box, not clientWidth/Height — the stage clips overflow, so the
+      // rotated bounding box must fit inside the padding
+      const cs = getComputedStyle(stage);
+      const cw = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const ch = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      setRotScale(Math.min(cw / eh, ch / ew));
     };
     fit();
     window.addEventListener('resize', fit);
