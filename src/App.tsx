@@ -10,12 +10,14 @@ import { InstallPrompt } from './components/InstallPrompt';
 import { Studio } from './components/Studio';
 import { ImageEditor } from './components/ImageEditor';
 import { GifEditor } from './components/GifEditor';
+import { PdfEditor } from './components/PdfEditor';
 import { LANGS, useI18n } from './i18n';
 import { defaultTarget, detectKind, extOf, formatBytes, outputFileName } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
+import { imageToPdf, mergeToPdf, pdfToImages, pdfToText } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { createProjectWithAsset } from './lib/idb';
 import type { ProjectType } from './lib/studioTypes';
@@ -166,8 +168,21 @@ export default function App() {
     patch(id, { status: 'converting', progress: 0, outUrl: undefined });
     try {
       let blob: Blob;
-      if (item.kind === 'image') {
-        if (item.target === 'apng' || item.target === 'gif') {
+      let outName = outputFileName(item.file.name, item.target);
+      if (item.kind === 'pdf') {
+        // pdf.js render / text extraction / pdf-lib re-save — no ffmpeg involved
+        const onP = (p: number) => patch(id, { progress: p });
+        if (item.target === 'txt') blob = await pdfToText(item.file, onP);
+        else if (item.target === 'pdf') blob = await mergeToPdf([item.file], onP);
+        else {
+          const r = await pdfToImages(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality, settingsRef.current.imageMaxDim, onP);
+          blob = r.blob;
+          if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip'); // one file per page
+        }
+      } else if (item.kind === 'image') {
+        if (item.target === 'pdf') {
+          blob = await imageToPdf(item.file);
+        } else if (item.target === 'apng' || item.target === 'gif') {
           // animated pipeline — keeps every frame; APNG preserves alpha
           blob = await convertAnimImage(item.file, item.target);
         } else {
@@ -200,7 +215,7 @@ export default function App() {
         status: 'done',
         progress: 1,
         outUrl: URL.createObjectURL(blob),
-        outName: outputFileName(item.file.name, item.target),
+        outName,
         outSize: blob.size,
       });
     } catch {
@@ -211,8 +226,8 @@ export default function App() {
   const schedule = (id: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
     if (!item || item.status === 'converting' || item.status === 'queued') return;
-    if (item.kind === 'image') {
-      // images are near-instant — run immediately, no queue
+    if (item.kind === 'image' && item.target !== 'pdf') {
+      // images are near-instant — run immediately, no queue (PDF work goes through the semaphore)
       void runConvert(id);
       return;
     }
@@ -251,6 +266,25 @@ export default function App() {
       revokePreview(it);
     }
     setItems([]);
+  };
+
+  /** Every PDF + image in list order → one PDF download (images become full-bleed pages). */
+  const [merging, setMerging] = useState(false);
+  const mergeAll = async () => {
+    const src = itemsRef.current.filter((i) => i.kind === 'pdf' || i.kind === 'image').map((i) => i.file);
+    if (src.length < 2) return;
+    setMerging(true);
+    try {
+      const blob = await mergeToPdf(src);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'morphkit-merged.pdf';
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch { /* undecodable input — nothing to download */ } finally {
+      setMerging(false);
+    }
   };
 
   const downloadAll = async () => {
@@ -314,7 +348,7 @@ export default function App() {
   /** Send a queued file into Studio as a fresh typed project and jump there. */
   const openAsProject = async (id: string) => {
     const it = itemsRef.current.find((i) => i.id === id);
-    if (!it) return;
+    if (!it || it.kind === 'pdf') return; // Studio has no PDF project type
     const type: ProjectType = isGifItem(it) ? 'gif' : (it.kind as ProjectType);
     const p = await createProjectWithAsset(it.file.name, it.kind, it.file, type);
     try { localStorage.setItem('morphkit-project', p.id); } catch { /* ignore */ }
@@ -338,6 +372,24 @@ export default function App() {
     setEditingId(null);
   };
 
+  /** Edited PDF is itself the deliverable — mirrors saveEditedGif. */
+  const saveEditedPdf = (id: string, file: File) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    revokePreview(it);
+    patch(id, {
+      file,
+      edited: true,
+      status: 'done',
+      progress: 1,
+      outUrl: URL.createObjectURL(file),
+      outName: file.name,
+      outSize: file.size,
+    });
+    extractMeta(file, 'pdf').then((meta) => patch(id, { meta }));
+    setEditingId(null);
+  };
+
   const saveEditedGif = (id: string, file: File) => {
     const it = itemsRef.current.find((i) => i.id === id);
     if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
@@ -357,6 +409,7 @@ export default function App() {
   };
 
   const hasVideo = items.some((i) => i.kind === 'video');
+  const mergeable = items.filter((i) => i.kind === 'pdf' || i.kind === 'image').length;
   const pending = items.filter((i) => i.status === 'ready' || i.status === 'error').length;
   const doneCount = items.filter((i) => i.status === 'done').length;
   const activeCount = items.filter((i) => i.status === 'converting' || i.status === 'queued').length;
@@ -494,6 +547,11 @@ export default function App() {
                   <button className="btn btn-accent" onClick={convertAll} disabled={pending === 0}>
                     {t('convertAll')}
                   </button>
+                  {mergeable > 1 && (
+                    <button className="btn btn-ghost" onClick={() => void mergeAll()} disabled={merging} title={t('mergePdfTip')}>
+                      {merging ? t('processing') : t('mergePdf')}
+                    </button>
+                  )}
                   {doneCount > 1 && (
                     <button className="btn btn-ghost" onClick={downloadAll}>
                       {t('downloadAll')}
@@ -531,6 +589,8 @@ export default function App() {
           <GifEditor item={editingItem} onSave={saveEditedGif} onClose={() => setEditingId(null)} />
         ) : editingItem.kind === 'image' ? (
           <ImageEditor item={editingItem} onSave={saveEditedImage} onClose={() => setEditingId(null)} />
+        ) : editingItem.kind === 'pdf' ? (
+          <PdfEditor item={editingItem} onSave={saveEditedPdf} onClose={() => setEditingId(null)} />
         ) : (
           <MediaEditor item={editingItem} onSave={saveMediaEdit} onClose={() => setEditingId(null)} />
         )

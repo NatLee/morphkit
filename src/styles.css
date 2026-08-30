@@ -1288,6 +1288,11 @@ select optgroup {
 .mx-image .mx-icon { color: var(--paint-green); border-color: var(--paint-green); }
 .mx-audio .mx-icon { color: var(--paint-blue); border-color: var(--paint-blue); }
 .mx-video .mx-icon { color: var(--paint-red); border-color: var(--paint-red); }
+/* pdf = violet (the one signal colour the media trio leaves free) */
+.mx-pdf { border-top-color: var(--paint-violet); }
+.mx-pdf:hover { border-color: var(--paint-violet); box-shadow: 0 0 18px color-mix(in srgb, var(--paint-violet) 22%, transparent); }
+.mx-pdf .mx-icon { color: var(--paint-violet); border-color: var(--paint-violet); }
+.file-card.kind-pdf .fc-icon { color: var(--paint-violet); }
 
 .mx-head {
   display: flex;
@@ -2822,6 +2827,128 @@ kbd {
   border-radius: var(--radius);
   padding: 6px 7px;
   cursor: pointer;
+}
+
+/* ============ pdf editor ============ */
+/* page-thumb grid; the modal shell (.editor/.ed-head/.ed-toolbar/.ed-foot) is shared */
+.pdf-editor { display: flex; flex-direction: column; }
+.pdf-tools { flex-wrap: wrap; row-gap: 6px; }
+.pdf-tools .btn-sm { display: inline-flex; align-items: center; gap: 6px; }
+.pdf-tools .pdf-del:not(:disabled):hover { color: var(--danger); border-color: var(--danger); }
+
+.pdf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  align-content: start;
+  padding: 10px;
+  min-height: 220px;
+  max-height: 58vh;
+  overflow-y: auto;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--wobble-sm);
+}
+.pdf-status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  padding: 40px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.pdf-status.danger { color: var(--danger); }
+
+.pdf-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--wobble-sm);
+  background: var(--bg-raised);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+.pdf-page:hover { border-color: var(--line-strong); }
+.pdf-page.sel { border-color: var(--accent); box-shadow: var(--glow); }
+.pdf-page.dragging { opacity: 0.45; }
+/* drop indicator: neon bar on the side the dragged page will land */
+.pdf-page.over-before::before,
+.pdf-page.over-after::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--accent);
+  box-shadow: var(--glow);
+  border-radius: 2px;
+}
+.pdf-page.over-before::before { left: -8px; }
+.pdf-page.over-after::after { right: -8px; }
+
+.pdf-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.pdf-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pdf-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 4px;
+}
+.pdf-badge.rot { left: auto; right: 6px; background: var(--paint-yellow); color: #1a1500; }
+
+.pdf-page-foot { display: flex; align-items: center; gap: 6px; }
+.pdf-num {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.pdf-check,
+.pdf-ins {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.pdf-check.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pdf-ins:hover { border-color: var(--accent); color: var(--accent); }
+.pdf-progress { margin-top: 10px; }
+
+@media (max-width: 640px) {
+  .pdf-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; padding: 8px; max-height: none; flex: 1; }
+  .editor-overlay > .editor.pdf-editor { height: 100dvh; }
+  .pdf-editor .kbd-hints { display: none; }
+}
+@media (pointer: coarse) {
+  .pdf-check, .pdf-ins { width: 28px; height: 28px; }
 }
 
 /* ============ studio ============ */

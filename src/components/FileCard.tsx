@@ -10,11 +10,13 @@ import {
 import { fmtDuration } from '../lib/metadata';
 import { extOf } from '../lib/formats';
 import type { Item } from '../types';
+import { PDF_ICON } from './FormatMatrix';
 
 const KIND_ICONS: Record<Kind, string> = {
   image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6zm2.5-7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z',
   audio: 'M9 18a3 3 0 1 1-2-2.83V6l11-2v10a3 3 0 1 1-2-2.83V7.4l-7 1.27V18z',
   video: 'M4 6h11a1 1 0 0 1 1 1v2.5l4-2.5a.6.6 0 0 1 1 .5v9a.6.6 0 0 1-1 .5l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
+  pdf: PDF_ICON,
 };
 
 interface Props {
@@ -32,6 +34,7 @@ const EDIT_ICONS = {
   media: 'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.5 7.5L20 19M8.5 16.5L20 5',
   image: 'M4 20l1-4L16 5l3 3L8 19l-4 1zM14.5 6.5l3 3',
   gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
+  pdf: 'M5 4h6v6H5zM13 4h6v6h-6zM5 14h6v6H5zM13 14h6v6h-6z',
 };
 
 export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject }: Props) {
@@ -62,11 +65,12 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
   };
   const busy = item.status === 'converting' || item.status === 'queued';
   const showQuality =
-    item.kind === 'image' && (item.target === 'jpeg' || item.target === 'webp');
+    (item.kind === 'image' || item.kind === 'pdf') && (item.target === 'jpeg' || item.target === 'webp');
   const huge = item.file.size > HUGE_FILE_BYTES;
   const large = !huge && item.file.size > LARGE_FILE_BYTES && item.kind !== 'image';
   const isGif = item.kind === 'image' && (extOf(item.file.name) === 'gif' || item.file.type === 'image/gif');
-  const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : EDIT_ICONS.media;
+  const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : item.kind === 'pdf' ? EDIT_ICONS.pdf : EDIT_ICONS.media;
+  const kindKey = item.kind === 'image' ? 'kindImage' : item.kind === 'audio' ? 'kindAudio' : item.kind === 'pdf' ? 'kindPdf' : 'kindVideo';
 
   const editSummary: string[] = [];
   if (item.edit) {
@@ -92,6 +96,12 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
     if (item.kind === 'image') {
       if (m.mp) detailRows.push([t('megapixels'), m.mp]);
       if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
+    } else if (item.kind === 'pdf') {
+      if (m.pages != null) detailRows.push([t('pdfPages'), String(m.pages)]);
+      if (m.width != null && m.height != null) detailRows.push([t('pdfPageSize'), `${m.width} × ${m.height} pt`]);
+      if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
+      if (m.title) detailRows.push([t('tagTitle'), m.title]);
+      if (m.author) detailRows.push([t('pdfAuthor'), m.author]);
     } else {
       if (m.duration != null) detailRows.push([t('duration'), fmtDuration(m.duration)]);
       if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
@@ -127,9 +137,12 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
         <div className="fc-meta">
           <p className="fc-name" title={item.file.name}>{item.file.name}</p>
           <p className="fc-info">
-            <span className="fc-kind">{t(item.kind === 'image' ? 'kindImage' : item.kind === 'audio' ? 'kindAudio' : 'kindVideo')}</span>
+            <span className="fc-kind">{t(kindKey)}</span>
             <span className="fc-size">{formatBytes(item.file.size)}</span>
-            {m?.width != null && m?.height != null && (
+            {item.kind === 'pdf' && m?.pages != null && (
+              <span className="fc-size">{t('pdfPagesN', { n: String(m.pages) })}</span>
+            )}
+            {item.kind !== 'pdf' && m?.width != null && m?.height != null && (
               <span className="fc-size">{m.width}×{m.height}</span>
             )}
             {m?.duration != null && <span className="fc-size">{fmtDuration(m.duration)}</span>}
@@ -150,6 +163,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             <svg viewBox="0 0 24 24" width="14" height="14"><path d={editIcon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {t('edit')}
           </button>
+          {item.kind !== 'pdf' && (
           <button
             className="btn btn-ghost btn-sm fc-to-studio"
             disabled={busy}
@@ -159,6 +173,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             <svg viewBox="0 0 24 24" width="14" height="14"><path d="M8 8h12v12H8zM4 16V4h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
             {t('openAsProject')}
           </button>
+          )}
           {hasDetails && (
             <button
               className={`btn btn-ghost fc-detail-btn${showDetails ? ' active' : ''}`}

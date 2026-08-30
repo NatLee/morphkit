@@ -1,4 +1,4 @@
-# Map: ImageEditor & GifEditor
+# Map: ImageEditor, GifEditor & PdfEditor
 
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. Update when structure changes.
@@ -129,3 +129,40 @@ move ←/→ · dup/del/dedupe btns · .gif-delay number+applyAll; wraps ≤640)
 App: onSave=saveEditedGif. Studio inline: key={id+blob.size} (remount on blob change — no persisted doc;
 saving rewrites the asset blob via replaceAssetBlob). lib: decodeAnim, writeGifFrame, extOf, GIFEncoder,
 UPNG. Output `${base}_edited.gif|apng`. Nothing persists between sessions (captions discarded on unmount).
+
+## PdfEditor.tsx (~430) — page-list editor (modal only)
+
+**Model**: `PPage = {id, src: PageSrc, rotate: Rot, w, h, thumb?}` — `src` is a tagged union
+`{kind:'pdf', doc, index}` (doc = key into `docsRef: Map<string, SrcDoc{bytes, proxy}>`) |
+`{kind:'image', blob}` | `{kind:'blank'}`. `w/h` are points BEFORE the extra `rotate`; thumbs are
+rendered WITH rotate applied (rotateSel clears `thumb` so the lazy effect re-renders). Nothing is
+baked until `save()` maps pages → `PageSpec[]` for `buildPdf` (lib/pdf). Module counters
+`pageUid`/`docUid`. `THUMB_W = 168`, `EDIT_MAX = 2200` (raster edit cap).
+
+**State**: pages (+`pagesRef`) · sel (Set<id>) · anchor (shift-range origin) · loaded/error/busy/prog ·
+dragIdx/overIdx (mouse reorder) · editing `{pageId, file, w, h}` (nested ImageEditor session) · addAt
+(insert index for the per-page `+` button, null = after selection).
+
+**Functions**: `loadPdfPages` (openPdf → pageInfo per page) · `imagePages` · lazy thumb effect (one
+`renderThumb` at a time via `thumbBusy`) · selection `clickPage` (shift range / ctrl toggle / single),
+`togglePage` (check button — the touch multi-select) · ops `rotateSel deleteSel duplicateSel moveSel
+addBlank pickFiles onFiles` · `editPage` → `renderFull` (rotation baked) → pseudo-Item (useMemo,
+invariant 15) → ImageEditor; `onPageEdited` turns the page into an upright image page ·
+`onThumbDown` (mouse-only drag reorder via elementFromPoint on `[data-idx]`; touch keeps the grid
+scrollable and uses the move buttons) · `save` (`_edited.pdf`). Keys: Delete/Backspace, Ctrl+A, Esc.
+Helpers: `blankCanvas blankThumb drawImageTo rotateCanvas renderThumb renderFull`.
+
+**DOM** (portal to body; the nested `<ImageEditor>` is a SIBLING of the overlay inside the portal —
+never a child, or its bubbled clicks close the PDF editor):
+```
+.editor-overlay > .editor.editor-wide.pdf-editor
+  .ed-head (.ed-title + close)
+  .ed-toolbar.pdf-tools: add pages · blank · sep · rotL rotR moveL moveR dup · draw-on-page · .pdf-del · spacer · select all/none
+  .pdf-grid[role=listbox] > .pdf-status | .pdf-page[data-idx](.sel .dragging .over-before/.over-after)
+      .pdf-thumb (aspect-ratio inline) > img | .spinner · .pdf-badge(image/blank) · .pdf-badge.rot
+      .pdf-page-foot > .pdf-check(.on) + .pdf-num + .pdf-ins
+  .fc-progress-row.pdf-progress (export)
+  .ed-foot > .ed-hint (pdfSummary + .kbd-hints drag hint) + .ed-foot-main (cancel · pdfSave)
+  input[type=file hidden accept=pdf,image/*]
+```
+i18n: the pdf* key family (+ mergePdf/mergePdfTip in the App batch bar, kindPdf/mxEditPdf in FileCard/FormatMatrix).

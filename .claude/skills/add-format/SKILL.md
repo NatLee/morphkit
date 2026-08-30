@@ -26,6 +26,8 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
      and bitrate/quality flags (`rateOpts` — note vorbis inversion, native aac has no usable VBR).
    - Canvas-based (static image): extend `convertImage` target union in `src/lib/imageConvert.ts`
      (browser `toBlob` must support the MIME) + App `runConvert` routing.
+   - PDF-based (pdf ⇄ image/text): extend `src/lib/pdf.ts` (`pdfToImages` / `pdfToText` /
+     `buildPdf`) + `PDF_OUTPUTS`; pdf.js and pdf-lib stay lazy `import()`s (invariant 25).
    - Frame-based (animated): extend `convertAnimImage` in `src/lib/animImage.ts`. Keep-alpha GIF
      output MUST use `rgba4444` + `transparent: true` + `dispose: 2` (invariant 4).
 3. `src/App.tsx` `runConvert` — make sure the new target reaches the right converter

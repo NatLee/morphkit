@@ -31,6 +31,9 @@ export interface FileMeta {
   focal?: string;
   taken?: string;
   gps?: { lat: number; lon: number };
+  /** PDF: page count + document author (title reuses `title`) */
+  pages?: number;
+  author?: string;
 }
 
 function fmtExposure(sec: number): string {
@@ -186,8 +189,31 @@ function mediaMeta(file: File, kind: 'audio' | 'video'): Promise<FileMeta> {
   });
 }
 
+/** PDF: page count, first-page size (points), Title/Author, 180px JPEG thumb of page 1. */
+async function pdfMeta(file: File): Promise<FileMeta> {
+  const meta = commonMeta(file);
+  meta.mime = 'application/pdf';
+  try {
+    const { openPdf, closePdf, pdfInfo, renderPage } = await import('./pdf');
+    const doc = await openPdf(await file.arrayBuffer());
+    const info = await pdfInfo(doc);
+    meta.pages = info.pages;
+    meta.width = Math.round(info.width);
+    meta.height = Math.round(info.height);
+    meta.aspect = aspectOf(meta.width, meta.height);
+    meta.title = info.title;
+    meta.author = info.author;
+    const c = await renderPage(doc, 0, { width: 180 });
+    meta.preview = c.toDataURL('image/jpeg', 0.82);
+    c.width = c.height = 0;
+    await closePdf(doc);
+  } catch { /* corrupt / encrypted — card shows the generic icon */ }
+  return meta;
+}
+
 export async function extractMeta(file: File, kind: Kind): Promise<FileMeta> {
   if (kind === 'image') return imageMeta(file);
+  if (kind === 'pdf') return pdfMeta(file);
   const meta = await mediaMeta(file, kind);
   if (kind === 'audio') Object.assign(meta, await readAudioTags(file));
   return meta;

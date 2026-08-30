@@ -122,3 +122,17 @@ Key families: `tool_*`, `warn*`, `sec*`, `audio*/video*/gif*`, `tag*`, `type*(+D
 `mx*`, `feat*`. Interpolated keys: warnLarge{size} unsupported{names} filesSummary{n,size}
 progressSummary{done,total} gifTooLong{n} dedupeDone{n} trackName{n} filesCount{n} tooBigGif{n} objectsCount{n}.
 `t`/`setLang` are recreated every render (context identity changes each provider render).
+
+## lib/pdf.ts (~330)
+
+pdf.js + pdf-lib are BOTH lazy `import()`s (`pdfjs()` memo resets on failure; worker via
+`pdf.worker.min.mjs?url`). Exports: `openPdf(bytes)` (copies the buffer — pdf.js transfers it) ·
+`closePdf(doc)` (the `PDFDocumentProxy` has no destroy; a WeakMap maps doc → loading task) ·
+`pageInfo(doc, i)` (points after /Rotate) · `renderPage(doc, i, {width|scale, maxDim, rotate, white})`
+→ canvas (white ground by default) · `pdfInfo` (pages/size/Title/Author) · `pdfToImages(file, target,
+quality, maxDim, onProgress)` → `{blob, multi}` (scale 2 = 144 dpi; multi-page → ZIP level 0) ·
+`pdfToText` (getTextContent, `hasEOL` → newline) · `PageSpec` union (pdf bytes+index | image blob+size |
+blank) · `imageForPdf` (JPEG passthrough, else re-encode PNG) · `buildPdf(specs, onProgress)` (one
+`PDFDocument.load` per distinct source buffer, one bulk `copyPages` per source, repeats copy singly;
+rotate → `setRotation`) · `A4` · `imagePageSize(w,h)` (px × 0.75 → points) · `isPdfFile` ·
+`mergeToPdf(files)` (PDFs + images in order) · `imageToPdf`.

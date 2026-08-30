@@ -1,8 +1,10 @@
-export type Kind = 'image' | 'audio' | 'video';
+export type Kind = 'image' | 'audio' | 'video' | 'pdf';
 
-export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif'] as const;
+export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif', 'pdf'] as const;
 export const AUDIO_OUTPUTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a'] as const;
 export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', 'mp3'] as const;
+/** PDF: rasterize pages (multi-page → ZIP), extract text, or re-save (after editing). */
+export const PDF_OUTPUTS = ['png', 'jpeg', 'webp', 'txt', 'pdf'] as const;
 
 const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'apng', 'avif', 'ico', 'svg'];
 const AUDIO_EXT = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'wma', 'aiff', 'amr'];
@@ -23,7 +25,9 @@ export function detectKind(file: File): Kind | null {
   if (t.startsWith('image/')) return 'image';
   if (t.startsWith('audio/')) return 'audio';
   if (t.startsWith('video/')) return 'video';
+  if (t === 'application/pdf') return 'pdf';
   const ext = extOf(file.name);
+  if (ext === 'pdf') return 'pdf';
   if (IMAGE_EXT.includes(ext)) return 'image';
   if (AUDIO_EXT.includes(ext)) return 'audio';
   if (VIDEO_EXT.includes(ext)) return 'video';
@@ -33,6 +37,7 @@ export function detectKind(file: File): Kind | null {
 export function outputsFor(kind: Kind): readonly string[] {
   if (kind === 'image') return IMAGE_OUTPUTS;
   if (kind === 'audio') return AUDIO_OUTPUTS;
+  if (kind === 'pdf') return PDF_OUTPUTS;
   return VIDEO_OUTPUTS;
 }
 
@@ -43,7 +48,8 @@ export function defaultTarget(kind: Kind, file: File): string {
   // animated sources default to the animation-preserving twin format
   if (kind === 'image' && ext === 'gif') return 'apng';
   if (kind === 'image' && ext === 'apng') return 'gif';
-  const preferred = kind === 'image' ? 'webp' : kind === 'audio' ? 'mp3' : 'mp4';
+  const preferred =
+    kind === 'image' ? 'webp' : kind === 'audio' ? 'mp3' : kind === 'pdf' ? 'png' : 'mp4';
   const same = (o: string) => o === ext || (o === 'jpeg' && (ext === 'jpg' || ext === 'jpeg'));
   if (!same(preferred)) return preferred;
   return outs.find((o) => !same(o)) ?? preferred;
@@ -69,6 +75,8 @@ export function mimeFor(target: string): string {
     mp4: 'video/mp4',
     webm: 'video/webm',
     gif: 'image/gif',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
   };
   return map[target] ?? 'application/octet-stream';
 }

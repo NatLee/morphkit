@@ -17,13 +17,16 @@ Local `useTheme()` hook: 3-state `pref` auto|light|dark (cycled by `toggle`; per
 LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme-color` meta.
 
 **Functions** (greppable): `acquireSlot`/`releaseSlot` · `updateSettings` · `patch(id, partial)` ·
-`addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (image→convertImage /
-apng|gif→convertAnimImage / else convertMedia) · `schedule(id)` (images run immediately; a/v queue through
-semaphore) · `convertAll` · `revokePreview(it)` · `remove`/`clearAll` (must revoke `outUrl` + `meta.preview`) ·
+`addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (pdf→pdfToImages|pdfToText|
+mergeToPdf re-save, multi-page raster swaps `outName` to .zip / image→pdf→imageToPdf / image→convertImage /
+apng|gif→convertAnimImage / else convertMedia) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
+queue through semaphore) · `mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
+shown when `mergeable` > 1) · `convertAll` · `revokePreview(it)` · `remove`/`clearAll` (must revoke `outUrl` + `meta.preview`) ·
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
 `openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
 `<Studio enterProjectId>` jumps into the workspace) ·
-`saveMediaEdit`/`saveEditedImage`/`saveEditedGif` (gif save marks item done immediately).
+`saveMediaEdit`/`saveEditedImage`/`saveEditedGif`/`saveEditedPdf` (gif + pdf saves mark the item done immediately —
+the edited file IS the deliverable). `openAsProject` bails for pdf (no Studio type).
 Effects: window `paste` (skipped while editor/drawer open), `keydown` Escape closes drawer.
 
 **JSX shell**:
@@ -40,7 +43,7 @@ div.app (+ .studio-mode)
       div.batch-bar > div.bb-info (.bb-count, .bb-progress-wrap > .bb-progress > .bb-bar, .bb-done)
                     + div.bb-actions (convertAll btn-accent · downloadAll · clearAll)
       div.file-list > <FileCard/>×n
-  {editingItem && (<GifEditor>|<ImageEditor>|<MediaEditor>)}   ← portaled to body
+  {editingItem && (<GifEditor>|<ImageEditor>|<PdfEditor>|<MediaEditor>)}   ← portaled to body
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
   <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
   nav.m-tabbar > button×3 convert/studio/settings (phone-only bottom tabs, hidden >640 via CSS;
@@ -56,7 +59,11 @@ warnVideo filesSummary{n,size} progressSummary{done,total} convertAll downloadAl
 tabConvert tabSettings (tab bar) · installTitle installBody installBtn installLater installIosHint
 (InstallPrompt).
 
-## FileCard.tsx (268)
+## FileCard.tsx (~290)
+
+`KIND_ICONS` has 4 kinds (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
+kindImage/kindAudio/kindVideo/kindPdf. PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
+`pdfPages`/`pdfPageSize`/`tagTitle`/`pdfAuthor`; quality slider also for pdf→jpeg/webp; the open-as-project button is hidden for pdf.
 
 State: `showDetails`, `copied` (1.5s). `copyResult()` fetches outUrl → canvas → ClipboardItem PNG.
 Props: `{item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject}`.
@@ -110,13 +117,13 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
 - **DropZone.tsx (80)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden
-  `input[type=file multiple accept=image/*,audio/*,video/*]`; drag handlers + click + Enter/Space;
+  `input[type=file multiple accept=image/*,audio/*,video/*,application/pdf,.pdf]`; drag handlers + click + Enter/Space;
   input value reset after pick so same file re-picks. Prop `compact` (App: items exist) swaps the
   hero layout for a slim row (plus glyph + `dropMore` + kbd hint, `.dz-compact` CSS).
   `.dz-kbd` (Ctrl+V hint) is hidden on touch via `@media (hover:none)`.
 - **Overlay.tsx (14)**: `createPortal(div.editor-overlay, document.body)` — invariant 17 lives here.
   Children must stopPropagation. Page scroll behind overlays is locked via `body:has(.editor-overlay)` CSS.
-- **FormatMatrix.tsx (56)**: static 3 cards from module const `MATRIX` (chips are hardcoded uppercase
+- **FormatMatrix.tsx (~70)**: static 4 cards (image/audio/video/pdf — `.mx-pdf` violet) from module const `MATRIX` (chips are hardcoded uppercase
   strings, NOT derived from lib/formats — update both when adding formats).
 - **InfoTip.tsx (47)**: `span.info-i` + portal `.tip-pop` (fixed-position tooltip, never clipped).
 - **InstallPrompt.tsx (~110)**: `.install-card > .install-icon + .install-text + .install-btns`.

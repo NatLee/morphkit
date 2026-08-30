@@ -16,9 +16,11 @@
     "fflate": "^0.8.2",
     "gifenc": "^1.0.3",
     "gifuct-js": "^2.1.2",
-    "upng-js": "^2.1.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.3.289",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "upng-js": "^2.1.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
