@@ -2963,6 +2963,16 @@ kbd {
   flex-wrap: wrap;
 }
 
+/* phone-only asset-panel collapse toggle (desktop is always expanded) */
+.st-assets-toggle {
+  display: none;
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  color: var(--ink-faint);
+}
+
 
 .st-import {
   width: 100%;
@@ -4108,6 +4118,22 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .editor.ie-inline:has(.ie-layout) .ed-foot { grid-area: foot; margin-top: 8px; }
   .editor.ie-inline:has(.ie-layout) .kbd-hints { display: none; }
 
+  /* collapsible asset panel — starts collapsed for immersive editing;
+     only the head row (with the count + chevron) stays */
+  .st-assets-toggle { display: inline-flex; }
+  .st-assets.collapsed > :not(.st-assets-head) { display: none; }
+  .st-assets.collapsed { max-height: none; }
+  .st-assets.collapsed .st-assets-head { margin-bottom: 0; }
+
+  /* inline editor footer: compact — the export button was a thumb-sized slab */
+  .editor.ie-inline .ed-foot { margin-top: 8px; padding-top: 8px; }
+  .editor.ie-inline .ed-foot .btn {
+    min-height: 34px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    flex: none;
+  }
+
   /* focus mode: the workspace (canvas / timeline / mixer) owns the screen —
      asset panel and app chrome step aside until toggled back */
   .st-focus-btn { display: inline-flex; }
@@ -4156,7 +4182,18 @@ body:has(.drawer-overlay) { overflow: hidden; }
     transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1);
   }
 
-  .layers-panel.open { transform: none; }
+  /* the inline selector above is (0,3,0) — .open must match it or the
+     sheet never opens in studio (transform stays at 105%) */
+  .layers-panel.open,
+  .editor.ie-inline .layers-panel.open { transform: none; }
+
+  /* sheet priority: layers first — the colour picker + history are tall and
+     were pushing the layer rows past the bottom of the screen */
+  .layers-panel.open,
+  .editor.ie-inline .layers-panel.open { display: flex; flex-direction: column; }
+  .layers-panel.open > * { flex-shrink: 0; }
+  .layers-panel.open .lp-colour { order: 8; }
+  .layers-panel.open .lp-hist { order: 9; }
 
   /* with the panel off-flow the inline canvas can breathe */
   .editor.ie-inline .ie-viewport { height: 56vh; }

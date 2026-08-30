@@ -130,6 +130,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   // mobile focus mode: hides the asset panel + app chrome so the workspace
   // (canvas / timeline / mixer) owns the screen (≤760 only — CSS)
   const [focus, setFocus] = useState(false);
+  // phone asset panel starts collapsed (immersive editing); desktop ignores it
+  const [assetsOpen, setAssetsOpen] = useState(false);
   // draggable asset-panel width (desktop; ≤760 stacks and hides the gutter)
   const assetsSplit = useSplitter('morphkit-stw', 252, 180, 460);
   const [pickType, setPickType] = useState(false);
@@ -948,7 +950,11 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       </div>
 
       <div className="st-body" style={{ '--st-assets-w': `${assetsSplit.size}px` } as CSSProperties}>
-        <aside className="st-assets" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+        <aside
+          className={`st-assets${assetsOpen ? '' : ' collapsed'}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={onDrop}
+        >
           <div className="st-assets-head">
             <span className="mx-label">
               {t('assetsLabel')} <InfoTip text={t('tipAssets')} />
@@ -956,6 +962,15 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
             <span className="asset-size">
               {t('filesCount', { n: String(assets.length) })} · {formatBytes(assetsBytes)}
             </span>
+            {/* phone-only collapse toggle (desktop always expanded — CSS) */}
+            <button
+              className="st-assets-toggle"
+              onClick={() => setAssetsOpen((v) => !v)}
+              aria-expanded={assetsOpen}
+              title={t('assetsLabel')}
+            >
+              <span className={`lp-hist-chev${assetsOpen ? ' open' : ''}`} aria-hidden="true">▾</span>
+            </button>
           </div>
           <button className="btn btn-ghost btn-sm st-import" onClick={() => importRef.current?.click()}>
             ↥ {t('importFiles')}
