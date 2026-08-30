@@ -13,9 +13,12 @@ persisted mirror written by `commitPixels()` after each gesture. `Layer = {id na
 blend mask maskEnabled src}`; `BLEND_MODES` (12 composite ops) exported; masks decode lazily into module
 `maskBmpCache`. Transient selection lives in refs only (`maskRef` white-on-transparent canvas, `tintRef`,
 `maskBBoxRef`) and can be promoted to a layer mask. History: `HistEntry = {meta: Layer[], pixels:
-Record<id,dataURL>, baseBlob, thumb (≤96px composite dataURL via histThumb)}`, cap `HIST_CAP = 14`,
-in histRef/redoRef — snapshots ALL layer pixels. `jumpTo(i)` restores step i and moves the later
-entries (+current) onto redoRef, powering the collapsible `.lp-hist` list (histOpen state).
+Record<id,dataURL>, baseBlob, thumb (≤96px via histThumb), label (i18n key of the action that
+produced the state — every `pushHist(action)` call site names its action; `lastActionRef` carries
+the current state's label through snapshot/applyHist)}`, cap `HIST_CAP = 14`, in histRef/redoRef.
+The collapsible `.lp-hist` list (histOpen) renders the FULL timeline — past + current + future
+(redo) rows with thumbs + labels; `jumpTo(i)` jumps back and `jumpForward(j)` forward, both
+non-destructive (states shuttle between the stacks) — only a new edit (pushHist) clears redoRef.
 Zoom is CSS-only (`style.width = w * zoom`) inside scrolling `.ie-viewport`. Version-bump state pattern:
 `baseVer pixVer selVer histVer` (refs are authoritative, bumps force render).
 

@@ -2294,7 +2294,42 @@ kbd {
   transition: all 0.15s ease;
 }
 
-.hist-item:hover { border-color: var(--accent); color: var(--ink); box-shadow: var(--glow); }
+.hist-item:hover:not(.current) { border-color: var(--accent); color: var(--ink); box-shadow: var(--glow); }
+
+.hist-item.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+  cursor: default;
+}
+
+/* future (redoable) steps read as "ahead of now" */
+.hist-item.hist-future { opacity: 0.72; border-style: dashed; }
+.hist-item.hist-future:hover { opacity: 1; }
+
+.hist-n {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  flex: none;
+  min-width: 16px;
+  text-align: right;
+}
+
+.hist-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hist-now {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  flex: none;
+}
 
 .hist-item img,
 .hist-noimg {
@@ -2927,6 +2962,7 @@ kbd {
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
+
 
 .st-import {
   width: 100%;

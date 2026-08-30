@@ -99,6 +99,8 @@ interface HistEntry {
   baseBlob: Blob;
   /** ≤96px composite preview for the history list */
   thumb: string;
+  /** i18n key of the action that PRODUCED this state (resolved at render) */
+  label: string;
 }
 
 /** Thumbnail of a layer's pixels for the panel row. */
@@ -531,6 +533,10 @@ export function ImageEditor({
     return tc.toDataURL('image/png');
   };
 
+  /** i18n key of the action that produced the CURRENT state (travels through
+      snapshot/applyHist so undo/redo/jumps keep every row labeled). */
+  const lastActionRef = useRef('histOriginal');
+
   const snapshot = (): HistEntry | null => {
     if (!baseRef.current) return null;
     const pixels: Record<string, string> = {};
@@ -543,20 +549,25 @@ export function ImageEditor({
       pixels,
       baseBlob: baseRef.current.blob,
       thumb: histThumb(),
+      label: lastActionRef.current,
     };
   };
 
-  const pushHist = () => {
+  /** action = i18n key of the change about to happen (labels the NEXT state).
+      A new edit truncates the redo branch — jumps alone never do. */
+  const pushHist = (action: string) => {
     const s = snapshot();
     if (!s) return;
     histRef.current.push(s);
     if (histRef.current.length > HIST_CAP) histRef.current.shift();
     redoRef.current = [];
+    lastActionRef.current = action;
     setHistVer((v) => v + 1);
   };
 
   const applyHist = async (e: HistEntry) => {
     moveStoreRef.current.clear(); // restored pixels are the truth again
+    lastActionRef.current = e.label;
     if (baseRef.current && e.baseBlob !== baseRef.current.blob) {
       const bmp = await createImageBitmap(e.baseBlob);
       baseRef.current.bmp.close();
@@ -606,8 +617,9 @@ export function ImageEditor({
     setHistVer((v) => v + 1);
   };
 
-  /** History-list jump: restore step i; everything after it becomes redoable
-      (equivalent to undoing (length−i) times — entries are full snapshots). */
+  /** History-list jump BACK to past state i — nothing is lost: the states
+      after it (current included) move onto the redo stack, so the list keeps
+      showing the whole timeline until a new edit truncates the future. */
   const jumpTo = async (i: number) => {
     const h = histRef.current;
     if (i < 0 || i >= h.length) return;
@@ -616,6 +628,21 @@ export function ImageEditor({
     const removed = h.splice(i); // [target, ...later states]
     const target = removed.shift()!;
     redoRef.current.push(cur, ...removed.reverse());
+    await applyHist(target);
+    setHistVer((v) => v + 1);
+  };
+
+  /** Jump FORWARD to the j-th future state (j=1 = nearest redo) — the inverse
+      of jumpTo: skipped states become past entries in chronological order. */
+  const jumpForward = async (j: number) => {
+    const r = redoRef.current;
+    if (j < 1 || j > r.length) return;
+    const cur = snapshot();
+    if (!cur) return;
+    const moved = r.splice(r.length - j); // stack order: [target(furthest) ... nearest]
+    const target = moved[0];
+    histRef.current.push(cur, ...moved.slice(1).reverse());
+    while (histRef.current.length > HIST_CAP) histRef.current.shift();
     await applyHist(target);
     setHistVer((v) => v + 1);
   };
@@ -832,7 +859,7 @@ export function ImageEditor({
   const bucketFill = (p: Pt) => {
     const ctx = activeCtx();
     if (!ctx || !activeLayer) return;
-    pushHist();
+    pushHist('tool_fill');
     const w = W();
     const h = H();
     const n = parseInt(color.slice(1), 16);
@@ -932,7 +959,7 @@ export function ImageEditor({
     let ctx = activeCtx();
     const m = maskRef.current;
     if (!ctx || !m || !activeLayer) return;
-    pushHist();
+    pushHist(mode === 'clear' ? 'clearSel' : 'fillSel');
     let targetId = activeLayer.id;
     if (mode === 'clear') {
       /* Same trap as the eraser (invariant 18): the wand usually selects BASE
@@ -1002,7 +1029,7 @@ export function ImageEditor({
 
   const applyCrop = async () => {
     if (!cropSel || !baseRef.current) return;
-    pushHist();
+    pushHist('tool_crop');
     const { a, b } = cropSel;
     const x = Math.round(Math.min(a.x, b.x));
     const y = Math.round(Math.min(a.y, b.y));
@@ -1019,7 +1046,7 @@ export function ImageEditor({
 
   const transform = async (kind: 'rot' | 'flip') => {
     if (!baseRef.current) return;
-    pushHist();
+    pushHist(kind === 'rot' ? 'rotate' : 'flipH');
     const src = baseRef.current.bmp;
     const w0 = src.width;
     const h0 = src.height;
@@ -1045,7 +1072,7 @@ export function ImageEditor({
     if (!base) return;
     const nw = Math.min(4096, Math.max(8, Math.round(nwIn)));
     const nh = Math.min(4096, Math.max(8, Math.round(nhIn)));
-    pushHist();
+    pushHist('resizeCanvas');
     const c = document.createElement('canvas');
     c.width = nw;
     c.height = nh;
@@ -1060,7 +1087,7 @@ export function ImageEditor({
 
   // ---- layer ops ----
   const addLayer = () => {
-    pushHist();
+    pushHist('addLayer');
     const l = newLayer(`Layer ${layers.length + 1}`);
     const c = document.createElement('canvas');
     c.width = W() || 1;
@@ -1071,7 +1098,7 @@ export function ImageEditor({
   };
 
   const duplicateLayer = (id: string) => {
-    pushHist();
+    pushHist('dupLayer');
     const src = pixRef.current.get(id);
     const meta = layersRef.current.find((l) => l.id === id);
     if (!src || !meta) return;
@@ -1092,7 +1119,7 @@ export function ImageEditor({
 
   /** Layers can be deleted down to zero — the panel just locks up. */
   const deleteLayer = (id: string) => {
-    pushHist();
+    pushHist('delLayer');
     pixRef.current.delete(id);
     moveStoreRef.current.delete(id);
     setLayers((prev) => {
@@ -1105,7 +1132,7 @@ export function ImageEditor({
   };
 
   const moveLayer = (id: string, dir: 1 | -1) => {
-    pushHist();
+    pushHist(dir === 1 ? 'moveUp' : 'moveDown');
     setLayers((prev) => {
       const i = prev.findIndex((l) => l.id === id);
       const j = i + dir;
@@ -1121,7 +1148,7 @@ export function ImageEditor({
     const stack = layersRef.current;
     const i = stack.findIndex((l) => l.id === id);
     if (i <= 0) return;
-    pushHist();
+    pushHist('mergeDown');
     const upper = stack[i];
     const lower = stack[i - 1];
     const uc = pixRef.current.get(upper.id);
@@ -1161,7 +1188,7 @@ export function ImageEditor({
   const maskFromSelection = () => {
     const m = maskRef.current;
     if (!m || !activeLayer) return;
-    pushHist();
+    pushHist('maskFromSel');
     patchLayer(activeLayer.id, { mask: m.toDataURL('image/png'), maskEnabled: true });
     deselect();
   };
@@ -1170,7 +1197,7 @@ export function ImageEditor({
     if (!activeLayer?.mask) return;
     const bmp = maskBmpCache.get(activeLayer.mask);
     if (!bmp) return;
-    pushHist();
+    pushHist('invertMask');
     const c = document.createElement('canvas');
     c.width = W();
     c.height = H();
@@ -1184,7 +1211,7 @@ export function ImageEditor({
 
   const clearMask = () => {
     if (!activeLayer) return;
-    pushHist();
+    pushHist('clearMask');
     patchLayer(activeLayer.id, { mask: null });
   };
 
@@ -1192,7 +1219,7 @@ export function ImageEditor({
   const importImageBlob = async (blob: Blob) => {
     if (!ready || !baseRef.current) return;
     const bmp = await createImageBitmap(blob);
-    pushHist();
+    pushHist('importFiles');
     const l = newLayer(`Image ${layers.length + 1}`);
     const c = document.createElement('canvas');
     c.width = W();
@@ -1247,7 +1274,7 @@ export function ImageEditor({
     if (tool === 'fill') { bucketFill(p); return; }
     if (tool === 'move') {
       if (activeLayer && !activeLayer.locked) {
-        pushHist();
+        pushHist('tool_move');
         let store = moveStoreRef.current.get(activeLayer.id);
         if (!store) {
           const c = document.createElement('canvas');
@@ -1265,7 +1292,7 @@ export function ImageEditor({
 
     const ctx = activeCtx();
     if (!ctx) return; // locked layer
-    pushHist();
+    pushHist(`tool_${tool}`);
     if (tool === 'pen' || tool === 'eraser') {
       /* Erasing a layer that has nothing on it means the user is aiming at the
          image below, so promote the base into a layer first (same undo step).
@@ -1386,7 +1413,7 @@ export function ImageEditor({
     const v = textEdit.value.trim();
     const ctx = activeCtx();
     if (v && ctx && activeLayer) {
-      pushHist();
+      pushHist('tool_text');
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
@@ -1730,32 +1757,56 @@ export function ImageEditor({
               <ColorPicker value={color} onChange={setColor} />
             </div>
 
-            {/* undo history — collapsible thumbnail list, click a step to jump back */}
+            {/* undo history — the FULL timeline (past · current · future).
+                Jumping either way is non-destructive; only a new edit
+                truncates the future branch (pushHist clears redoRef). */}
             <div className="lp-hist">
               <button className="lp-hist-head" onClick={() => setHistOpen((v) => !v)} aria-expanded={histOpen}>
                 <span className="mx-label">{t('histTitle')}</span>
-                <span className="lp-hist-count">{histRef.current.length}</span>
+                <span className="lp-hist-count">
+                  {histRef.current.length + 1 + redoRef.current.length}
+                </span>
                 <span className={`lp-hist-chev${histOpen ? ' open' : ''}`} aria-hidden="true">▾</span>
               </button>
-              {histOpen && (
-                histRef.current.length === 0 ? (
-                  <p className="st-empty lp-hist-empty">{t('histEmpty')}</p>
-                ) : (
-                  <div className="lp-hist-list">
-                    {histRef.current.map((h, i) => (
-                      <button
-                        key={i}
-                        className="hist-item"
-                        onClick={() => void jumpTo(i)}
-                        title={t('histJumpTip')}
-                      >
-                        {h.thumb ? <img src={h.thumb} alt="" /> : <span className="hist-noimg" />}
-                        <span>{t('histStep', { n: String(i + 1) })}</span>
-                      </button>
-                    )).reverse()}
+              {histOpen && (() => {
+                const past = histRef.current;
+                const future = redoRef.current.slice().reverse(); // chronological
+                if (past.length === 0 && future.length === 0) {
+                  return <p className="st-empty lp-hist-empty">{t('histEmpty')}</p>;
+                }
+                const rows: JSX.Element[] = [];
+                // newest first: future (latest → nearest), current, past (newest → oldest)
+                for (let c = future.length - 1; c >= 0; c--) {
+                  const h = future[c];
+                  const n = past.length + 2 + c;
+                  rows.push(
+                    <button key={`f${c}`} className="hist-item hist-future" onClick={() => void jumpForward(c + 1)} title={t('histJumpTip')}>
+                      {h.thumb ? <img src={h.thumb} alt="" /> : <span className="hist-noimg" />}
+                      <span className="hist-n">{n}</span>
+                      <span className="hist-label">{t(h.label)}</span>
+                    </button>
+                  );
+                }
+                rows.push(
+                  <div key="cur" className="hist-item current" aria-current="step">
+                    <span className="hist-noimg" />
+                    <span className="hist-n">{past.length + 1}</span>
+                    <span className="hist-label">{t(lastActionRef.current)}</span>
+                    <span className="hist-now">{t('histCurrent')}</span>
                   </div>
-                )
-              )}
+                );
+                for (let i = past.length - 1; i >= 0; i--) {
+                  const h = past[i];
+                  rows.push(
+                    <button key={`p${i}`} className="hist-item" onClick={() => void jumpTo(i)} title={t('histJumpTip')}>
+                      {h.thumb ? <img src={h.thumb} alt="" /> : <span className="hist-noimg" />}
+                      <span className="hist-n">{i + 1}</span>
+                      <span className="hist-label">{t(h.label)}</span>
+                    </button>
+                  );
+                }
+                return <div className="lp-hist-list">{rows}</div>;
+              })()}
             </div>
 
             <div className="lp-head">
@@ -1838,7 +1889,7 @@ export function ImageEditor({
                 <div className="lp-layer-head">
                   <button
                     className="layer-eye"
-                    onClick={(e) => { e.stopPropagation(); pushHist(); patchLayer(l.id, { visible: !l.visible }); }}
+                    onClick={(e) => { e.stopPropagation(); pushHist('layerVis'); patchLayer(l.id, { visible: !l.visible }); }}
                     title={l.visible ? t('hideLayer') : t('showLayer')}
                   >
                     {l.visible ? (
