@@ -127,6 +127,9 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const [bufVer, setBufVer] = useState(0);
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
   const [entered, setEntered] = useState(false);
+  // mobile focus mode: hides the asset panel + app chrome so the workspace
+  // (canvas / timeline / mixer) owns the screen (≤760 only — CSS)
+  const [focus, setFocus] = useState(false);
   // draggable asset-panel width (desktop; ≤760 stacks and hides the gutter)
   const assetsSplit = useSplitter('morphkit-stw', 252, 180, 460);
   const [pickType, setPickType] = useState(false);
@@ -235,6 +238,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       setCurId(null);
     }
     setEntered(false);
+    setFocus(false); // focus mode is per-visit — the launcher shows full chrome
   };
 
   const patchVideoDoc = (fn: (d: VideoDoc) => VideoDoc) =>
@@ -911,7 +915,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
 
   // ================= workspace =================
   return (
-    <div className="studio">
+    <div className={`studio${focus ? ' st-focus' : ''}`}>
       <div className="st-bar">
         <button className="btn btn-ghost btn-sm" onClick={leaveWorkspace}>
           ← {t('backToProjects')}
@@ -921,6 +925,18 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           <input className="st-name" value={cur.name} onChange={(e) => renameProject(e.target.value)} />
         )}
         <span className="opt-spacer" />
+        <button
+          className={`btn btn-ghost btn-sm st-focus-btn${focus ? ' active' : ''}`}
+          onClick={() => setFocus((v) => !v)}
+          title={t('focusMode')}
+          aria-pressed={focus}
+        >
+          {focus ? (
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+          )}
+        </button>
         {cur && (
           <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(cur)}>
             {t('exportProject')}

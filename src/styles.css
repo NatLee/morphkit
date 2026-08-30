@@ -2843,6 +2843,9 @@ kbd {
   flex-shrink: 0;
 }
 
+/* mobile focus mode toggle — desktop has room, so the button only shows ≤760 */
+.st-focus-btn { display: none; }
+
 .st-name {
   font-family: var(--font-display);
   font-size: 18px;
@@ -4068,6 +4071,18 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .editor.ie-inline:has(.ie-layout) .ed-options { grid-area: options; margin: 0; }
   .editor.ie-inline:has(.ie-layout) .ed-foot { grid-area: foot; margin-top: 8px; }
   .editor.ie-inline:has(.ie-layout) .kbd-hints { display: none; }
+
+  /* focus mode: the workspace (canvas / timeline / mixer) owns the screen —
+     asset panel and app chrome step aside until toggled back */
+  .st-focus-btn { display: inline-flex; }
+  .st-focus-btn.active { color: var(--accent); border-color: var(--accent); }
+  .studio.st-focus .st-assets,
+  .studio.st-focus .split-gutter { display: none; }
+  body:has(.studio.st-focus) .topbar,
+  body:has(.studio.st-focus) .m-tabbar,
+  body:has(.studio.st-focus) .footer { display: none; }
+  body:has(.studio.st-focus) .app,
+  body:has(.studio.st-focus) .app.studio-mode { padding-bottom: 12px; }
 }
 
 /* ---- mobile image editor: bottom-sheet layers panel (≤720, where the
@@ -4180,6 +4195,53 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .editor-overlay > .editor:has(.ie-layout) .ie-inner { margin: auto; }
   /* this layout is touch-first — keyboard hints just eat footer rows */
   .editor-overlay > .editor:has(.ie-layout) .kbd-hints { display: none; }
+}
+
+/* gif + video editors go app-style on phones too: the preview owns the
+   screen, the timeline (film strip / trim) stays pinned, and secondary
+   controls scroll in place — nothing pushes the preview around.
+   (audio keeps the plain sheet — its content is short, 100dvh would be air) */
+@media (max-width: 640px) {
+  .editor-overlay > .editor:has(.gif-preview),
+  .editor-overlay > .editor:has(.mp-video) {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .editor-overlay > .editor:has(.gif-preview) > *,
+  .editor-overlay > .editor:has(.mp-video) > * { flex-shrink: 0; }
+
+  .editor-overlay > .editor:has(.gif-preview) .ed-preview.gif-preview {
+    flex: 1 1 auto;
+    min-height: 120px;
+    margin-bottom: 10px;
+  }
+  .editor-overlay > .editor:has(.gif-preview) .gif-preview canvas { max-height: 100%; }
+
+  .editor-overlay > .editor:has(.mp-video) .media-preview.mp-video {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 160px;
+    margin-bottom: 10px;
+  }
+
+  .editor-overlay > .editor:has(.gif-preview) .ed-controls,
+  .editor-overlay > .editor:has(.mp-video) .ed-controls {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .editor-overlay > .editor:has(.gif-preview) .ed-controls { max-height: 26vh; }
+  .editor-overlay > .editor:has(.mp-video) .ed-controls { max-height: 44vh; }
+
+  .editor-overlay > .editor:has(.gif-preview) .ed-foot,
+  .editor-overlay > .editor:has(.mp-video) .ed-foot {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
 }
 
 /* ---- touch ergonomics ---- */

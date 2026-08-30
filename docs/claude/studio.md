@@ -9,6 +9,9 @@
 
 Two mutually exclusive trees in one component: **launcher** (early return when `!entered`, ~line 688)
 and **workspace** (~line 821). Only component touching IndexedDB.
+Mobile focus mode: `focus` state + `.st-focus-btn` in the workspace `.st-bar` (visible ≤760 only)
+toggles `.studio.st-focus` — CSS hides the asset panel and app chrome so the workspace owns the
+screen; `leaveWorkspace` resets it.
 Prop `enterProjectId?` (from App's "open as project"): init effect jumps straight into that
 workspace, skipping the launcher; App clears it on manual studio-toggle.
 
