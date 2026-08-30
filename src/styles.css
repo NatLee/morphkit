@@ -321,7 +321,7 @@ select optgroup {
   text-transform: uppercase;
   color: var(--accent);
   margin: 0 0 12px;
-  animation: rise 0.6s ease both;
+  animation: rise 0.6s ease backwards;
 }
 
 .hero-tagline::before { content: '> '; opacity: 0.6; }
@@ -344,7 +344,7 @@ select optgroup {
   line-height: 1.08;
   letter-spacing: 0.01em;
   margin: 0 0 8px;
-  animation: rise 0.6s 0.06s ease both;
+  animation: rise 0.6s 0.06s ease backwards;
 }
 
 .hero-accent {
@@ -397,7 +397,7 @@ select optgroup {
   justify-content: center;
   margin: 36px auto 0;
   max-width: 540px;
-  animation: rise 0.6s 0.14s ease both;
+  animation: rise 0.6s 0.14s ease backwards;
 }
 
 .format-card {
@@ -733,7 +733,7 @@ select optgroup {
   border-left-width: 4px;
   background: var(--bg-raised);
   color: var(--ink-dim);
-  animation: rise 0.35s ease both;
+  animation: rise 0.35s ease backwards;
 }
 
 .banner.danger { border-left-color: var(--danger); color: var(--danger); }
@@ -766,7 +766,7 @@ select optgroup {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
-  animation: rise 0.35s ease both;
+  animation: rise 0.35s ease backwards;
 }
 
 .bb-info {
@@ -850,7 +850,7 @@ select optgroup {
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
   padding: 16px 18px;
-  animation: rise 0.35s ease both;
+  animation: rise 0.35s ease backwards;
   transition: border-color 0.22s ease;
 }
 
@@ -986,7 +986,7 @@ select optgroup {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 8px 22px;
-  animation: rise 0.28s ease both;
+  animation: rise 0.28s ease backwards;
 }
 
 .fc-detail-row {
@@ -1131,13 +1131,15 @@ select optgroup {
   padding: 22px 24px;
   overflow-y: auto;
   z-index: 101;
-  animation: slideIn 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: slideIn 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
 }
 
 @keyframes slideIn {
   from { transform: translateX(36px); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
+
+.drawer-bottom-close { width: 100%; margin-top: 18px; }
 
 .drawer-head {
   display: flex;
@@ -1478,7 +1480,7 @@ select optgroup {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   padding: 18px 22px;
-  animation: rise 0.28s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: rise 0.28s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
 }
 
 .editor-wide { width: min(980px, 100%); }
@@ -3402,7 +3404,7 @@ kbd {
   height: calc(100vh - 96px);
   display: flex;
   flex-direction: column;
-  animation: rise 0.4s ease both;
+  animation: rise 0.4s ease backwards;
 }
 
 .st-bar {
@@ -3416,6 +3418,13 @@ kbd {
 
 /* mobile focus mode toggle — desktop has room, so the button only shows ≤760 */
 .st-focus-btn { display: none; }
+/* desktop: the assets panel collapses to its head row and the grid gives the space back */
+.st-body:has(.st-assets.collapsed) { grid-template-columns: max-content 0 1fr; }
+.st-body:has(.st-assets.collapsed) .split-gutter { display: none; }
+.st-assets.collapsed > :not(.st-assets-head) { display: none; }
+.st-assets.collapsed .st-assets-head { margin-bottom: 0; gap: 10px; }
+.st-assets.collapsed .st-assets-head .asset-size { display: none; }
+.st-assets.collapsed { max-height: none; height: fit-content; }
 
 .st-name {
   font-family: var(--font-display);
@@ -3452,7 +3461,7 @@ kbd {
   padding: 12px 14px;
   overflow-y: auto;
   min-height: 0;
-  animation: panelIn 0.4s 0.05s ease both;
+  animation: panelIn 0.4s 0.05s ease backwards;
 }
 
 .st-main {
@@ -3460,7 +3469,7 @@ kbd {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  animation: panelIn 0.4s 0.12s ease both;
+  animation: panelIn 0.4s 0.12s ease backwards;
 }
 
 @keyframes panelIn {
@@ -3473,7 +3482,7 @@ kbd {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  animation: rise 0.3s ease both;
+  animation: rise 0.3s ease backwards;
 }
 
 .mixer {
@@ -3500,8 +3509,9 @@ kbd {
 }
 
 /* phone-only asset-panel collapse toggle (desktop is always expanded) */
+.st-fab, .st-scrim { display: none; }
 .st-assets-toggle {
-  display: none;
+  display: inline-flex;
   background: none;
   border: none;
   padding: 4px 6px;
@@ -3851,7 +3861,7 @@ kbd {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: panelIn 0.4s ease both;
+  animation: panelIn 0.4s ease backwards;
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -3973,7 +3983,7 @@ kbd {
   flex-direction: column;
   gap: 14px;
   align-items: flex-start;
-  animation: rise 0.3s ease both;
+  animation: rise 0.3s ease backwards;
 }
 
 .picker-list {
@@ -4002,7 +4012,7 @@ kbd {
   max-height: none;
   width: 100%;
   overflow-y: auto;
-  animation: rise 0.3s ease both;
+  animation: rise 0.3s ease backwards;
 }
 
 /* inline editor keeps a FIXED stage: canvas zoom scrolls inside the viewport,
@@ -4401,7 +4411,7 @@ kbd {
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   box-shadow: var(--shadow);
-  animation: rise 0.3s ease both;
+  animation: rise 0.3s ease backwards;
 }
 
 .install-icon svg { width: 38px; height: 38px; display: block; }
@@ -4533,7 +4543,15 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .ed-toolbar { flex-wrap: wrap; }
   .gif-transport { flex-wrap: wrap; }
 
-  .drawer { padding: 18px 18px calc(22px + env(safe-area-inset-bottom, 0px)); }
+  .drawer { padding: max(18px, env(safe-area-inset-top)) 18px calc(22px + env(safe-area-inset-bottom, 0px)); }
+  .drawer-head {
+    position: sticky;
+    top: calc(-1 * max(18px, env(safe-area-inset-top)));
+    z-index: 5;
+    margin: -8px 0 12px;
+    padding: 8px 0;
+    background: var(--panel);
+  }
 
   .matrix { padding: 26px 0 40px; }
   .matrix-title { font-size: 22px; }
@@ -4677,8 +4695,83 @@ body:has(.drawer-overlay) { overflow: hidden; }
      asset panel and app chrome step aside until toggled back */
   .st-focus-btn { display: inline-flex; }
   .st-focus-btn.active { color: var(--accent); border-color: var(--accent); }
-  .studio.st-focus .st-assets,
   .studio.st-focus .split-gutter { display: none; }
+  .studio.st-focus .type-badge,
+  .studio.st-focus .st-export,
+  .studio.st-focus .st-del { display: none; }
+  .studio.st-focus .st-bar { gap: 8px; }
+  /* assets become a bottom sheet behind the layers-style FAB */
+  .studio.st-focus .st-assets {
+    animation: none; /* panelIn would flash the sheet during entry */
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 130;
+    max-height: 68dvh;
+    margin: 0;
+    border-radius: 14px 14px 0 0;
+    border-bottom: 0;
+    background: var(--bg-raised);
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+    transform: translateY(105%);
+    transition: transform 0.25s ease;
+    /* clearance so the FAB (bottom-left) never covers the last asset rows */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+  .studio.st-focus .st-assets:not(.collapsed) { transform: none; }
+  .studio.st-focus .st-assets.collapsed > :not(.st-assets-head) { display: revert; }
+  .studio.st-focus .st-assets-toggle { display: none; }
+  .studio.st-focus .st-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 129;
+    background: rgba(4, 6, 14, 0.55);
+    backdrop-filter: blur(2px);
+  }
+  .studio.st-focus .st-fab {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    left: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 131;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-raised);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+  .studio.st-focus .st-fab.on { border-color: var(--accent); color: var(--accent); box-shadow: var(--glow); }
+  .st-fab-n {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 11px var(--font-mono);
+    line-height: 18px;
+    text-align: center;
+  }
+  /* the inline editor's footer floats as a compact save pill (hint hidden) */
+  .studio.st-focus .editor.ie-inline .ed-foot {
+    position: fixed;
+    right: 12px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 96;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .studio.st-focus .editor.ie-inline .ed-foot .ed-hint { display: none; }
+  .studio.st-focus .editor.ie-inline .ed-foot .btn { box-shadow: var(--shadow), var(--glow); }
+  body:has(.studio.st-focus) .install-card { display: none; }
   body:has(.studio.st-focus) .topbar,
   body:has(.studio.st-focus) .m-tabbar,
   body:has(.studio.st-focus) .footer { display: none; }
@@ -4941,7 +5034,7 @@ button { -webkit-tap-highlight-color: transparent; }
 
 /* modals pop instead of sliding like page content */
 .editor-overlay > .editor {
-  animation: modalPop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  animation: modalPop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15) backwards;
 }
 
 @keyframes modalPop {

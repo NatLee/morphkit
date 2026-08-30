@@ -152,7 +152,7 @@ export default function App() {
         file: f,
         kind,
         target,
-        quality: 0.9,
+        quality: settingsRef.current.defaultQuality,
         status: 'ready',
         progress: 0,
       });
@@ -191,7 +191,7 @@ export default function App() {
       let outName = outputFileName(item.file.name, item.target);
       if (item.kind === 'doc') {
         // documents: html intermediate → md/txt/html/docx/pdf/png, sheets → csv/xlsx/json
-        const r = await convertDoc(item.file, item.target, (p) => patch(id, { progress: p }), { pdfText: settingsRef.current.docPdfText });
+        const r = await convertDoc(item.file, item.target, (p) => patch(id, { progress: p }), { pdfText: settingsRef.current.docPdfText, pageSize: settingsRef.current.docPageSize, fontSize: settingsRef.current.docFontSize });
         blob = r.blob;
         if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip');
       } else if (item.kind === 'pdf') {
@@ -214,7 +214,7 @@ export default function App() {
             blob = await rasterizePdf(item.file, pw, onP); // plan B: qpdf couldn't decrypt
           }
         } else {
-          const r = await pdfToImages(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality, settingsRef.current.imageMaxDim, onP, pw);
+          const r = await pdfToImages(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality, settingsRef.current.imageMaxDim, onP, pw, settingsRef.current.pdfImageScale);
           blob = r.blob;
           if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip'); // one file per page
         }
@@ -723,6 +723,9 @@ export default function App() {
               </button>
             </div>
             <SettingsPanel settings={settings} onChange={updateSettings} />
+            <button className="btn btn-ghost drawer-bottom-close" onClick={() => setShowSettings(false)}>
+              {t('close')}
+            </button>
           </aside>
         </div>
       )}

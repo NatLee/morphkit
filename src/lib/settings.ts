@@ -1,6 +1,8 @@
 export interface Settings {
   /** Parallel conversion workers (each spawns its own ffmpeg.wasm instance). */
   concurrency: number;
+  /** initial per-item quality for new files (jpeg/webp/pdf-raster) */
+  defaultQuality: number;
   /** Image: longest-edge cap in px. 0 = keep original size. */
   imageMaxDim: number;
   audioBitrate: '128k' | '192k' | '256k' | '320k';
@@ -26,6 +28,11 @@ export interface Settings {
   gifWidth: number;
   /** copy title/artist/album… into the output (ffmpeg -map_metadata) */
   keepMetadata: boolean;
+  /** pdf → image render scale (1 = 72 dpi, 2 = 144, 3 = 216) */
+  pdfImageScale: 1 | 2 | 3;
+  /** document → pdf/png page geometry */
+  docPageSize: 'a4' | 'letter';
+  docFontSize: number;
   /** documents → PDF: embed CJK fonts (selectable text; downloads subsets once) vs raster pages */
   docPdfText: boolean;
   /** carry embedded cover art across audio formats that support it */
@@ -34,6 +41,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   concurrency: 2,
+  defaultQuality: 0.9,
   imageMaxDim: 0,
   audioBitrate: '192k',
   audioRateMode: 'cbr',
@@ -48,6 +56,9 @@ export const DEFAULT_SETTINGS: Settings = {
   gifFps: 12,
   gifWidth: 480,
   keepMetadata: true,
+  pdfImageScale: 2,
+  docPageSize: 'a4',
+  docFontSize: 11,
   docPdfText: true,
   keepCoverArt: true,
 };

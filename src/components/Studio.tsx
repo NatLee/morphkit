@@ -169,7 +169,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   // (canvas / timeline / mixer) owns the screen (≤760 only — CSS)
   const [focus, setFocus] = useState(false);
   // phone asset panel starts collapsed (immersive editing); desktop ignores it
-  const [assetsOpen, setAssetsOpen] = useState(false);
+  // open by default on desktop; phones start collapsed (and use the FAB sheet in focus mode)
+  const [assetsOpen, setAssetsOpen] = useState(() => window.matchMedia('(min-width: 761px)').matches);
   // draggable asset-panel width (desktop; ≤760 stacks and hides the gutter)
   const assetsSplit = useSplitter('morphkit-stw', 252, 180, 460);
   const [pickType, setPickType] = useState(false);
@@ -213,6 +214,14 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const cur = projects.find((p) => p.id === curId) ?? null;
   useEffect(() => { curRef.current = cur; }, [cur]);
   const ptype: ProjectType = cur?.type ?? 'audio';
+
+  // phones enter a workspace in FOCUS mode (chrome hidden, assets behind the FAB sheet)
+  useEffect(() => {
+    if (entered && window.matchMedia('(max-width: 760px)').matches) {
+      setFocus(true);
+      setAssetsOpen(false);
+    }
+  }, [entered]);
 
   // ---- init ----
   useEffect(() => {
@@ -1043,11 +1052,11 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           )}
         </button>
         {cur && (
-          <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(cur)}>
+          <button className="btn btn-ghost btn-sm st-export" onClick={() => void exportProjectZip(cur)}>
             {t('exportProject')}
           </button>
         )}
-        <button className="btn btn-ghost btn-sm" onClick={() => void removeProject()}>
+        <button className="btn btn-ghost btn-sm st-del" onClick={() => void removeProject()}>
           {t('deleteProject')}
         </button>
       </div>
@@ -1337,6 +1346,16 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           </div>
         </main>
       </div>
+
+      {assetsOpen && focus && <div className="st-scrim" onClick={() => setAssetsOpen(false)} />}
+      <button
+        className={`st-fab${assetsOpen ? ' on' : ''}`}
+        onClick={() => setAssetsOpen((v) => !v)}
+        aria-label={t('assetsLabel')}
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
+        <span className="st-fab-n">{assets.length}</span>
+      </button>
 
       {note && createPortal(<div className="banner info st-note">{note}</div>, document.body)}
 

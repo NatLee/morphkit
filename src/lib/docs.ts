@@ -11,6 +11,9 @@ import { zipSync } from 'fflate';
 import { docTypeOf, type DocType } from './formats';
 import { A4, buildPdf, type PageSpec } from './pdf';
 
+/** US Letter in points. */
+export const LETTER: [number, number] = [612, 792];
+
 // ---------- lazy libs ----------
 const mammoth = () => import('mammoth/mammoth.browser.js').then((m) => (m.default ?? m) as typeof import('mammoth'));
 const xlsx = () => import('xlsx');
@@ -291,31 +294,32 @@ export type PdfTextMode = 'text' | 'raster';
  * HTML → PDF. 'text' embeds subsetted Noto CJK fonts (selectable text; needs the network once —
  * falls back to raster on failure); 'raster' paints A4 canvases (offline, not selectable).
  */
-export async function htmlToPdf(html: string, title: string, onProgress?: (p: number) => void, mode: PdfTextMode = 'raster'): Promise<Blob> {
+export async function htmlToPdf(html: string, title: string, onProgress?: (p: number) => void, mode: PdfTextMode = 'raster', style: DocPageStyle = {}): Promise<Blob> {
   const blocks = htmlToBlocks(html);
+  const st = pageStyleOf(style);
   if (mode === 'text') {
     try {
       const { renderPdfBlob } = await import('./docPaint');
-      return await renderPdfBlob(blocks, title, htmlToText(html), {}, onProgress);
+      return await renderPdfBlob(blocks, title, htmlToText(html), st, onProgress);
     } catch (e) {
       console.warn('[doc pdf] embedded-font mode failed — falling back to raster pages', e);
     }
   }
   const { renderCanvases } = await import('./docPaint');
-  const pages = await renderCanvases(blocks, {}, (p) => onProgress?.(p * 0.6));
+  const pages = await renderCanvases(blocks, st, (p) => onProgress?.(p * 0.6));
   const specs: PageSpec[] = [];
   for (const c of pages) {
     const blob = await toBlob(c, 'image/jpeg', 0.92);
     c.width = c.height = 0;
-    specs.push({ kind: 'image', blob, width: A4[0], height: A4[1], rotate: 0 });
+    specs.push({ kind: 'image', blob, width: st.width ?? A4[0], height: st.height ?? A4[1], rotate: 0 });
   }
   return buildPdf(specs, { title, onProgress: (p) => onProgress?.(0.6 + p * 0.4) });
 }
 
 /** HTML → PNG page images (single page → PNG, several → ZIP). */
-export async function htmlToPngs(html: string, base: string, onProgress?: (p: number) => void): Promise<{ blob: Blob; multi: boolean }> {
+export async function htmlToPngs(html: string, base: string, onProgress?: (p: number) => void, style: DocPageStyle = {}): Promise<{ blob: Blob; multi: boolean }> {
   const { renderCanvases } = await import('./docPaint');
-  const pages = await renderCanvases(htmlToBlocks(html), {}, onProgress);
+  const pages = await renderCanvases(htmlToBlocks(html), pageStyleOf(style), onProgress);
   if (pages.length === 1) { const b = await toBlob(pages[0], 'image/png'); return { blob: b, multi: false }; }
   const entries: Record<string, Uint8Array> = {};
   for (let i = 0; i < pages.length; i++) {
@@ -457,6 +461,14 @@ async function jsonRows(file: File): Promise<unknown[][]> {
 export interface ConvertDocOpts {
   /** PDF output: embed CJK fonts for selectable text (settings.docPdfText) */
   pdfText?: boolean;
+  pageSize?: 'a4' | 'letter';
+  fontSize?: number;
+}
+
+interface DocPageStyle { pageSize?: 'a4' | 'letter'; fontSize?: number; width?: number; height?: number }
+function pageStyleOf(o: DocPageStyle): { width?: number; height?: number; fontSize?: number } {
+  const dims = o.pageSize === 'letter' ? LETTER : o.pageSize === 'a4' ? A4 : undefined;
+  return { ...(dims ? { width: dims[0], height: dims[1] } : {}), ...(o.fontSize ? { fontSize: o.fontSize } : {}) };
 }
 
 /** Convert a document to `target`. Returns the blob and whether it is a multi-file ZIP. */
@@ -488,8 +500,8 @@ export async function convertDoc(file: File, target: string, onProgress?: (p: nu
       const { blocksToPptx } = await import('./pptx');
       return one(await blocksToPptx(htmlToBlocks(html), base));
     }
-    case 'pdf': return one(await htmlToPdf(html, base, prog, opts.pdfText ? 'text' : 'raster'));
-    case 'png': return htmlToPngs(html, base, prog);
+    case 'pdf': return one(await htmlToPdf(html, base, prog, opts.pdfText ? 'text' : 'raster', opts));
+    case 'png': return htmlToPngs(html, base, prog, opts);
     default: throw new Error(`unsupported doc target ${target}`);
   }
 }

@@ -544,6 +544,13 @@ const zh: Dict = {
   mdCsvHint: '先選取一段 CSV 或 TSV 文字再按此鈕',
   mdQr: '插入 QR Code 圖片',
   mdQrInsert: '插入 QR',
+  // ---- settings v2 ----
+  defaultQuality: '新檔案預設品質',
+  defaultQualityHint: '加入清單時 JPEG／WEBP／PDF 轉圖的初始品質（每張卡片仍可個別調整）',
+  pdfImageScale: 'PDF 轉圖片解析度',
+  pdfImageScaleHint: '越高越清晰、檔案越大（144 dpi 約為螢幕兩倍）',
+  docPageSizeLabel: '文件輸出頁面',
+  docFontSizeLabel: '文件輸出字級',
 };
 
 const en: Dict = {
@@ -1080,6 +1087,13 @@ const en: Dict = {
   mdCsvHint: 'select some CSV or TSV text first, then press this',
   mdQr: 'Insert a QR-code image',
   mdQrInsert: 'Insert QR',
+  // ---- settings v2 ----
+  defaultQuality: 'Default quality for new files',
+  defaultQualityHint: 'Initial JPEG/WEBP/PDF-raster quality when files are added (still adjustable per card)',
+  pdfImageScale: 'PDF → image resolution',
+  pdfImageScaleHint: 'Higher = sharper and larger files (144 dpi ≈ 2× screen)',
+  docPageSizeLabel: 'Document page size',
+  docFontSizeLabel: 'Document font size',
 };
 
 const ja: Dict = {
@@ -1616,6 +1630,13 @@ const ja: Dict = {
   mdCsvHint: 'CSV か TSV のテキストを選択してから押してください',
   mdQr: 'QR コード画像を挿入',
   mdQrInsert: 'QR を挿入',
+  // ---- settings v2 ----
+  defaultQuality: '新規ファイルの既定品質',
+  defaultQualityHint: '追加時の JPEG／WEBP／PDF ラスタの初期品質（カードごとに変更可能）',
+  pdfImageScale: 'PDF → 画像の解像度',
+  pdfImageScaleHint: '高いほど鮮明でファイルが大きくなります（144 dpi ≈ 画面の 2 倍）',
+  docPageSizeLabel: '文書のページサイズ',
+  docFontSizeLabel: '文書のフォントサイズ',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

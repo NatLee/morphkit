@@ -95,11 +95,14 @@ article.file-card.kind-*.status-*
 
 Stateless controlled form; single mutator `set(key, value)` → `onChange({...settings, [key]: value})`.
 Module const `VBR_LEVELS: [q,kbps][]` (LAME 0→245 … 9→65). Seven `.sp-section` groups: General
-(workers select 1–4, keepMetadata, keepCoverArt disabled unless keepMetadata) · Image (imageMaxDim) ·
-Audio (audioBitrate, audioRateMode cbr|vbr, audioQuality V0–V9 vbr-only, audioSampleRate, audioChannels) · Documents (docPdfText checkbox) ·
+(workers select 1–4, keepMetadata, keepCoverArt disabled unless keepMetadata) · Image (defaultQuality range +
+imageMaxDim) ·
+Audio (audioBitrate, audioRateMode cbr|vbr, audioQuality V0–V9 vbr-only, audioSampleRate, audioChannels) · PDF (pdfImageScale dpi select) · Documents (docPageSize + docFontSize + docPdfText) ·
 Video (videoCrf range 18–32, videoPreset, videoMaxH, videoFps, videoMute) · GIF (gifFps range 5–24, gifWidth).
 Pattern: `label.sp-field > span.sp-label [+span.sp-val] > select|input [+ span.sp-hint]`; checkboxes
-`label.sp-field.sp-check`. Mounted ONLY inside `.drawer` (which forces `.sp-grid` to 1 column).
+`label.sp-field.sp-check`. Mounted ONLY inside `.drawer` (which forces `.sp-grid` to 1 column); App renders a `.drawer-bottom-close`
+button after it, and ≤640 the drawer head is sticky with safe-area padding (the top X was unreachable
+under phone browser chrome).
 
 ## DualRange.tsx (73) — two-handle slider, no useState
 

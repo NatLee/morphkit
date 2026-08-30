@@ -79,7 +79,8 @@ Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apn
 `saveSettings` (swallows quota errors). Key `'morphkit-settings'`, unversioned — renaming a field
 silently drops the user's value.
 Fields (defaults): concurrency 2 · imageMaxDim 0 · audioBitrate '192k' · audioRateMode 'cbr' ·
-audioQuality 2 · audioSampleRate 0 · audioChannels 0 · docPdfText true · videoCrf 23 · videoPreset 'veryfast' ·
+audioQuality 2 · audioSampleRate 0 · audioChannels 0 · defaultQuality 0.9 · pdfImageScale 2 ·
+docPageSize a4 · docFontSize 11 · docPdfText true · videoCrf 23 · videoPreset 'veryfast' ·
 videoMaxH 0 · videoFps 0 · videoMute false · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true.
 
 ## lib/idb.ts (95)

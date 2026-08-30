@@ -90,7 +90,10 @@
     58vh; ≤760 two rows; ≤640 100dvh sheet) textarea.doc-source(mono, tab-size 2) .doc-preview(always-light sheet)
     .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.mx-doc` + `.file-card.kind-doc .fc-icon`
     accent live in the format-matrix section
-22. `studio` — .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
+22. `studio` — desktop collapse: `.st-body:has(.st-assets.collapsed)` → max-content column, gutter + stats
+    hidden · focus (≤760): .st-assets = fixed bottom sheet (translateY ↔ not-.collapsed, animation:none,
+    72px FAB clearance) + .st-fab(.on, .st-fab-n badge) + .st-scrim + floating `.ed-foot` save pill,
+    .st-export/.st-del/.type-badge hidden · .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
     calc(100vh−96px); ≤760: height auto, page scrolls**) .st-bar .st-name
     .st-body(min(--st-assets-w,40vw)|8px .split-gutter|1fr, resizable; 1fr ≤760)
     .st-assets .st-main .view-anim .mixer .media-view .st-assets-head .st-import .st-empty .asset-row
@@ -159,7 +162,9 @@ strips (.ed-options/.ed-toolbar/.gif-transport) get `overscroll-behavior-x: cont
    `max-height:100%` (`.mp-video`, `.vw-preview`, mobile `.gif-preview`) MUST keep
    `grid-template-rows:100%` + `overflow:hidden`: with the default auto row the child's
    intrinsic pixel size wins and the media overflows onto the controls below.
-6. Keyframes must end `transform:none`; modals must portal to body (invariant 17).
+6. Keyframes must end `transform:none` AND transform-animating entrances use fill `backwards` — a finished
+   'both'/'forwards' fill keeps a transform that overrides sheet slides and traps fixed descendants
+   (invariant 17).
 7. `.tool-btn.active:hover` keeps `color: var(--bg)` (invariant 6).
 8. The page body must NEVER scroll horizontally (html/body overflow-x clip stays; a decorative
    element wider than the viewport gets clipped by its own container, like `.hero`).

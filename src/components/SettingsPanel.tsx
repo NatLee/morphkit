@@ -64,6 +64,21 @@ export function SettingsPanel({ settings, onChange }: Props) {
         <h3 className="sp-sec-title">{t('kindImage')}</h3>
         <div className="sp-grid">
           <label className="sp-field">
+            <span className="sp-label">
+              {t('defaultQuality')} <span className="sp-val">{Math.round(settings.defaultQuality * 100)}%</span>
+            </span>
+            <input
+              type="range"
+              min={0.4}
+              max={1}
+              step={0.01}
+              value={settings.defaultQuality}
+              onChange={(e) => set('defaultQuality', Number(e.target.value))}
+            />
+            <span className="sp-hint">{t('defaultQualityHint')}</span>
+          </label>
+
+          <label className="sp-field">
             <span className="sp-label">{t('imageMaxDim')}</span>
             <select
               value={settings.imageMaxDim}
@@ -222,8 +237,48 @@ export function SettingsPanel({ settings, onChange }: Props) {
 
       {/* ---- gif ---- */}
       <div className="sp-section">
+        <h3 className="sp-sec-title">PDF</h3>
+        <div className="sp-grid">
+          <label className="sp-field">
+            <span className="sp-label">{t('pdfImageScale')}</span>
+            <select
+              value={settings.pdfImageScale}
+              onChange={(e) => set('pdfImageScale', Number(e.target.value) as 1 | 2 | 3)}
+            >
+              <option value={1}>72 dpi</option>
+              <option value={2}>144 dpi</option>
+              <option value={3}>216 dpi</option>
+            </select>
+            <span className="sp-hint">{t('pdfImageScaleHint')}</span>
+          </label>
+        </div>
+      </div>
+
+      <div className="sp-section">
         <h3 className="sp-sec-title">{t('secDocs')}</h3>
         <div className="sp-grid">
+          <label className="sp-field">
+            <span className="sp-label">{t('docPageSizeLabel')}</span>
+            <select
+              value={settings.docPageSize}
+              onChange={(e) => set('docPageSize', e.target.value as 'a4' | 'letter')}
+            >
+              <option value="a4">A4</option>
+              <option value="letter">Letter</option>
+            </select>
+          </label>
+
+          <label className="sp-field">
+            <span className="sp-label">{t('docFontSizeLabel')}</span>
+            <select
+              value={settings.docFontSize}
+              onChange={(e) => set('docFontSize', Number(e.target.value))}
+            >
+              {[9, 10, 11, 12, 13, 14].map((n) => (
+                <option key={n} value={n}>{n} pt</option>
+              ))}
+            </select>
+          </label>
           <label className="sp-field sp-check">
             <input
               type="checkbox"

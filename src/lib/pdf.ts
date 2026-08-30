@@ -257,7 +257,8 @@ export async function pdfToImages(
   quality: number,
   maxDim: number,
   onProgress?: (p: number) => void,
-  password?: string
+  password?: string,
+  scale = 2
 ): Promise<{ blob: Blob; multi: boolean }> {
   const doc = await openPdf(await file.arrayBuffer(), password);
   const mime = `image/${target}`;
@@ -267,7 +268,7 @@ export async function pdfToImages(
   const entries: Record<string, Uint8Array> = {};
   let single: Blob | null = null;
   for (let i = 0; i < n; i++) {
-    const canvas = await renderPage(doc, i, { scale: 2, maxDim });
+    const canvas = await renderPage(doc, i, { scale, maxDim });
     const blob = await toBlob(canvas, mime, target === 'png' ? undefined : quality);
     canvas.width = canvas.height = 0;
     if (n === 1) single = blob;
