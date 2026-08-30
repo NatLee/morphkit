@@ -149,7 +149,11 @@ history; a note textarea blur commits.
 
 **State**: pages (+`pagesRef`) · sel · anchor · loaded/error/busy/prog/note (flash) · dragIdx/overIdx ·
 editing `{pageId, file, base}` (nested ImageEditor; `base` = undecorated render for the diff) · addAt ·
-previewOpen · preview `{id, url, w, h}` (of `focusPage` = last selected) · noteMode · activeNote ·
+previewOpen (aside stays MOUNTED; `.with-preview` animates its width — never unmount it or the toggle pops) ·
+preview `{id, url, w, h}` (of `focusPage` = last selected) · prevSplit (useSplitter 'morphkit-pdfpw' 280–800 →
+`--pdf-prev-w` on .pdf-body, dragged via .split-gutter.pdf-gutter, hidden ≤760) · zoomed (full-screen
+`.pdf-zoom` lightbox: non-note click on the preview page opens it, Esc/click closes — Esc handler checks
+zoomed FIRST) · noteMode · activeNote ·
 wm/wmOpen · exportOpen · xo `ExportOpts {scope, split, title, author, encrypt, userPw, ownerPw}` ·
 pwAsk `{file, resolve}` (promise-backed password prompt).
 
@@ -177,7 +181,7 @@ Overlay / PdfPasswordModal are SIBLINGS of the overlay inside the portal — nev
     .pdf-grid[role=listbox] > .pdf-status | .pdf-page[data-idx](.sel .dragging .over-before/.over-after)
         .pdf-thumb > img | .spinner · .pdf-badge(image/blank) · .pdf-badge.rot (90° ↔ ↕) · .pdf-badge.deco (💬 ✎ ◈)
         .pdf-page-foot > .pdf-check(.on) + .pdf-num + .pdf-ins
-    aside.pdf-preview > .pdf-preview-bar (prev · n/total · next · .pdf-dims) + .pdf-preview-stage[.noting]
+    .split-gutter.pdf-gutter (drag width) + aside.pdf-preview[aria-hidden] > .pdf-preview-bar (prev · n/total · next · .pdf-dims) + .pdf-preview-stage[.noting]
         > .pdf-preview-page{aspect-ratio} > img + button.pdf-note-pin×n(.active) + [.pdf-notes > .pdf-note-row
         (.pdf-note-idx + textarea + delete)]
   .fc-progress-row.pdf-progress (export) · .ed-foot (.ed-hint summary|flash + cancel(!inline) · pdfSave|pdfSaveAsset)

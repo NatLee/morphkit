@@ -512,6 +512,7 @@ const zh: Dict = {
   secDocs: '文件',
   docPdfTextLabel: 'PDF 內嵌字型（可選取文字）',
   docPdfTextHint: '文件轉 PDF 時內嵌 Noto Sans TC/JP/KR 子集字型，文字可選取複製；首次需下載字型（會快取供離線使用），失敗時自動改為圖片頁',
+  pdfZoom: '點擊放大檢視',
 };
 
 const en: Dict = {
@@ -1016,6 +1017,7 @@ const en: Dict = {
   secDocs: 'Documents',
   docPdfTextLabel: 'Embed fonts in PDF (selectable text)',
   docPdfTextHint: 'Document→PDF embeds subsetted Noto Sans TC/JP/KR so text stays selectable; fonts download once (cached for offline) and the converter falls back to raster pages on failure',
+  pdfZoom: 'Click to zoom',
 };
 
 const ja: Dict = {
@@ -1520,6 +1522,7 @@ const ja: Dict = {
   secDocs: '文書',
   docPdfTextLabel: 'PDF にフォントを埋め込む（テキスト選択可）',
   docPdfTextHint: '文書→PDF で Noto Sans TC/JP/KR のサブセットを埋め込み、テキストを選択可能にします。フォントは初回のみダウンロード（オフライン用にキャッシュ）。失敗時は画像ページに自動フォールバック',
+  pdfZoom: 'クリックで拡大表示',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

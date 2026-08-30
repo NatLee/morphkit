@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { zipSync } from 'fflate';
 import { useI18n } from '../i18n';
 import { ImageEditor } from './ImageEditor';
 import { Overlay } from './Overlay';
 import { PdfPasswordModal } from './PdfPasswordModal';
+import { useSplitter } from '../lib/useSplitter';
 import { ColorPicker } from './ColorPicker';
 import {
   A4,
@@ -140,6 +141,9 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
   const [addAt, setAddAt] = useState<number | null>(null);
   // preview
   const [previewOpen, setPreviewOpen] = useState(true);
+  // desktop: draggable preview width (persisted); .pdf-gutter is hidden ≤760 where the panel stacks
+  const prevSplit = useSplitter('morphkit-pdfpw', 400, 280, 800, { invert: true });
+  const [zoomed, setZoomed] = useState(false);
   const [preview, setPreview] = useState<{ id: number; url: string; w: number; h: number } | null>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
@@ -483,7 +487,8 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
     setActiveNote(null);
   };
   const onPreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!noteMode) { setActiveNote(null); return; }
+    // outside note mode a click on the page zooms it to a full-screen lightbox
+    if (!noteMode) { setActiveNote(null); setZoomed(true); return; }
     const r = e.currentTarget.getBoundingClientRect();
     addNoteAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
   };
@@ -688,7 +693,7 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       const mod = e.ctrlKey || e.metaKey;
-      if (e.key === 'Escape') { if (noteMode) setNoteMode(false); else if (!inline) onClose?.(); }
+      if (e.key === 'Escape') { if (zoomed) setZoomed(false); else if (noteMode) setNoteMode(false); else if (!inline) onClose?.(); }
       else if ((e.key === 'Delete' || e.key === 'Backspace') && sel.size) { e.preventDefault(); deleteSel(); }
       else if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSel(new Set(pages.map((p) => p.id))); }
       else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
@@ -702,7 +707,7 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel, pages, editing, pwAsk, exportOpen, noteMode, focusIdx, histVer]);
+  }, [sel, pages, editing, pwAsk, exportOpen, noteMode, focusIdx, histVer, zoomed]);
 
   const nSel = sel.size;
   const Icon = ({ d }: { d: string }) => (
@@ -811,7 +816,10 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
           </div>
         )}
 
-        <div className={`pdf-body${previewOpen ? ' with-preview' : ''}`}>
+        <div
+          className={`pdf-body${previewOpen ? ' with-preview' : ''}`}
+          style={{ '--pdf-prev-w': `${prevSplit.size}px` } as CSSProperties}
+        >
           <div className="pdf-grid" role="listbox" aria-multiselectable="true">
             {!loaded && !error && <p className="pdf-status"><span className="spinner" /> {t('pdfLoading')}</p>}
             {error && <p className="pdf-status danger">{t(error)}</p>}
@@ -863,8 +871,10 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
             })}
           </div>
 
+          <div className="split-gutter pdf-gutter" {...prevSplit.gutterProps} />
+          <aside className="pdf-preview" aria-hidden={!previewOpen}>
           {previewOpen && (
-            <aside className="pdf-preview">
+            <>
               <div className="pdf-preview-bar">
                 <button className="btn btn-ghost btn-sm" disabled={focusIdx <= 0} onClick={() => { const p = pages[focusIdx - 1]; setSel(new Set([p.id])); setAnchor(p.id); }} aria-label={t('pdfMoveL')}><Icon d="M15 6l-6 6 6 6" /></button>
                 <span className="pdf-num">{focusIdx >= 0 ? `${focusIdx + 1} / ${pages.length}` : '—'}</span>
@@ -873,8 +883,8 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
               </div>
               <div className={`pdf-preview-stage${noteMode ? ' noting' : ''}`}>
                 {preview && focusPage && preview.id === focusPage.id ? (
-                  <div className="pdf-preview-page" style={{ aspectRatio: `${preview.w} / ${preview.h}` }} onClick={onPreviewClick}>
-                    <img src={preview.url} alt="" draggable={false} />
+                  <div className={`pdf-preview-page${noteMode ? '' : ' zoomable'}`} style={{ aspectRatio: `${preview.w} / ${preview.h}` }} onClick={onPreviewClick} title={noteMode ? undefined : t('pdfZoom')}>
+                    <img key={preview.url} src={preview.url} alt="" draggable={false} />
                     {focusPage.notes.map((n, k) => {
                       const [nx, ny] = noteDisplay(focusPage, n);
                       return (
@@ -916,8 +926,9 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
                   ))}
                 </div>
               )}
-            </aside>
+            </>
           )}
+          </aside>
         </div>
 
         {busy && prog > 0 && (
@@ -986,6 +997,14 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
 
   const extras = (
     <>
+      {zoomed && preview && focusPage && preview.id === focusPage.id && (
+        <div className="pdf-zoom" role="dialog" aria-label={t('pdfZoom')} onClick={() => setZoomed(false)}>
+          <img src={preview.url} alt="" draggable={false} />
+          <button className="theme-toggle pdf-zoom-close" onClick={() => setZoomed(false)} aria-label={t('close')}>
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+      )}
       {editItem && <ImageEditor item={editItem} onSave={(id, f) => void onPageEdited(id, f)} onClose={() => setEditing(null)} />}
       {exportModal}
       {pwAsk && (

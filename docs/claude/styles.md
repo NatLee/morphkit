@@ -68,8 +68,10 @@
     .pdf-grid(auto-fill 150px, max-h 58vh scroller; ≤640 112px + flex:1 inside a 100dvh sheet) .pdf-status
     .pdf-page(.sel glow · .dragging · .over-before/.over-after neon drop bar) .pdf-thumb(aspect-ratio inline)
     .pdf-badge(.rot .deco) .pdf-page-foot .pdf-num .pdf-check(.on) .pdf-ins(28px on coarse pointers) .pdf-progress ·
-    .pdf-body(.with-preview = 1fr | 38%; 1 col ≤760) .pdf-preview(58vh scroller) .pdf-preview-bar .pdf-dims
-    .pdf-preview-stage(.noting crosshair) .pdf-preview-page .pdf-note-pin(.active) .pdf-notes .pdf-note-row(.active)
+    .pdf-body(1fr|auto|auto grid; .with-preview shows the aside — width min(--pdf-prev-w,46vw) animates,
+    closed = width 0 still mounted; 1 col ≤760) .pdf-gutter(splitter; hidden ≤760) .pdf-preview(64vh) .pdf-preview-bar .pdf-dims
+    .pdf-preview-stage(.noting crosshair) .pdf-preview-page(.zoomable zoom-in cursor; img pdfPrevIn fade)
+    .pdf-zoom(z140 lightbox + .pdf-zoom-close) .pdf-note-pin(.active) .pdf-notes .pdf-note-row(.active)
     .pdf-note-idx · .pdf-wm(auto-fit grid) .pdf-wm-field(.pdf-wm-text .pdf-wm-color) .pdf-wm-btns .pdf-wm-apply ·
     .pdf-export .pdf-x-row .pdf-x-pw · .pw-modal(.shake, pwShake keyframes) .pw-file .pw-row .pw-input .pw-err ·
     .pdf-lock .fc-lock(.open) · inline: `.editor.ie-inline.pdf-editor` flex column, grid+preview fill ·

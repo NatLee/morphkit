@@ -2888,7 +2888,7 @@ kbd {
   align-content: start;
   padding: 10px;
   min-height: 220px;
-  max-height: 58vh;
+  max-height: 64vh;
   overflow-y: auto;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
@@ -2990,19 +2990,31 @@ kbd {
 .pdf-lock { margin-right: 6px; font-size: 13px; }
 .fc-lock.open { opacity: 0.75; }
 
-/* body = page grid | live preview (resizable via CSS only; ≤760 stacks) */
-.pdf-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-height: 0; }
-.pdf-body.with-preview { grid-template-columns: minmax(0, 1fr) minmax(260px, 38%); }
+/* body = page grid | drag-resizable live preview (--pdf-prev-w via useSplitter; ≤760 stacks).
+   The aside stays MOUNTED and animates its width so toggling never pops. */
+.pdf-body { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 12px; min-height: 0; }
+.pdf-gutter { width: 8px; align-self: stretch; }
+.pdf-body:not(.with-preview) .pdf-gutter { width: 0; pointer-events: none; visibility: hidden; }
 .pdf-preview {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: min(var(--pdf-prev-w, 400px), 46vw);
   min-width: 0;
-  max-height: 58vh;
+  max-height: 64vh;
   padding: 10px;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
   border-radius: var(--wobble-sm);
+  overflow: hidden;
+  transition: width 0.28s ease, opacity 0.22s ease, padding 0.28s ease;
+}
+.pdf-body:not(.with-preview) .pdf-preview {
+  width: 0;
+  padding: 10px 0;
+  border-width: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 .pdf-preview-bar { display: flex; align-items: center; gap: 6px; }
 .pdf-preview-bar .pdf-num { flex: 0 0 auto; min-width: 64px; }
@@ -3026,7 +3038,36 @@ kbd {
   background: #fff;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
 }
-.pdf-preview-page img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.pdf-preview-page img { display: block; width: 100%; height: 100%; object-fit: contain; animation: pdfPrevIn 0.18s ease; }
+.pdf-preview-page.zoomable { cursor: zoom-in; }
+@keyframes pdfPrevIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* full-screen page lightbox (click the preview) */
+.pdf-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(3px);
+  cursor: zoom-out;
+  animation: pdfPrevIn 0.18s ease;
+  overflow: auto;
+}
+.pdf-zoom img {
+  max-width: min(1400px, 96vw);
+  max-height: calc(100vh - 48px);
+  width: auto;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+}
+.pdf-zoom-close { position: fixed; top: 14px; right: 14px; }
 .pdf-note-pin {
   position: absolute;
   transform: translate(-50%, -100%);
@@ -3100,8 +3141,10 @@ kbd {
 .editor.ie-inline .pdf-grid, .editor.ie-inline .pdf-preview { max-height: none; height: 100%; }
 
 @media (max-width: 760px) {
-  .pdf-body.with-preview { grid-template-columns: minmax(0, 1fr); }
-  .pdf-preview { max-height: 46vh; }
+  .pdf-body, .pdf-body.with-preview { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .pdf-gutter { display: none; }
+  .pdf-preview { width: auto; max-height: 52vh; transition: none; }
+  .pdf-body:not(.with-preview) .pdf-preview { display: none; }
   .editor.ie-inline .pdf-grid { max-height: 40vh; height: auto; }
   .editor.ie-inline .pdf-preview { max-height: 46vh; height: auto; }
 }
