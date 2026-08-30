@@ -16,7 +16,7 @@ import { DocEditor } from './components/DocEditor';
 import { QrTool } from './components/QrTool';
 import { SheetEditor } from './components/SheetEditor';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, outputFileName } from './lib/formats';
+import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
@@ -404,8 +404,9 @@ export default function App() {
   /** Send a queued file into Studio as a fresh typed project and jump there. */
   const openAsProject = async (id: string) => {
     const it = itemsRef.current.find((i) => i.id === id);
-    if (!it || it.kind === 'doc') return; // documents have no Studio project type
-    const type: ProjectType = isGifItem(it) ? 'gif' : (it.kind as ProjectType);
+    if (!it) return;
+    if (it.kind === 'doc' && !isTextDoc(it.file)) return; // only text-ish docs become projects
+    const type: ProjectType = isGifItem(it) ? 'gif' : it.kind === 'doc' ? 'text' : (it.kind as ProjectType);
     const p = await createProjectWithAsset(it.file.name, it.kind, it.file, type);
     try { localStorage.setItem('morphkit-project', p.id); } catch { /* ignore */ }
     setStudioEnterId(p.id);

@@ -120,7 +120,7 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 11. **Studio persistence**: mixer doc saves to IndexedDB debounced 500ms via `persist()`; clips reference assets by id — deleting an asset must strip its clips AND `dropAssetBuffer`.
 12. **AudioContext** is created lazily (user gesture) — never at module load. Buffers must be decoded (cache warm) before `playMix`/`renderMixWav`; Studio warms the cache on project load.
 13. **MediaEdit trim preview**: never seek-back on reaching trim end (causes visible shake); trim handles scrub `currentTime` instead.
-14. **Typed projects**: `ProjectRec.type` is set at creation and immutable; legacy records without `type` are 'audio'. `savePatch` updates `curRef` synchronously — required for rapid patch bursts (trim drags, `onObjectsChange`).
+14. **Typed projects**: `ProjectRec.type` is set at creation and immutable; legacy records without `type` are 'audio'. `savePatch` updates `curRef` synchronously — required for rapid patch bursts (trim drags, `onObjectsChange`). The async init load MERGES into `projects` and only fills a null `curId` — clobbering either wipes a project created before the IndexedDB read resolves (savePatch then no-ops on a null curRef and the record never persists).
 15. **ImageEditor inline mode**: `initialObjects` consumed once at mount (key by base asset id); `objId` must be bumped past loaded ids. Pseudo-Items passed to inline editors MUST be memoized or the init effect loops.
 16. **muxVideo**: audio timeline aligns to the TRIMMED video start; wav is rendered by OfflineAudioContext first, then mapped `-map 0:v -map 1:a -shortest`.
 17. **Modals MUST portal to `<body>`** (`components/Overlay.tsx`, or `createPortal` directly). Any ancestor transform/filter makes itself the containing block for `position:fixed`, which clips the backdrop. Keyframe endings should also be `transform: none` for the same reason.
@@ -189,7 +189,9 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     boundary: it round-trips as `---` through Markdown, the paginator/docx writer treat it as a
     page break (attribute present) vs a rule (bare hr), and `blocksToPptx` starts a new slide on
     h1/h2 OR hr. Sheets route to SheetEditor (docTypeOf === 'sheet'), other docs to DocEditor;
-    plain .txt edits in Markdown mode but saves verbatim bytes. Ctrl+V of plain TEXT (no files)
+    plain .txt edits in Markdown mode but saves verbatim bytes. Text-ish docs (`isTextDoc`:
+    md/txt/html/json) can open as Studio TEXT projects (`textAssetId` + inline DocEditor writing
+    back via `replaceAssetBlob`); sheets/pptx cannot. Ctrl+V of plain TEXT (no files)
     creates a note-N.md doc item and opens the editor (`addNote`) — inputs/textareas excluded.
 30. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
 

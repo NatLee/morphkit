@@ -25,7 +25,7 @@ export interface MixerDoc {
 }
 
 /** Project type is chosen at creation and never changes. */
-export type ProjectType = 'audio' | 'image' | 'gif' | 'video' | 'pdf';
+export type ProjectType = 'audio' | 'image' | 'gif' | 'video' | 'pdf' | 'text';
 
 /** Image projects: persisted non-destructive object layers over a base asset. */
 export interface ImageDoc {
@@ -59,6 +59,8 @@ export interface ProjectRec {
   gifAssetId?: string | null;
   /** pdf projects: the document being edited (PdfEditor writes back to this asset) */
   pdfAssetId?: string | null;
+  /** text projects: the markdown/text asset the inline DocEditor writes back to */
+  textAssetId?: string | null;
 }
 
 export interface AssetRec {

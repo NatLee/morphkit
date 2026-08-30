@@ -32,6 +32,12 @@ export function docTypeOf(file: File): DocType {
   return 'text';
 }
 /** Output list for a document, by its sub-type. */
+/** documents that edit as text/markdown — the only ones Studio text projects accept */
+export function isTextDoc(file: File): boolean {
+  const t = docTypeOf(file);
+  return t === 'md' || t === 'text' || t === 'html' || t === 'json';
+}
+
 export function docOutputs(file: File): readonly string[] {
   switch (docTypeOf(file)) {
     case 'docx': return ['pdf', 'html', 'md', 'txt', 'pptx', 'png'];

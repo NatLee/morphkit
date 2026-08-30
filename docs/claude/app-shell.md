@@ -21,7 +21,8 @@ LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme
 mergeToPdf re-save, multi-page raster swaps `outName` to .zip / image→pdf→imageToPdf / image→convertImage /
 apng|gif→convertAnimImage / else convertMedia) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
 queue through semaphore) · `addNote(text)` (Ctrl+V plain text or the DropZone `.dz-note` link → note-N.md doc item, editor opens) ·
-`qrOpen` state (null closed / '' maker / text reader) renders `<QrTool>`; topbar `.qr-btn` + 4-tab phone bar + FileCard chip open it ·
+`qrOpen` state (null closed / '' maker / text reader) renders `<QrTool>` (its .qr-overlay sits at z90 ≤640 so the z95 tab bar stays usable and the QR tab
+toggles it closed; sticky head + .qr-foot close as fallbacks) · topbar `.qr-btn` + 4-tab phone bar + FileCard chip open it ·
 `mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
 shown when `mergeable` > 1) · `convertAll` · `revokePreview(it)` · `remove`/`clearAll` (must revoke `outUrl` + `meta.preview`) ·
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
@@ -52,7 +53,7 @@ div.app (+ .studio-mode)
   {pwFor && <PdfPasswordModal/>}
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
   <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
-  nav.m-tabbar > button×3 convert/studio/settings (phone-only bottom tabs, hidden >640 via CSS;
+  nav.m-tabbar > button×4 convert/studio/QR/settings (phone-only bottom tabs, hidden >640 via CSS;
     mirrors studio-toggle + settings drawer — topbar .studio-toggle hides ≤640)
   footer.footer   (hidden in display-mode: standalone)
 ```

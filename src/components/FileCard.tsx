@@ -10,7 +10,7 @@ import {
 import { fmtDuration } from '../lib/metadata';
 import { extOf } from '../lib/formats';
 import type { Item } from '../types';
-import { docTypeOf } from '../lib/formats';
+import { docTypeOf, isTextDoc } from '../lib/formats';
 import { PDF_ICON } from './FormatMatrix';
 
 const KIND_ICONS: Record<Kind, string> = {
@@ -194,7 +194,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             <svg viewBox="0 0 24 24" width="14" height="14"><path d={editIcon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {t('edit')}
           </button>
-          {item.kind !== 'doc' && (
+          {(item.kind !== 'doc' || isTextDoc(item.file)) && (
           <button
             className="btn btn-ghost btn-sm fc-to-studio"
             disabled={busy}

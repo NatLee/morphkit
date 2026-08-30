@@ -199,9 +199,10 @@ Props `{fileName, onSubmit(pw) → Promise<boolean>, onCancel}`. Owns pw/show/bu
 Esc cancels. DOM: Overlay > .editor.mini-modal.pw-modal > .mx-label + .pw-file + .pw-row (.pw-input + eye
 toggle) + .pw-err|.ed-hint + .ed-foot.
 
-## DocEditor.tsx (~150) — source + preview for documents
+## DocEditor.tsx (~170) — source + preview for documents (modal + Studio inline)
 
-Props `{item, onSave(id, file), onClose}`. On mount `docEditSource(file)` picks the edit `mode`
+Props `{item, onSave(id, file), onClose?, inline?}` — inline renders in place (.ie-inline-wrap, no head,
+save label = pdfSaveAsset, Esc disabled) for Studio TEXT projects. On mount `docEditSource(file)` picks the edit `mode`
 (`md` for .md, .txt AND .docx/.pptx, `html`, `csv` (first sheet, `sheetName`), `json`, `text`) and the source text;
 `previewHtml(mode, text)` re-renders 250 ms after typing into `.doc-prose` (already sanitized by lib/docs).
 State: mode · text · orig (dirty check) · sheetName · html · loaded/error/busy · view split|source|preview · wrap.

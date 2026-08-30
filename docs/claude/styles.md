@@ -82,8 +82,10 @@
 20. `qr tool` — .qr-tool .qr-tabs .qr-make(1fr|300px; 1 col ≤760, preview first) .qr-form .qr-tpl .qr-field
     .qr-text .qr-style .qr-colors .qr-preview .qr-canvas(.checker) .qr-payload .qr-actions · .qr-read .qr-drop
     (.drop-hot) .qr-video .qr-read-actions .qr-result .qr-decoded .qr-kind(-url) · .fc-qr chip · .dz-note ·
-    ≤640: topbar .qr-btn hidden, .m-tabbar 4 columns
-21. `doc editor` — .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
+    ≤640: topbar .qr-btn hidden; .qr-overlay z90 (< .m-tabbar z95 → the QR tab stays tappable and toggles
+    the sheet), sheet 100dvh w/ safe-area padding-top + bottom clearance, sticky head, .qr-foot close;
+    .m-tabbar = repeat(4,1fr) — the rule lives in the MOBILE LAYER (an earlier-section override loses the cascade)
+21. `doc editor` — `.editor.ie-inline.doc-editor` (Studio text projects: flex column, .doc-body fills) · .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
     58vh; ≤760 two rows; ≤640 100dvh sheet) textarea.doc-source(mono, tab-size 2) .doc-preview(always-light sheet)
     .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.mx-doc` + `.file-card.kind-doc .fc-icon`
     accent live in the format-matrix section

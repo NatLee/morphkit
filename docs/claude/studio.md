@@ -9,7 +9,8 @@
 
 Two mutually exclusive trees in one component: **launcher** (early return when `!entered`, ~line 688)
 and **workspace** (~line 821). Only component touching IndexedDB. Five project types: audio→Mixer,
-image→inline ImageEditor, gif→inline GifEditor, video→VideoWorkspace, **pdf→inline PdfEditor** (`pdfAssetId`
+image→inline ImageEditor, gif→inline GifEditor, video→VideoWorkspace, **text→inline DocEditor** (`textAssetId`; `blankNote` creates note-N.md; ◎ `pickText` accepts `isTextDoc`
+assets; save = `replaceAssetBlob`) · **pdf→inline PdfEditor** (`pdfAssetId`
 primary; save = `replaceAssetBlob` like GIF; `pdfImport` state feeds `importFiles`; `canImportToEditor` accepts
 pdf+image assets; launcher thumb = `extractMeta(...,'pdf').preview`; `metaRows` adds pages/page size/encrypted).
 Mobile focus mode: `focus` state + `.st-focus-btn` in the workspace `.st-bar` (visible ≤760 only)
@@ -17,7 +18,8 @@ toggles `.studio.st-focus` — CSS hides the asset panel and app chrome so the w
 screen; `leaveWorkspace` resets it. Phone asset panel: `assetsOpen` state (default FALSE —
 collapsed for immersive editing) + `.st-assets-toggle` chevron in `.st-assets-head`;
 `.st-assets.collapsed` hides everything but the head row (≤760 only, desktop always expanded).
-Prop `enterProjectId?` (from App's "open as project"): init effect jumps straight into that
+Init MERGES the async idb project list into state and never overwrites a non-null `curId` (see
+CLAUDE.md invariant 14 — clobbering loses projects created during the load). Prop `enterProjectId?` (from App's "open as project"): init effect jumps straight into that
 workspace, skipping the launcher; App clears it on manual studio-toggle.
 
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·

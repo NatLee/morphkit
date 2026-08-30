@@ -11,7 +11,7 @@ import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
 import { Overlay } from './Overlay';
 import { createPortal } from 'react-dom';
-import { detectKind, extOf, formatBytes } from '../lib/formats';
+import { detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
 import { extractMeta, fmtDuration, type FileMeta } from '../lib/metadata';
 import { useSplitter } from '../lib/useSplitter';
@@ -42,6 +42,7 @@ import {
 import type { Item } from '../types';
 import { PDF_ICON } from './FormatMatrix';
 import { PdfEditor } from './PdfEditor';
+import { DocEditor } from './DocEditor';
 
 const KIND_GLYPH: Record<string, string> = {
   image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6z',
@@ -49,6 +50,7 @@ const KIND_GLYPH: Record<string, string> = {
   video: 'M4 6h11a1 1 0 0 1 1 1v2.5l4-2.5a.6.6 0 0 1 1 .5v9a.6.6 0 0 1-1 .5l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
   gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
   pdf: PDF_ICON,
+  doc: 'M6 3h9l4 4v14H6zM15 3v4h4M8 12h8M8 15h8M8 18h5',
 };
 
 const TYPE_META: Record<ProjectType, { labelKey: string; descKey: string; glyph: string }> = {
@@ -57,6 +59,7 @@ const TYPE_META: Record<ProjectType, { labelKey: string; descKey: string; glyph:
   gif: { labelKey: 'typeGif', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif },
   video: { labelKey: 'typeVideo', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video },
   pdf: { labelKey: 'typePdf', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf },
+  text: { labelKey: 'typeText', descKey: 'typeTextDesc', glyph: KIND_GLYPH.doc },
 };
 
 /** Common canvas sizes offered when starting a blank image project. */
@@ -109,11 +112,11 @@ const isGifAsset = (a: AssetRec) =>
   ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
 
 const projectTypeFor = (a: AssetRec): ProjectType =>
-  isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : a.kind === 'pdf' ? 'pdf' : 'audio';
+  isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : a.kind === 'pdf' ? 'pdf' : a.kind === 'doc' ? 'text' : 'audio';
 
 /** The asset a project is "about": its wired-in primary, else the first visual one. */
 const primaryAsset = (p: ProjectRec, list: AssetRec[]): AssetRec | null => {
-  const id = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? p.pdfAssetId ?? null;
+  const id = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? p.pdfAssetId ?? p.textAssetId ?? null;
   return (
     list.find((a) => a.id === id) ??
     list.find((a) => a.kind === 'image') ??
@@ -185,7 +188,11 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     void (async () => {
       const list = (await listProjects()).map((p) => ({ ...p, type: p.type ?? ('audio' as ProjectType) }));
       persistedRef.current = new Set(list.map((p) => p.id));
-      setProjects(list.sort((a, b) => b.updatedAt - a.updatedAt));
+      // MERGE, never clobber: a project created while this async load ran must survive it
+      setProjects((prev) => {
+        const known = new Set(prev.map((p) => p.id));
+        return [...prev, ...list.filter((p) => !known.has(p.id))].sort((a, b) => b.updatedAt - a.updatedAt);
+      });
       if (enterProjectId && list.some((p) => p.id === enterProjectId)) {
         // converter hand-off ("open as project"): jump straight into the workspace
         setCurId(enterProjectId);
@@ -193,8 +200,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
         return;
       }
       const saved = localStorage.getItem('morphkit-project');
-      if (list.some((p) => p.id === saved)) setCurId(saved);
-      else if (list.length) setCurId(list[0].id);
+      // don't steal the selection from a project the user opened while we were loading
+      setCurId((prev) => prev ?? (list.some((p) => p.id === saved) ? saved : list[0]?.id ?? null));
     })();
     return () => {
       thumbUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
@@ -259,6 +266,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       ...(type === 'video' ? { videoDoc: emptyVideoDoc() } : {}),
       ...(type === 'gif' ? { gifAssetId: null } : {}),
       ...(type === 'pdf' ? { pdfAssetId: null } : {}),
+      ...(type === 'text' ? { textAssetId: null } : {}),
     };
     // ephemeral until the user actually does something (savePatch persists)
     setProjects((prev) => [p, ...prev]);
@@ -313,6 +321,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       ...(c.imageDoc?.baseAssetId === a.id ? { imageDoc: { ...c.imageDoc, baseAssetId: null } } : {}),
       ...(c.gifAssetId === a.id ? { gifAssetId: null } : {}),
       ...(c.pdfAssetId === a.id ? { pdfAssetId: null } : {}),
+      ...(c.textAssetId === a.id ? { textAssetId: null } : {}),
     });
   };
 
@@ -398,6 +407,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
 
   /** Spin an asset off into its own typed project. */
   const newFromAsset = async (a: AssetRec) => {
+    if (a.kind === 'doc' && !isTextDoc(new File([a.blob], a.name, { type: a.blob.type }))) { flash(t('typeTextOnly')); return; }
     const p = await createProjectWithAsset(a.name, a.kind, a.blob, projectTypeFor(a));
     setProjects((prev) => [p, ...prev]);
     setCurId(p.id);
@@ -410,7 +420,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     setMetaFacts(null);
     const prim = primaryAsset(p, await listAssets(p.id));
     if (!prim) return;
-    const kind = prim.kind === 'video' ? 'video' : prim.kind === 'audio' ? 'audio' : prim.kind === 'pdf' ? 'pdf' : 'image';
+    const kind = prim.kind === 'video' ? 'video' : prim.kind === 'audio' ? 'audio' : prim.kind === 'pdf' ? 'pdf' : prim.kind === 'doc' ? 'doc' : 'image';
     const meta = await extractMeta(new File([prim.blob], prim.name, { type: prim.blob.type }), kind);
     // we only want the numbers — drop the thumbnail URL (invariant 2)
     if (meta.preview?.startsWith('blob:')) URL.revokeObjectURL(meta.preview);
@@ -457,6 +467,10 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       rows.push([t('bgLayer'), p.imageDoc?.bg ?? t('transparentBg')]);
     }
     if (ty === 'gif' && dims) rows.push([t('dimensionsLabel'), dims]);
+    if (ty === 'text' && facts) {
+      if (facts.meta.words != null) rows.push([t('docWords'), facts.meta.words.toLocaleString()]);
+      if (facts.meta.lines != null) rows.push([t('docLines'), facts.meta.lines.toLocaleString()]);
+    }
     if (ty === 'pdf' && facts) {
       if (facts.meta.pages != null) rows.push([t('pdfPages'), String(facts.meta.pages)]);
       if (dims) rows.push([t('pdfPageSize'), `${dims} pt`]);
@@ -572,7 +586,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     const entries: Record<string, Uint8Array> = {
       'project.json': strToU8(JSON.stringify({
         name: p.name, type: p.type ?? 'audio', mixer: p.mixer,
-        imageDoc: p.imageDoc ?? null, videoDoc: p.videoDoc ?? null, gifAssetId: p.gifAssetId ?? null, pdfAssetId: p.pdfAssetId ?? null,
+        imageDoc: p.imageDoc ?? null, videoDoc: p.videoDoc ?? null, gifAssetId: p.gifAssetId ?? null, pdfAssetId: p.pdfAssetId ?? null, textAssetId: p.textAssetId ?? null,
         assets: list.map((a) => ({ id: a.id, name: a.name, kind: a.kind, addedAt: a.addedAt, type: a.blob.type })),
       })),
     };
@@ -592,7 +606,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       const meta = JSON.parse(strFromU8(unzipped['project.json'])) as {
         name: string; type?: ProjectType; mixer: MixerDoc;
         imageDoc?: { baseAssetId: string | null; objects: unknown[] } | null;
-        videoDoc?: VideoDoc | null; gifAssetId?: string | null; pdfAssetId?: string | null;
+        videoDoc?: VideoDoc | null; gifAssetId?: string | null; pdfAssetId?: string | null; textAssetId?: string | null;
         assets: { id: string; name: string; kind: string; addedAt: number; type?: string }[];
       };
       const pid = uid();
@@ -616,6 +630,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
         ...(meta.videoDoc ? { videoDoc: { videoAssetId: meta.videoDoc.videoAssetId ? idMap[meta.videoDoc.videoAssetId] ?? null : null, trimStart: meta.videoDoc.trimStart, trimEnd: meta.videoDoc.trimEnd, mixer: remapMixer(meta.videoDoc.mixer ?? emptyMixer(), idMap) } } : {}),
         ...(meta.gifAssetId !== undefined ? { gifAssetId: meta.gifAssetId ? idMap[meta.gifAssetId] ?? null : null } : {}),
         ...(meta.pdfAssetId !== undefined ? { pdfAssetId: meta.pdfAssetId ? idMap[meta.pdfAssetId] ?? null : null } : {}),
+        ...(meta.textAssetId !== undefined ? { textAssetId: meta.textAssetId ? idMap[meta.textAssetId] ?? null : null } : {}),
       };
       await putProject(p);
       setProjects((prev) => [p, ...prev]);
@@ -749,7 +764,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const pseudoItem = (a: AssetRec): Item => ({
     id: a.id,
     file: new File([a.blob], a.name, { type: a.blob.type }),
-    kind: a.kind === 'pdf' ? 'pdf' : 'image',
+    kind: a.kind === 'pdf' ? 'pdf' : a.kind === 'doc' ? 'doc' : 'image',
     target: 'png',
     quality: 0.9,
     status: 'ready',
@@ -760,6 +775,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const gifAsset = ptype === 'gif' ? assets.find((a) => a.id === cur?.gifAssetId) ?? null : null;
   const videoAsset = ptype === 'video' ? assets.find((a) => a.id === cur?.videoDoc?.videoAssetId) ?? null : null;
   const pdfAsset = ptype === 'pdf' ? assets.find((a) => a.id === cur?.pdfAssetId) ?? null : null;
+  const textAsset = ptype === 'text' ? assets.find((a) => a.id === cur?.textAssetId) ?? null : null;
   const [pdfImport, setPdfImport] = useState<File[] | null>(null);
 
   const imgItem = useMemo(
@@ -774,6 +790,23 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     () => (pdfAsset ? pseudoItem(pdfAsset) : null),
     [pdfAsset?.id, pdfAsset?.blob]  // eslint-disable-line react-hooks/exhaustive-deps
   );
+  const textItem = useMemo(
+    () => (textAsset ? pseudoItem(textAsset) : null),
+    [textAsset?.id, textAsset?.blob]  // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  /** blank markdown note asset → becomes the text project's document */
+  const blankNote = async () => {
+    if (!curId) return;
+    const n = assets.filter((a) => /^note-\d+\.md$/.test(a.name)).length + 1;
+    const rec: AssetRec = {
+      id: uid(), projectId: curId, name: `note-${n}.md`, kind: 'doc',
+      blob: new Blob([''], { type: 'text/markdown' }), addedAt: Date.now(),
+    };
+    await putAsset(rec);
+    setAssets((prev) => [...prev, rec]);
+    savePatch({ textAssetId: rec.id });
+  };
 
   /** Raster edits from the canvas are written back to the base asset (debounced). */
   const baseSaveTimer = useRef(0);
@@ -1052,6 +1085,9 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
                 {ptype === 'pdf' && a.kind === 'pdf' && (
                   <button onClick={() => savePatch({ pdfAssetId: a.id })} title={t('pickPdf')}>◎</button>
                 )}
+                {ptype === 'text' && a.kind === 'doc' && isTextDoc(new File([a.blob], a.name, { type: a.blob.type })) && (
+                  <button onClick={() => savePatch({ textAssetId: a.id })} title={t('pickText')}>◎</button>
+                )}
                 {canImportToEditor(a) && (
                   <button onClick={() => void importAssetToEditor(a)} title={t('importToEditor')}>
                     {/* arrow pointing INTO a frame — distinct from the download glyph */}
@@ -1215,6 +1251,32 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
                   onSave={(id, file) => void replaceAssetBlob(id, file)}
                   importFiles={pdfImport}
                   onImportDone={() => setPdfImport(null)}
+                />
+              )
+            )}
+
+            {ptype === 'text' && (
+              !textAsset || !textItem ? (
+                <div className="picker-panel">
+                  <p className="mx-label">{t('pickText')}</p>
+                  <div className="picker-list">
+                    <button className="btn btn-accent" onClick={() => void blankNote()}>
+                      {t('blankNote')}
+                    </button>
+                    {assets.filter((a) => a.kind === 'doc' && isTextDoc(new File([a.blob], a.name, { type: a.blob.type }))).map((a) => (
+                      <button key={a.id} className="btn btn-ghost" onClick={() => savePatch({ textAssetId: a.id })}>
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="st-empty">{t('noneOfKind')}</p>
+                </div>
+              ) : (
+                <DocEditor
+                  inline
+                  key={`${textAsset.id}-${textAsset.blob.size}`}
+                  item={textItem}
+                  onSave={(id, file) => void replaceAssetBlob(id, file)}
                 />
               )
             )}

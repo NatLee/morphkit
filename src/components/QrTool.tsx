@@ -175,7 +175,9 @@ export function QrTool({ initialDecoded, onAddImage, onClose }: Props) {
   );
 
   const body = (
-    <div className="editor-overlay" onClick={onClose}>
+    // .qr-overlay: on phones this overlay sits BELOW the tab bar (z90 < z95) so the QR tab
+    // itself toggles the tool closed — the top-right X was unreachable under browser chrome
+    <div className="editor-overlay qr-overlay" onClick={onClose}>
       <div className="editor editor-wide qr-tool" role="dialog" aria-label={t('qrTitle')} onClick={(e) => e.stopPropagation()}>
         <div className="ed-head">
           <span className="ed-title">{t('qrTitle')}</span>
@@ -315,6 +317,13 @@ export function QrTool({ initialDecoded, onAddImage, onClose }: Props) {
             )}
           </div>
         )}
+
+        <div className="ed-foot qr-foot">
+          <span className="ed-hint" />
+          <div className="ed-foot-main">
+            <button className="btn btn-ghost" onClick={onClose}>{t('close')}</button>
+          </div>
+        </div>
 
         <input ref={logoRef} type="file" hidden accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) setSt({ ...st, logo: f, ecl: 'H' }); e.target.value = ''; }} />
         <input ref={readRef} type="file" hidden accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) void readBlob(f); e.target.value = ''; }} />

@@ -8,7 +8,9 @@ import type { Item } from '../types';
 interface Props {
   item: Item;
   onSave: (id: string, file: File) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  /** Studio workspace mode: renders in place, save writes back to the asset */
+  inline?: boolean;
 }
 
 /**
@@ -17,7 +19,7 @@ interface Props {
  * exotic Word features), raw HTML, CSV for spreadsheets (first sheet), JSON, or plain text.
  * Save re-generates the ORIGINAL format (lib/docs `docSave`) and replaces the Item's file.
  */
-export function DocEditor({ item, onSave, onClose }: Props) {
+export function DocEditor({ item, onSave, onClose, inline }: Props) {
   const { t } = useI18n();
   const [mode, setMode] = useState<EditMode>('text');
   const [text, setText] = useState('');
@@ -83,10 +85,11 @@ export function DocEditor({ item, onSave, onClose }: Props) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
   };
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (inline) return;
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
-  }, [onClose]);
+  }, [onClose, inline]);
 
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const lines = text ? text.split('\n').length : 0;
@@ -94,14 +97,16 @@ export function DocEditor({ item, onSave, onClose }: Props) {
   const modeLabel = { md: 'Markdown', text: t('docModeText'), html: 'HTML', csv: `CSV${sheetName ? ` · ${sheetName}` : ''}`, json: 'JSON' }[mode];
 
   const body = (
-    <div className="editor-overlay" onClick={busy ? undefined : onClose}>
-      <div className={`editor editor-wide doc-editor view-${view}`} role="dialog" aria-label={t('edit')} onClick={(e) => e.stopPropagation()}>
+    <div className={inline ? 'ie-inline-wrap' : 'editor-overlay'} onClick={inline || busy ? undefined : onClose}>
+      <div className={`editor editor-wide doc-editor view-${view}${inline ? ' ie-inline' : ''}`} role={inline ? undefined : 'dialog'} aria-label={t('edit')} onClick={(e) => e.stopPropagation()}>
+        {!inline && (
         <div className="ed-head">
           <span className="ed-title" title={item.file.name}>{item.file.name}</span>
           <button className="theme-toggle" onClick={onClose} aria-label={t('close')}>
             <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         </div>
+        )}
 
         <div className="ed-toolbar doc-tools">
           <span className="chip">{modeLabel}</span>
@@ -145,14 +150,14 @@ export function DocEditor({ item, onSave, onClose }: Props) {
             <span className="kbd-hints"> · <kbd>Ctrl</kbd>+<kbd>S</kbd> {t('save')}</span>
           </span>
           <div className="ed-foot-main">
-            <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('cancel')}</button>
+            {!inline && <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('cancel')}</button>}
             <button className="btn btn-accent" onClick={() => void save()} disabled={busy || !loaded || error}>
-              {busy ? t('processing') : t('save')}
+              {busy ? t('processing') : inline ? t('pdfSaveAsset') : t('save')}
             </button>
           </div>
         </div>
       </div>
     </div>
   );
-  return createPortal(body, document.body);
+  return inline ? body : createPortal(body, document.body);
 }

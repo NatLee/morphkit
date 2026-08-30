@@ -3161,6 +3161,10 @@ kbd {
   .pdf-check, .pdf-ins { width: 28px; height: 28px; }
 }
 
+/* inline (Studio text project): fill the workspace, editor panes share the height */
+.editor.ie-inline.doc-editor { display: flex; flex-direction: column; }
+.editor.ie-inline .doc-body { flex: 1 1 auto; height: auto; min-height: 0; }
+
 /* ============ doc editor ============ */
 /* source textarea | rendered preview; .view-source / .view-preview collapse to one pane */
 .doc-editor { display: flex; flex-direction: column; }
@@ -3270,6 +3274,7 @@ kbd {
 
 /* ============ qr tool ============ */
 .qr-tool { display: flex; flex-direction: column; gap: 12px; }
+.qr-foot { margin-top: 4px; }
 .qr-tool .ed-head { gap: 12px; }
 .qr-tabs { margin-left: auto; }
 .qr-make { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
@@ -3310,8 +3315,24 @@ kbd {
   .qr-canvas { max-width: 260px; }
 }
 @media (max-width: 640px) {
-  .topbar .qr-btn { display: none; } /* the tab bar owns it on phones */
-  .m-tabbar { grid-template-columns: repeat(4, 1fr); }
+  .topbar .qr-btn { display: none; } /* the tab bar owns it on phones (4-col rule lives in the mobile layer) */
+  /* the QR sheet lives UNDER the tab bar (z90 < z95): the QR tab toggles it closed, and the
+     sheet keeps clearance so its own footer close button is never hidden behind the bar */
+  .qr-overlay { z-index: 90; }
+  .editor-overlay.qr-overlay > .editor.qr-tool {
+    height: 100dvh;
+    overflow-y: auto;
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  .qr-tool .ed-head {
+    position: sticky;
+    top: calc(-1 * max(14px, env(safe-area-inset-top)));
+    z-index: 5;
+    margin: -6px -2px 0;
+    padding: 6px 2px;
+    background: var(--bg-raised, var(--bg));
+  }
 }
 
 /* ============ studio ============ */
@@ -3891,6 +3912,7 @@ kbd {
 
 /* project types wear their pigment */
 .tb-audio { border-color: var(--paint-blue); color: var(--paint-blue); }
+.tb-text { border-color: var(--accent); color: var(--accent); }
 .tb-image { border-color: var(--paint-green); color: var(--paint-green); }
 .tb-gif { border-color: var(--paint-yellow); color: var(--paint-yellow); }
 .tb-video { border-color: var(--paint-red); color: var(--paint-red); }
@@ -4510,12 +4532,12 @@ body:has(.drawer-overlay) { overflow: hidden; }
 
   .footer { padding: 18px 0 26px; }
 
-  /* app-like bottom tab bar (convert / studio / settings) — the topbar
+  /* app-like bottom tab bar (convert / studio / QR / settings) — the topbar
      Studio toggle hides because the tab bar owns mode switching here */
   .studio-toggle { display: none; }
   .m-tabbar {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     position: fixed;
     left: 0;
     right: 0;
