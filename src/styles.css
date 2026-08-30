@@ -3161,6 +3161,31 @@ kbd {
   .pdf-check, .pdf-ins { width: 28px; height: 28px; }
 }
 
+/* markdown formatting bar (second toolbar row; popovers anchor to it) */
+.doc-mdbar { position: relative; gap: 4px; }
+.mdb-btn { font-size: 13px; }
+.mdb-btn.mdb-wide { width: auto; padding: 0 8px; font-family: var(--font-mono); font-size: 11px; }
+.md-heading { width: 92px; flex-shrink: 0; }
+.md-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--wobble-sm);
+  box-shadow: var(--shadow), var(--glow);
+}
+.md-grid { display: grid; grid-template-columns: repeat(8, 18px); gap: 3px; }
+.md-cell { width: 18px; height: 18px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--bg-sunken); cursor: pointer; }
+.md-cell.on { background: var(--accent); border-color: var(--accent); }
+.md-pop-qr { flex-direction: row; align-items: center; width: min(360px, 80vw); }
+.md-pop-qr .ed-input { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px; }
+
 /* inline (Studio text project): fill the workspace, editor panes share the height */
 .editor.ie-inline.doc-editor { display: flex; flex-direction: column; }
 .editor.ie-inline .doc-body { flex: 1 1 auto; height: auto; min-height: 0; }

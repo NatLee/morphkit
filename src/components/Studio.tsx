@@ -74,6 +74,37 @@ const CANVAS_PRESETS = [
   { label: 'Banner', w: 1500, h: 500 },
 ];
 
+/** Text-note launcher thumbnail: paint the first lines onto a small card (an .md blob is not
+    an <img> source — the generic object-URL branch used to render a broken-image icon). */
+async function noteThumb(blob: Blob): Promise<string> {
+  const raw = (await blob.text()).replace(/\r/g, '').slice(0, 2000);
+  const lines = raw.split('\n').filter((l) => l.trim()).slice(0, 8);
+  const c = document.createElement('canvas');
+  c.width = 320;
+  c.height = 200;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#0d1224';
+  ctx.fillRect(0, 0, 320, 200);
+  ctx.fillStyle = '#2a3355';
+  ctx.fillRect(0, 0, 320, 4);
+  let y = 34;
+  if (!lines.length) {
+    ctx.fillStyle = '#5a6482';
+    ctx.font = 'italic 13px "IBM Plex Sans", sans-serif';
+    ctx.fillText('· · ·', 18, y);
+  }
+  for (const l of lines) {
+    const isHead = /^#{1,6}\s/.test(l);
+    const clean = l.replace(/^#{1,6}\s+/, '').replace(/^(-|\d+\.|>)\s+/, (m) => (m.startsWith('>') ? '❝ ' : '• ')).replace(/[*_`~]/g, '');
+    ctx.fillStyle = isHead ? '#9fb0ff' : '#c2cbe2';
+    ctx.font = isHead ? '600 15px "IBM Plex Sans", "Noto Sans TC", sans-serif' : '12px "IBM Plex Mono", monospace';
+    ctx.fillText(clean.slice(0, 40), 18, y, 284);
+    y += isHead ? 24 : 19;
+    if (y > 188) break;
+  }
+  return c.toDataURL('image/png');
+}
+
 /** Render an image project (bg + base + layers) to a small preview blob. */
 async function flattenImageProject(p: ProjectRec, base: AssetRec): Promise<Blob | null> {
   const bmp = await createImageBitmap(base.blob);
@@ -505,6 +536,13 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
               continue;
             }
           } catch { /* fall through to the raw asset */ }
+        }
+
+        if (prim && prim.kind === 'doc') {
+          try {
+            th[p.id] = { url: await noteThumb(prim.blob), video: false };
+          } catch { /* glyph fallback */ }
+          continue;
         }
 
         if (prim && prim.kind === 'pdf') {
@@ -1045,7 +1083,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
             type="file"
             multiple
             hidden
-            accept="image/*,audio/*,video/*"
+            accept="image/*,audio/*,video/*,application/pdf,.pdf,.docx,.pptx,.md,.markdown,.txt,.html,.htm,.csv,.tsv,.xlsx,.xls,.ods,.json"
             onChange={(e) => {
               void importFiles(Array.from(e.target.files ?? []));
               e.target.value = '';

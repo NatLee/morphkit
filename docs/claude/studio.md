@@ -38,9 +38,9 @@ shared by the thumb effect and the info modal) · `openMeta(p)` (probes the prim
 `extractMeta`, drops the blob preview per invariant 2) · `metaRows` (useMemo: **per-type** info rows —
 audio/video get tracks+clips+timeline, video adds dims/duration/trim, image adds canvas/layers/bg,
 gif adds dims; never show track counts on an image project) ·
-`flattenImageProject` (≤320px launcher thumb) · `savePatch(patch)` — THE mutation funnel
+`flattenImageProject` (≤320px launcher thumb) · `noteThumb` (doc assets: paints first lines on a 320×200 canvas — an .md blob is NOT an <img> src; the thumbs effect branches doc → noteThumb, pdf → extractMeta preview, before the generic object-URL branch) · `savePatch(patch)` — THE mutation funnel
 (merge curRef → setProjects → debounced putProject) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
-`createProject`/`removeProject`/`renameProject` · `importFiles` · `removeAsset` (must strip clips +
+`createProject`/`removeProject`/`renameProject` · `importFiles` (its hidden input accept covers image/audio/video/pdf/document extensions) · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
 `withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `onAudioExtracted` (extracted WAV →
 `*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` (delegates to

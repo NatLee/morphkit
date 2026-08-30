@@ -202,7 +202,31 @@ toggle) + .pw-err|.ed-hint + .ed-foot.
 ## DocEditor.tsx (~170) — source + preview for documents (modal + Studio inline)
 
 Props `{item, onSave(id, file), onClose?, inline?}` — inline renders in place (.ie-inline-wrap, no head,
-save label = pdfSaveAsset, Esc disabled) for Studio TEXT projects. On mount `docEditSource(file)` picks the edit `mode`
+save label = pdfSaveAsset, Esc disabled) for Studio TEXT projects.
+
+**Markdown toolbar** (`.doc-mdbar`, md mode + source visible): selection helpers `apply/sel/wrapSel/
+linesSel/insertBlock` (focus + selection restored via rAF); heading select (H1–H6/clear re-prefixes lines);
+bold/italic/strike/inline-code (Ctrl+B/I/K in `onKey`); ul/ol/task/quote line transforms; link (`insertLink`
+links a selected URL directly), image, code fence, hr; `insertTable` via the hover `.md-grid` picker (8×6);
+MorphKit specials — `insertToc` (heading scan → slugged link list, CJK-safe, skips code fences), date stamp,
+`csvToTable` (selected CSV/TSV → md table, quote-aware, delimiter auto), `insertQr` (lib/qr → 240px data-URI
+image, survives docx/pptx/pdf export). Popovers via `pop` state ('table'|'qr'), Esc closes pop before modal.
+
+**Markdown toolbar** (`.doc-mdbar`, md mode + source visible): selection helpers `apply/sel/wrapSel/
+linesSel/insertBlock` (focus + selection restored via rAF); heading select (H1–H6/clear re-prefixes lines);
+bold/italic/strike/inline-code (Ctrl+B/I/K in `onKey`); ul/ol/task/quote line transforms; link (`insertLink`
+links a selected URL directly), image, code fence, hr; `insertTable` via the hover `.md-grid` picker (8×6);
+MorphKit specials — `insertToc` (heading scan → slugged link list, CJK-safe, skips code fences), date stamp,
+`csvToTable` (selected CSV/TSV → md table, quote-aware, delimiter auto), `insertQr` (lib/qr → 240px data-URI
+image, survives docx/pptx/pdf export). Popovers via `pop` state ('table'|'qr'), Esc closes pop before modal.
+
+**Markdown toolbar** (`.doc-mdbar`, md mode + source visible): selection helpers `apply/sel/wrapSel/
+linesSel/insertBlock` (focus + selection restored via rAF); heading select (H1–H6/clear re-prefixes lines);
+bold/italic/strike/inline-code (Ctrl+B/I/K in `onKey`); ul/ol/task/quote line transforms; link (`insertLink`
+links a selected URL directly), image, code fence, hr; `insertTable` via the hover `.md-grid` picker (8×6);
+MorphKit specials — `insertToc` (heading scan → slugged link list, CJK-safe, skips code fences), date stamp,
+`csvToTable` (selected CSV/TSV → md table, quote-aware, delimiter auto), `insertQr` (lib/qr → 240px data-URI
+image, survives docx/pptx/pdf export). Popovers via `pop` state ('table'|'qr'), Esc closes pop before modal. On mount `docEditSource(file)` picks the edit `mode`
 (`md` for .md, .txt AND .docx/.pptx, `html`, `csv` (first sheet, `sheetName`), `json`, `text`) and the source text;
 `previewHtml(mode, text)` re-renders 250 ms after typing into `.doc-prose` (already sanitized by lib/docs).
 State: mode · text · orig (dirty check) · sheetName · html · loaded/error/busy · view split|source|preview · wrap.
