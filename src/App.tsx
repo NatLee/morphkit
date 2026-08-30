@@ -191,7 +191,7 @@ export default function App() {
       let outName = outputFileName(item.file.name, item.target);
       if (item.kind === 'doc') {
         // documents: html intermediate → md/txt/html/docx/pdf/png, sheets → csv/xlsx/json
-        const r = await convertDoc(item.file, item.target, (p) => patch(id, { progress: p }));
+        const r = await convertDoc(item.file, item.target, (p) => patch(id, { progress: p }), { pdfText: settingsRef.current.docPdfText });
         blob = r.blob;
         if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip');
       } else if (item.kind === 'pdf') {

@@ -435,7 +435,7 @@ const zh: Dict = {
   docStats: '{words} 字・{lines} 行・{chars} 字元',
   docUnsaved: '未儲存',
   docLoadError: '無法解析這個文件',
-  docPdfNote: 'PDF 與 PNG 輸出會把頁面點陣化（文字不可選取），以確保中日文字型正確',
+  docPdfNote: 'PNG 輸出（與字型下載失敗時的 PDF）為點陣化頁面；PDF 預設內嵌字型、文字可選取',
   // ---- QR tool + notes ----
   qrTitle: 'QR Code 工具',
   qrMake: '產生',
@@ -508,6 +508,10 @@ const zh: Dict = {
   docSlides: '投影片數',
   docSlidesN: '{n} 張投影片',
   docPptxHint: 'PPTX 以 Markdown 編輯（每個 # 或 ## 標題成為一張投影片），儲存時重新產生簡報',
+  // ---- documents settings ----
+  secDocs: '文件',
+  docPdfTextLabel: 'PDF 內嵌字型（可選取文字）',
+  docPdfTextHint: '文件轉 PDF 時內嵌 Noto Sans TC/JP/KR 子集字型，文字可選取複製；首次需下載字型（會快取供離線使用），失敗時自動改為圖片頁',
 };
 
 const en: Dict = {
@@ -935,7 +939,7 @@ const en: Dict = {
   docStats: '{words} words · {lines} lines · {chars} chars',
   docUnsaved: 'unsaved',
   docLoadError: 'Could not parse this document',
-  docPdfNote: 'PDF and PNG outputs rasterize the pages (text is not selectable) so CJK fonts render correctly',
+  docPdfNote: 'PNG output (and the PDF fallback when fonts cannot download) rasterizes pages; PDF embeds fonts by default so text stays selectable',
   // ---- QR tool + notes ----
   qrTitle: 'QR Code tool',
   qrMake: 'Make',
@@ -1008,6 +1012,10 @@ const en: Dict = {
   docSlides: 'Slides',
   docSlidesN: '{n} slides',
   docPptxHint: 'PPTX edits as Markdown (each # or ## heading becomes a slide) and is regenerated on save',
+  // ---- documents settings ----
+  secDocs: 'Documents',
+  docPdfTextLabel: 'Embed fonts in PDF (selectable text)',
+  docPdfTextHint: 'Document→PDF embeds subsetted Noto Sans TC/JP/KR so text stays selectable; fonts download once (cached for offline) and the converter falls back to raster pages on failure',
 };
 
 const ja: Dict = {
@@ -1435,7 +1443,7 @@ const ja: Dict = {
   docStats: '{words} 語・{lines} 行・{chars} 文字',
   docUnsaved: '未保存',
   docLoadError: 'この文書を解析できません',
-  docPdfNote: 'PDF と PNG 出力はページをラスタライズします（テキスト選択不可）。CJK フォントを正しく描画するためです',
+  docPdfNote: 'PNG 出力（およびフォント取得失敗時の PDF）はラスタライズされます。PDF は既定でフォント埋め込み・テキスト選択可能です',
   // ---- QR tool + notes ----
   qrTitle: 'QR コードツール',
   qrMake: '作成',
@@ -1508,6 +1516,10 @@ const ja: Dict = {
   docSlides: 'スライド数',
   docSlidesN: '{n} スライド',
   docPptxHint: 'PPTX は Markdown で編集（# / ## 見出しごとに 1 スライド）し、保存時に再生成します',
+  // ---- documents settings ----
+  secDocs: '文書',
+  docPdfTextLabel: 'PDF にフォントを埋め込む（テキスト選択可）',
+  docPdfTextHint: '文書→PDF で Noto Sans TC/JP/KR のサブセットを埋め込み、テキストを選択可能にします。フォントは初回のみダウンロード（オフライン用にキャッシュ）。失敗時は画像ページに自動フォールバック',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

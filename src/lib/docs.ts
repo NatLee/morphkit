@@ -3,7 +3,7 @@
  * Everything funnels through ONE intermediate: sanitized HTML.
  *   read:  docx → mammoth · md → marked · sheet → SheetJS (table) · json → table|pre · text → <p>
  *   write: html → md (turndown+gfm) · html → docx (docx lib) · html → text ·
- *          html → PDF / PNG through a small canvas PAGINATOR (`layoutHtml`) — pages are
+ *          html → PDF / PNG through the layout engine in lib/docPaint — pages are
  *          rasterized (CJK-safe without font files; text is not selectable — documented).
  * Every library is lazy-imported; nothing here touches the main bundle.
  */
@@ -280,224 +280,29 @@ export function htmlToBlocks(html: string): Block[] {
   return blocks;
 }
 
-// ---------- canvas paginator ----------
-
-export interface PageStyle {
-  /** page size in points */
-  width: number;
-  height: number;
-  /** device scale (2 = 144 dpi) */
-  scale: number;
-  margin: number;
-  fontSize: number;
-}
-const DEFAULT_STYLE: PageStyle = { width: A4[0], height: A4[1], scale: 2, margin: 56, fontSize: 11 };
-const SANS = '"IBM Plex Sans", "Noto Sans TC", "Noto Sans JP", "Segoe UI", system-ui, sans-serif';
-const MONO = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
-
-interface Seg { text: string; font: string; underline?: boolean; w: number }
-interface Line { segs: Seg[]; h: number }
-
-const isCJK = (ch: string) => /[⺀-鿿가-힯豈-﫿＀-￯]/.test(ch);
-
-/** Break runs into lines that fit `maxW` (px). Spaces and every CJK char are break points. */
-function wrapRuns(ctx: CanvasRenderingContext2D, runs: Run[], maxW: number, px: number, lh: number, base: { bold?: boolean } = {}): Line[] {
-  const lines: Line[] = [];
-  let cur: Seg[] = [];
-  let curW = 0;
-  const flush = () => { lines.push({ segs: cur, h: lh }); cur = []; curW = 0; };
-  for (const r of runs) {
-    const font = `${r.italic ? 'italic ' : ''}${r.bold || base.bold ? '700' : '400'} ${r.code ? px * 0.92 : px}px ${r.code ? MONO : SANS}`;
-    ctx.font = font;
-    const parts = r.text.split('\n');
-    parts.forEach((part, pi) => {
-      if (pi > 0) flush();
-      // tokens: words with trailing space, or single CJK chars
-      const toks: string[] = [];
-      let buf = '';
-      for (const ch of part) {
-        if (isCJK(ch)) { if (buf) toks.push(buf); buf = ''; toks.push(ch); }
-        else if (ch === ' ') { buf += ch; toks.push(buf); buf = ''; }
-        else buf += ch;
-      }
-      if (buf) toks.push(buf);
-      for (const tk of toks) {
-        const w = ctx.measureText(tk).width;
-        if (curW + w > maxW && cur.length) {
-          // trim trailing space of the line
-          flush();
-          if (tk === ' ') continue;
-        }
-        if (w > maxW) {
-          // hard-break an over-long token by characters
-          for (const ch of tk) {
-            const cw = ctx.measureText(ch).width;
-            if (curW + cw > maxW && cur.length) flush();
-            cur.push({ text: ch, font, underline: r.underline, w: cw });
-            curW += cw;
-          }
-          continue;
-        }
-        cur.push({ text: tk, font, underline: r.underline, w });
-        curW += w;
-      }
-    });
-  }
-  if (cur.length || !lines.length) flush();
-  return lines;
-}
-
-/** Lay out blocks onto A4 canvases. Returns fully painted pages (white ground). */
-export async function layoutHtml(html: string, style: Partial<PageStyle> = {}, onProgress?: (p: number) => void): Promise<HTMLCanvasElement[]> {
-  const st = { ...DEFAULT_STYLE, ...style };
-  const S = st.scale;
-  const W = Math.round(st.width * S);
-  const H = Math.round(st.height * S);
-  const M = Math.round(st.margin * S);
-  const px = st.fontSize * S * 1.333; // pt → px
-  const lh = px * 1.55;
-  const contentW = W - 2 * M;
-  const blocks = htmlToBlocks(html);
-  const pages: HTMLCanvasElement[] = [];
-  let ctx!: CanvasRenderingContext2D;
-  let y = 0;
-  const newPage = () => {
-    const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
-    ctx = c.getContext('2d')!;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#111';
-    ctx.textBaseline = 'alphabetic';
-    pages.push(c);
-    y = M;
-  };
-  newPage();
-  const ensure = (h: number) => { if (y + h > H - M && y > M) newPage(); };
-  const drawLines = (lines: Line[], x0: number, color = '#111') => {
-    for (const ln of lines) {
-      ensure(ln.h);
-      let x = x0;
-      const baseline = y + ln.h * 0.78;
-      for (const s of ln.segs) {
-        ctx.font = s.font;
-        ctx.fillStyle = color;
-        ctx.fillText(s.text, x, baseline);
-        if (s.underline) { ctx.fillRect(x, baseline + 3 * S / 2, s.w, Math.max(1, S * 0.6)); }
-        x += s.w;
-      }
-      y += ln.h;
-    }
-  };
-
-  for (let bi = 0; bi < blocks.length; bi++) {
-    const b = blocks[bi];
-    if (b.kind === 'pagebreak') {
-      if (y > M) newPage();
-    } else if (b.kind === 'heading') {
-      const size = px * [2.0, 1.6, 1.35, 1.15, 1.05, 1][Math.min(5, b.level - 1)];
-      const lines = wrapRuns(ctx, b.runs.map((r) => ({ ...r, bold: true })), contentW, size, size * 1.35);
-      y += b.level <= 2 ? lh * 0.8 : lh * 0.5;
-      ensure(lines.length * size * 1.35);
-      drawLines(lines, M);
-      if (b.level === 1) { ctx.fillStyle = '#999'; ctx.fillRect(M, y + 4, contentW, Math.max(1, S * 0.6)); }
-      y += lh * 0.4;
-    } else if (b.kind === 'para') {
-      const indent = (b.indent ?? 0) * px * 1.6 + (b.quote ? px * 1.2 : 0);
-      const bulletW = b.bullet ? px * 1.4 : 0;
-      const lines = wrapRuns(ctx, b.runs, contentW - indent - bulletW, px, lh);
-      ensure(Math.min(lines.length, 2) * lh);
-      const y0 = y;
-      if (b.bullet) { ctx.font = `400 ${px}px ${SANS}`; ctx.fillStyle = '#111'; ctx.fillText(b.bullet, M + indent - bulletW + px * 0.2, y + lh * 0.78); }
-      drawLines(lines, M + indent, b.quote ? '#555' : '#111');
-      if (b.quote) { ctx.fillStyle = '#bbb'; ctx.fillRect(M + indent - px * 1.0, y0, S * 1.5, y - y0); }
-      y += lh * 0.45;
-    } else if (b.kind === 'pre') {
-      const mono = px * 0.9;
-      const raw = b.text.replace(/\r/g, '').replace(/\n$/, '').split('\n');
-      const lines: Line[] = raw.map((l) => ({ segs: [{ text: l, font: `400 ${mono}px ${MONO}`, w: 0 }], h: mono * 1.5 }));
-      const pad = px * 0.6;
-      // draw in chunks that fit; background per chunk
-      let i = 0;
-      while (i < lines.length) {
-        ensure(lines[0].h + pad * 2);
-        const avail = Math.floor((H - M - y - pad * 2) / lines[0].h);
-        const chunk = lines.slice(i, i + Math.max(1, avail));
-        ctx.fillStyle = '#f3f3f3';
-        ctx.fillRect(M, y, contentW, chunk.length * lines[0].h + pad * 2);
-        y += pad;
-        for (const ln of chunk) {
-          ctx.font = ln.segs[0].font;
-          ctx.fillStyle = '#222';
-          // clip long code lines visually rather than wrapping (keeps alignment)
-          ctx.save(); ctx.beginPath(); ctx.rect(M, y, contentW, ln.h); ctx.clip();
-          ctx.fillText(ln.segs[0].text, M + pad, y + ln.h * 0.75);
-          ctx.restore();
-          y += ln.h;
-        }
-        y += pad;
-        i += chunk.length;
-      }
-      y += lh * 0.5;
-    } else if (b.kind === 'hr') {
-      ensure(lh);
-      ctx.fillStyle = '#ccc';
-      ctx.fillRect(M, y + lh / 2, contentW, Math.max(1, S * 0.6));
-      y += lh;
-    } else if (b.kind === 'image') {
-      try {
-        const blob = await (await fetch(b.src)).blob();
-        const bmp = await createImageBitmap(blob);
-        let w = Math.min(contentW, bmp.width * (S / 1.333)); // css px → our px (assume 96dpi source)
-        let h = w * (bmp.height / bmp.width);
-        const maxH = (H - 2 * M) * 0.7;
-        if (h > maxH) { h = maxH; w = h * (bmp.width / bmp.height); }
-        ensure(h);
-        ctx.drawImage(bmp, M, y, w, h);
-        bmp.close();
-        y += h + lh * 0.5;
-      } catch { /* unloadable image — skip */ }
-    } else if (b.kind === 'table') {
-      const cols = Math.max(...b.rows.map((r) => r.length), 1);
-      const colW = contentW / cols;
-      const pad = px * 0.35;
-      const cellPx = px * 0.9;
-      const cellLh = cellPx * 1.45;
-      for (let ri = 0; ri < b.rows.length; ri++) {
-        const row = b.rows[ri];
-        const wrapped = Array.from({ length: cols }, (_, ci) =>
-          wrapRuns(ctx, [{ text: row[ci] ?? '', bold: b.header && ri === 0 }], colW - pad * 2, cellPx, cellLh));
-        const rowH = Math.max(...wrapped.map((l) => l.length)) * cellLh + pad * 2;
-        ensure(rowH);
-        const y0 = y;
-        if (b.header && ri === 0) { ctx.fillStyle = '#eef1f8'; ctx.fillRect(M, y0, contentW, rowH); }
-        for (let ci = 0; ci < cols; ci++) {
-          y = y0 + pad;
-          for (const ln of wrapped[ci]) {
-            let x = M + ci * colW + pad;
-            for (const s of ln.segs) { ctx.font = s.font; ctx.fillStyle = '#111'; ctx.fillText(s.text, x, y + ln.h * 0.78); x += s.w; }
-            y += ln.h;
-          }
-          ctx.strokeStyle = '#bbb';
-          ctx.lineWidth = Math.max(1, S * 0.5);
-          ctx.strokeRect(M + ci * colW, y0, colW, rowH);
-        }
-        y = y0 + rowH;
-      }
-      y += lh * 0.6;
-    }
-    onProgress?.((bi + 1) / blocks.length);
-  }
-  return pages;
-}
+// ---------- page rendering (lib/docPaint: canvas raster OR pdf-lib embedded-font text) ----------
 
 const toBlob = (c: HTMLCanvasElement, mime: string, q?: number) =>
   new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('encode'))), mime, q));
 
-/** HTML → PDF (rasterized A4 pages). */
-export async function htmlToPdf(html: string, title: string, onProgress?: (p: number) => void): Promise<Blob> {
-  const pages = await layoutHtml(html, {}, (p) => onProgress?.(p * 0.6));
+export type PdfTextMode = 'text' | 'raster';
+
+/**
+ * HTML → PDF. 'text' embeds subsetted Noto CJK fonts (selectable text; needs the network once —
+ * falls back to raster on failure); 'raster' paints A4 canvases (offline, not selectable).
+ */
+export async function htmlToPdf(html: string, title: string, onProgress?: (p: number) => void, mode: PdfTextMode = 'raster'): Promise<Blob> {
+  const blocks = htmlToBlocks(html);
+  if (mode === 'text') {
+    try {
+      const { renderPdfBlob } = await import('./docPaint');
+      return await renderPdfBlob(blocks, title, htmlToText(html), {}, onProgress);
+    } catch (e) {
+      console.warn('[doc pdf] embedded-font mode failed — falling back to raster pages', e);
+    }
+  }
+  const { renderCanvases } = await import('./docPaint');
+  const pages = await renderCanvases(blocks, {}, (p) => onProgress?.(p * 0.6));
   const specs: PageSpec[] = [];
   for (const c of pages) {
     const blob = await toBlob(c, 'image/jpeg', 0.92);
@@ -509,7 +314,8 @@ export async function htmlToPdf(html: string, title: string, onProgress?: (p: nu
 
 /** HTML → PNG page images (single page → PNG, several → ZIP). */
 export async function htmlToPngs(html: string, base: string, onProgress?: (p: number) => void): Promise<{ blob: Blob; multi: boolean }> {
-  const pages = await layoutHtml(html, {}, onProgress);
+  const { renderCanvases } = await import('./docPaint');
+  const pages = await renderCanvases(htmlToBlocks(html), {}, onProgress);
   if (pages.length === 1) { const b = await toBlob(pages[0], 'image/png'); return { blob: b, multi: false }; }
   const entries: Record<string, Uint8Array> = {};
   for (let i = 0; i < pages.length; i++) {
@@ -648,8 +454,13 @@ async function jsonRows(file: File): Promise<unknown[][]> {
 
 // ---------- the converter entry point ----------
 
+export interface ConvertDocOpts {
+  /** PDF output: embed CJK fonts for selectable text (settings.docPdfText) */
+  pdfText?: boolean;
+}
+
 /** Convert a document to `target`. Returns the blob and whether it is a multi-file ZIP. */
-export async function convertDoc(file: File, target: string, onProgress?: (p: number) => void): Promise<{ blob: Blob; multi: boolean }> {
+export async function convertDoc(file: File, target: string, onProgress?: (p: number) => void, opts: ConvertDocOpts = {}): Promise<{ blob: Blob; multi: boolean }> {
   const t = docTypeOf(file);
   const base = file.name.replace(/\.[^.]+$/, '');
   const one = (blob: Blob) => ({ blob, multi: false });
@@ -677,7 +488,7 @@ export async function convertDoc(file: File, target: string, onProgress?: (p: nu
       const { blocksToPptx } = await import('./pptx');
       return one(await blocksToPptx(htmlToBlocks(html), base));
     }
-    case 'pdf': return one(await htmlToPdf(html, base, prog));
+    case 'pdf': return one(await htmlToPdf(html, base, prog, opts.pdfText ? 'text' : 'raster'));
     case 'png': return htmlToPngs(html, base, prog);
     default: throw new Error(`unsupported doc target ${target}`);
   }

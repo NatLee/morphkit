@@ -79,7 +79,7 @@ Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apn
 `saveSettings` (swallows quota errors). Key `'morphkit-settings'`, unversioned — renaming a field
 silently drops the user's value.
 Fields (defaults): concurrency 2 · imageMaxDim 0 · audioBitrate '192k' · audioRateMode 'cbr' ·
-audioQuality 2 · audioSampleRate 0 · audioChannels 0 · videoCrf 23 · videoPreset 'veryfast' ·
+audioQuality 2 · audioSampleRate 0 · audioChannels 0 · docPdfText true · videoCrf 23 · videoPreset 'veryfast' ·
 videoMaxH 0 · videoFps 0 · videoMute false · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true.
 
 ## lib/idb.ts (95)
@@ -187,6 +187,19 @@ use ecl H) · `qrToSvg` · `decodeQr(blob)` → `QrHit {text, corners}` (jsQR ov
 1000/1600px, invert, contrast-boost, 600px — dark screenshots need the retries) · `decodeFrame(video)`
 (camera loop) · `classifyPayload` (url/wifi/vcard/mail/tel/text) · `payloads.wifi/vcard/mail` ·
 `DEFAULT_QR`.
+
+## lib/docPaint.ts (~350) + lib/cjkFont.ts (~200)
+
+docPaint: `Painter` interface (top-down device px: newPage/measure/text/rect/frame/image) ·
+`renderBlocks` = the pagination brain (wrapRuns breaks on spaces + CJK chars; headings, bullets,
+quote bars, shaded code w/ fitText truncation, equal-column tables w/ header tint, images fit
+width/70% height, `pagebreak` blocks) · `CanvasPainter`/`renderCanvases` (raster) ·
+`PdfPainter`/`renderPdfBlob` (pdf-lib: pt = px/scale, y flipped; text drawn per cjkFont segment;
+registerFontkit + `embedFont(ttf, {subset:true})`; throws when fonts can't load → docs.ts
+`htmlToPdf` catches and rasters). cjkFont: `loadCjkFontSet(text)` — families by script
+(TC always, JP on kana, KR on hangul), css2 `unicode-range` blocks filtered to the doc's
+codepoints, per-cp `pick` cache, woff2→TTF via `loadWawoff` (classic-script injection +
+decompress poll — see CLAUDE.md invariant 28), `segment(text, bold)` for mixed-font runs.
 
 ## lib/qpdf.ts (~60)
 

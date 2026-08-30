@@ -26,6 +26,8 @@ export interface Settings {
   gifWidth: number;
   /** copy title/artist/album… into the output (ffmpeg -map_metadata) */
   keepMetadata: boolean;
+  /** documents → PDF: embed CJK fonts (selectable text; downloads subsets once) vs raster pages */
+  docPdfText: boolean;
   /** carry embedded cover art across audio formats that support it */
   keepCoverArt: boolean;
 }
@@ -46,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gifFps: 12,
   gifWidth: 480,
   keepMetadata: true,
+  docPdfText: true,
   keepCoverArt: true,
 };
 

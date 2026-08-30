@@ -222,6 +222,22 @@ export function SettingsPanel({ settings, onChange }: Props) {
 
       {/* ---- gif ---- */}
       <div className="sp-section">
+        <h3 className="sp-sec-title">{t('secDocs')}</h3>
+        <div className="sp-grid">
+          <label className="sp-field sp-check">
+            <input
+              type="checkbox"
+              checked={settings.docPdfText}
+              onChange={(e) => set('docPdfText', e.target.checked)}
+            />
+            <span>{t('docPdfTextLabel')}</span>
+            <span className="sp-hint">{t('docPdfTextHint')}</span>
+          </label>
+        </div>
+      </div>
+
+      {/* ---- gif ---- */}
+      <div className="sp-section">
         <h3 className="sp-sec-title">GIF</h3>
         <div className="sp-grid">
           <label className="sp-field">

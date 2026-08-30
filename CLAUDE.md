@@ -80,6 +80,8 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `lib/qr.ts` | QR encode (node-qrcode: canvas/SVG, colours, quiet zone, ECC, centre logo) + decode (jsQR w/ downscale/invert/contrast retries), `payloads` builders (wifi/vcard/mailto), `classifyPayload` |
 | `components/QrTool.tsx` | QR modal, 2 tabs: MAKE (url/text/wifi/vcard/mail templates → live preview, PNG/SVG download, copy, add-to-list) + READ (drop/pick/paste image, camera scan via getUserMedia+decodeFrame, type-aware actions). Opened from topbar `.qr-btn`, the 4-tab phone bar, or a FileCard QR chip |
 | `components/SheetEditor.tsx` | Spreadsheet GRID editor (csv/tsv/xlsx/xls/ods): tab per sheet (add/delete/rename), cell inputs w/ Enter/Tab/arrow nav, insert/delete/move rows+cols, sort by column, undo, 300-row windows; save rebuilds xlsx (all sheets) or csv text |
+| `lib/docPaint.ts` | The document LAYOUT ENGINE behind both PDF outputs: `renderBlocks(blocks, style, Painter)` (wrapping w/ CJK break points, headings/lists/quotes/code/tables/images/page breaks) + two painters — `renderCanvases` (raster A4) and `renderPdfBlob` (pdf-lib vector text w/ embedded Noto subsets via lib/cjkFont; throws offline → caller rasters) |
+| `lib/cjkFont.ts` | On-demand Noto Sans TC/JP/KR for selectable-text PDFs: parse Google css2 `unicode-range` blocks, download ONLY the woff2 subsets the document's codepoints touch, wawoff2 (classic-script injected Emscripten) decompresses woff2→TTF for pdf-lib subsetting; `segment()` splits strings into per-subset runs |
 | `components/DocEditor.tsx` | Source textarea + live preview (split/source/preview) for doc items: md/html/csv(first sheet)/json/text; DOCX edits as Markdown and is regenerated on save; Ctrl+S saves, Tab inserts |
 | `components/SheetEditor.tsx` | Spreadsheet grid editor (csv/tsv/xlsx/xls/ods): tab per sheet, plain-input cells (Enter/Tab/arrow nav), row/col insert/delete/move, header-row toggle, 300-row windows w/ "show more"; save = xlsx (all sheets) or csv/tsv text of active sheet |
 | `lib/qr.ts` | QR encode (node-qrcode) / decode (jsQR), both lazy: `qrToCanvas`/`qrToSvg` (QrStyle: colours, size, quiet zone, ECC, centre logo), `decodeQr` downsamples then retries inverted/contrast-boosted, `payloads` builders + `classifyPayload` |
@@ -174,14 +176,22 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     only converts tables with a header row and chokes on `<p>` inside cells → `normalizeTablesForMd`
     runs before every html→md. Documents have no Studio type (`openAsProject` bails, FileCard hides
     the button). All five doc libs are lazy `import()`s (mammoth 500 kB, xlsx 430 kB chunks).
-28. **PPTX**: read side is hand-rolled OOXML (no lib) — match elements by `localName` (never
+28. **Doc→PDF text mode** (`settings.docPdfText`, default ON): pdf-lib needs raw sfnt tables, so
+    Google's woff2 subsets are decompressed by wawoff2 loaded as a CLASSIC SCRIPT via
+    `?url` + <script> injection — bundling its Emscripten glue (Vite CJS transform) breaks env
+    detection and init hangs forever; poll for `Module.decompress` instead of trusting
+    `onRuntimeInitialized`. fontkit also cannot re-encode subsets straight from woff2 (composite
+    glyphs corrupt → pdf.js "Invalid font data"). Any failure falls back to the raster painter
+    automatically. Text copied from these PDFs may carry extra spaces between CJK glyphs that sit
+    in different subset files (separate draw segments) — known cosmetic limit.
+29. **PPTX**: read side is hand-rolled OOXML (no lib) — match elements by `localName` (never
     prefix), resolve every part through its .rels, and keep `<hr data-page-break>` as the slide
     boundary: it round-trips as `---` through Markdown, the paginator/docx writer treat it as a
     page break (attribute present) vs a rule (bare hr), and `blocksToPptx` starts a new slide on
     h1/h2 OR hr. Sheets route to SheetEditor (docTypeOf === 'sheet'), other docs to DocEditor;
     plain .txt edits in Markdown mode but saves verbatim bytes. Ctrl+V of plain TEXT (no files)
     creates a note-N.md doc item and opens the editor (`addNote`) — inputs/textareas excluded.
-29. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
+30. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
 
 ## Design language ("Cyberdeck")
 

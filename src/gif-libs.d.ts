@@ -72,3 +72,15 @@ declare module 'turndown-plugin-gfm' {
   export const strikethrough: TurndownService.Plugin;
   export const taskListItems: TurndownService.Plugin;
 }
+
+declare module 'wawoff2/build/decompress_binding.js?url' {
+  /** raw Emscripten script served as an asset URL (classic-script injection). */
+  const url: string;
+  export default url;
+}
+
+declare module 'wawoff2/build/decompress_binding.js' {
+  /** Emscripten (non-modularized) binding: decompress appears on the module after init. */
+  const mod: { decompress?: (data: Uint8Array) => Uint8Array | false; onRuntimeInitialized?: () => void };
+  export default mod;
+}
