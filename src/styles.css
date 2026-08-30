@@ -4784,7 +4784,7 @@ body:has(.drawer-overlay) { overflow: hidden; }
 /* ---- mobile image editor: bottom-sheet layers panel (≤720 AND short viewports —
    landscape phones / squat PWA windows would otherwise show the desktop side panel;
    pattern: canvas stays put, secondary panel slides up — Snapseed-style) ---- */
-@media (max-width: 720px), (max-height: 540px) {
+@media (max-width: 720px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   .lp-fab { display: grid; }
 
   .lp-scrim {
@@ -4838,7 +4838,7 @@ body:has(.drawer-overlay) { overflow: hidden; }
 /* app-style drawing layout on phones AND short (landscape) viewports: the
    canvas owns the screen — tools live on a slim LEFT RAIL, options in a thin
    bottom strip, so chrome never buries the drawing */
-@media (max-width: 640px), (max-height: 540px) {
+@media (max-width: 640px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   /* self-sufficient outside the generic ≤640 rules (landscape is wider than 640) */
   .editor-overlay:has(.ie-layout) { padding: 0; }
   .editor-overlay > .editor:has(.ie-layout) {
@@ -4915,7 +4915,7 @@ body:has(.drawer-overlay) { overflow: hidden; }
    screen, the timeline (film strip / trim) stays pinned, and secondary
    controls scroll in place — nothing pushes the preview around.
    (audio keeps the plain sheet — its content is short, 100dvh would be air) */
-@media (max-width: 640px), (max-height: 540px) {
+@media (max-width: 640px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   .editor-overlay:has(.gif-preview),
   .editor-overlay:has(.mp-video) { padding: 0; }
   .editor-overlay > .editor:has(.gif-preview),
