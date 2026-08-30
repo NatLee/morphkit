@@ -415,6 +415,24 @@ const zh: Dict = {
   typePdf: 'PDF 專案',
   typePdfDesc: '頁面增刪排序・筆記・浮水印・加解密',
   pickPdf: '選擇 PDF 素材',
+  // ---- documents (docx/md/html/txt/csv/xlsx/json) ----
+  kindDoc: '文件',
+  mxEditDoc: '可編輯：原始碼＋即時預覽（Markdown／HTML／CSV／JSON／純文字；DOCX 以 Markdown 編輯）',
+  docWords: '字數',
+  docChars: '字元數',
+  docLines: '行數',
+  docSheets: '工作表',
+  docWordsN: '{n} 字',
+  docModeText: '純文字',
+  docSource: '原始碼',
+  docSplit: '並排',
+  docWrap: '自動換行',
+  docDocxHint: 'DOCX 會以 Markdown 編輯，儲存時重新產生 Word 檔（複雜版面可能簡化）',
+  docSheetHint: '只編輯第一個工作表（CSV 格式）；其他工作表保留原樣',
+  docStats: '{words} 字・{lines} 行・{chars} 字元',
+  docUnsaved: '未儲存',
+  docLoadError: '無法解析這個文件',
+  docPdfNote: 'PDF 與 PNG 輸出會把頁面點陣化（文字不可選取），以確保中日文字型正確',
 };
 
 const en: Dict = {
@@ -822,6 +840,24 @@ const en: Dict = {
   typePdf: 'PDF project',
   typePdfDesc: 'Pages · notes · watermark · encryption',
   pickPdf: 'Pick a PDF asset',
+  // ---- documents (docx/md/html/txt/csv/xlsx/json) ----
+  kindDoc: 'Document',
+  mxEditDoc: 'Editable: source + live preview (Markdown / HTML / CSV / JSON / text; DOCX edits as Markdown)',
+  docWords: 'Words',
+  docChars: 'Characters',
+  docLines: 'Lines',
+  docSheets: 'Sheets',
+  docWordsN: '{n} words',
+  docModeText: 'Plain text',
+  docSource: 'Source',
+  docSplit: 'Split',
+  docWrap: 'Word wrap',
+  docDocxHint: 'DOCX is edited as Markdown and regenerated on save (complex layouts may simplify)',
+  docSheetHint: 'Only the first sheet is edited (as CSV); other sheets are kept as-is',
+  docStats: '{words} words · {lines} lines · {chars} chars',
+  docUnsaved: 'unsaved',
+  docLoadError: 'Could not parse this document',
+  docPdfNote: 'PDF and PNG outputs rasterize the pages (text is not selectable) so CJK fonts render correctly',
 };
 
 const ja: Dict = {
@@ -1229,6 +1265,24 @@ const ja: Dict = {
   typePdf: 'PDF プロジェクト',
   typePdfDesc: 'ページ編集・ノート・ウォーターマーク・暗号化',
   pickPdf: 'PDF 素材を選択',
+  // ---- documents (docx/md/html/txt/csv/xlsx/json) ----
+  kindDoc: '文書',
+  mxEditDoc: '編集可：ソース＋ライブプレビュー（Markdown／HTML／CSV／JSON／テキスト；DOCX は Markdown で編集）',
+  docWords: '単語数',
+  docChars: '文字数',
+  docLines: '行数',
+  docSheets: 'シート',
+  docWordsN: '{n} 語',
+  docModeText: 'プレーンテキスト',
+  docSource: 'ソース',
+  docSplit: '分割',
+  docWrap: '折り返し',
+  docDocxHint: 'DOCX は Markdown として編集し、保存時に Word ファイルを再生成します（複雑なレイアウトは簡略化される場合あり）',
+  docSheetHint: '最初のシートのみ CSV として編集します。他のシートはそのまま保持されます',
+  docStats: '{words} 語・{lines} 行・{chars} 文字',
+  docUnsaved: '未保存',
+  docLoadError: 'この文書を解析できません',
+  docPdfNote: 'PDF と PNG 出力はページをラスタライズします（テキスト選択不可）。CJK フォントを正しく描画するためです',
 };
 
 const DICTS: Record<Lang, Dict> = { zh, en, ja };

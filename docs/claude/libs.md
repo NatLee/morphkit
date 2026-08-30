@@ -62,9 +62,11 @@ video thumb = 180px JPEG dataURL @ seek min(0.5, 10%)) · `readAudioTags` (first
 syn-safe size, size sanity ≤400; MP4 atoms ©nam/©ART/©alb; hasCover = APIC|covr|fLaC+image/).
 Never throws — missing fields are the failure mode.
 
-## lib/formats.ts (81)
+## lib/formats.ts (~150)
 
-Exports: `Kind` · `IMAGE_OUTPUTS [webp png jpeg apng gif]` · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
+Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf]` · `PDF_OUTPUTS` ·
+`DOC_TEXT_EXT`/`DOC_SHEET_EXT` · `DocType` + `docTypeOf(file)` (docx|text|md|html|sheet|json) · `docOutputs(file)`
+(per sub-type list; sheets/json lead with xlsx/csv) · `outputsFor(kind, file?)` (file REQUIRED for docs) · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
 `VIDEO_OUTPUTS [mp4 webm gif mp3]` · `LARGE_FILE_BYTES 200MB` · `HUGE_FILE_BYTES 1.8GB` · `extOf` ·
 `detectKind` (MIME prefix then ext allow-lists; null = unsupported) · `outputsFor` · `defaultTarget`
 (gif→apng / apng→gif FIRST, else webp/mp3/mp4 preference, jpg≡jpeg) · `outputFileName` (jpeg→.jpg) ·
@@ -145,6 +147,25 @@ with negative scale — drops links/forms), overlay + watermark drawn as user-sp
 tile rhythm). Coordinate helpers: `userToDisplay`/`displayToUser` (fractions), `userToDisplayCanvas`/
 `displayToUserCanvas` (rotate + flips). `A4`, `imagePageSize` (px × 0.75), `isPdfFile`, `MergeInput`,
 `mergeToPdf(inputs)` (PDFs w/ passwords + images), `imageToPdf`.
+
+## lib/docs.ts (~520)
+
+All libs lazy: `mammoth/mammoth.browser.js` (UMD — the node entry needs fs), `xlsx` (SheetJS), `marked`,
+`turndown` + `turndown-plugin-gfm`, `docx`. **Read**: `sanitizeHtml` (drops script/style/frames/on*, keeps
+data:/https: images) · `readSheets(file)` → `SheetInfo {names, rows}` (csv/tsv read as strings) · `docToHtml(file)`
+(docx→mammoth, md→marked gfm, html→sanitize, sheet→tables (+h2 per sheet), json→table|pre, text→<p>+<br>).
+**Write**: `htmlToText` (blocks → newlines, rows → tabs) · `htmlToMarkdown` (`normalizeTablesForMd` first:
+unwrap <p> in cells, promote row 1 to <thead>/<th>) · `markdownToHtml` · `wrapHtmlDocument` (standalone page
+with inline CSS) · block model `htmlToBlocks` → `Block` (heading|para{indent,quote,bullet}|pre|table|image|hr)
+with inline `Run {bold italic code underline}` — shared by the paginator and the docx writer · `layoutHtml(html,
+PageStyle)` canvas paginator (A4 @2×, margin 56pt, 11pt body, `wrapRuns` breaks on spaces + every CJK char,
+tables = equal columns, atomic rows, header tint; pre = clipped mono chunks; images fit width/70% height) ·
+`htmlToPdf` (JPEG pages → `buildPdf` image specs) · `htmlToPngs` (1 page → PNG, else ZIP) · `htmlToDocx`
+(docx lib: HeadingLevel, bullets, indent/border quotes, shaded code lines, tables w/ header shading, ImageRun ≤600px)
+· sheets `sheetsToXlsx sheetsToCsv (multi → ZIP) sheetsToJson rowsToMarkdown` · `convertDoc(file, target,
+onProgress)` → `{blob, multi}` (sheet/json fast path for xlsx/csv/json/md; else html → target). **Editor bridge**:
+`EditMode`, `docEditSource` (docx → markdown via html), `previewHtml`, `docSave` (docx/xlsx regenerated; csv/tsv
+and text formats saved verbatim).
 
 ## lib/qpdf.ts (~60)
 

@@ -1,4 +1,4 @@
-# Map: ImageEditor, GifEditor & PdfEditor
+# Map: ImageEditor, GifEditor, PdfEditor & DocEditor
 
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. Update when structure changes.
@@ -194,3 +194,15 @@ Props `{fileName, onSubmit(pw) → Promise<boolean>, onCancel}`. Owns pw/show/bu
 (pdf.js open) and returns false to keep the modal open (`.pw-modal.shake` + `.pw-err`). Autofocus, Enter submits,
 Esc cancels. DOM: Overlay > .editor.mini-modal.pw-modal > .mx-label + .pw-file + .pw-row (.pw-input + eye
 toggle) + .pw-err|.ed-hint + .ed-foot.
+
+## DocEditor.tsx (~150) — source + preview for documents
+
+Props `{item, onSave(id, file), onClose}`. On mount `docEditSource(file)` picks the edit `mode`
+(`md` for .md AND .docx, `html`, `csv` (first sheet, `sheetName`), `json`, `text`) and the source text;
+`previewHtml(mode, text)` re-renders 250 ms after typing into `.doc-prose` (already sanitized by lib/docs).
+State: mode · text · orig (dirty check) · sheetName · html · loaded/error/busy · view split|source|preview · wrap.
+`save()` → `docSave(original, mode, text, sheetName)` regenerates the ORIGINAL format (docx/xlsx rebuilt) →
+App saveEditedDoc (replaces the item file, status ready, like images). Keys: Tab inserts \t, Ctrl+S saves, Esc closes.
+DOM: `.editor-overlay > .editor.editor-wide.doc-editor.view-* > .ed-head + .ed-toolbar.doc-tools (.chip mode ·
+hints · .ed-seg view · wrap) + .doc-body (textarea.doc-source | .doc-preview > .doc-prose) + .ed-foot (docStats)`.
+i18n: doc* keys (docSource docSplit docWrap docStats{words,lines,chars} docUnsaved docLoadError docDocxHint docSheetHint).

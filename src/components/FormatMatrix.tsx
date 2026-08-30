@@ -25,6 +25,20 @@ const MATRIX = [
     ins: ['MP4', 'WEBM', 'MOV', 'AVI', 'MKV'],
     outs: ['MP4', 'WEBM', 'GIF', 'MP3'],
   },
+  {
+    key: 'kindPdf',
+    editKey: 'mxEditPdf',
+    icon: PDF_ICON,
+    ins: ['PDF', 'PNG', 'JPG', 'WEBP'],
+    outs: ['PDF', 'PNG', 'JPG', 'WEBP', 'TXT', 'DOCX', 'MD', 'HTML'],
+  },
+  {
+    key: 'kindDoc',
+    editKey: 'mxEditDoc',
+    icon: 'M6 3h9l4 4v14H6zM8 12h8v1.6H8zm0 3.2h8v1.6H8zm0 3.2h5V20H8z',
+    ins: ['DOCX', 'MD', 'TXT', 'HTML', 'CSV', 'XLSX', 'JSON'],
+    outs: ['PDF', 'DOCX', 'MD', 'HTML', 'TXT', 'CSV', 'XLSX', 'JSON', 'PNG'],
+  },
 ];
 
 export function FormatMatrix() {

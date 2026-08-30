@@ -36,6 +36,11 @@ export interface FileMeta {
   author?: string;
   /** PDF needs a user password (card shows the lock; probing stops here) */
   encrypted?: boolean;
+  /** documents */
+  words?: number;
+  chars?: number;
+  lines?: number;
+  sheets?: string[];
 }
 
 function fmtExposure(sec: number): string {
@@ -218,8 +223,31 @@ async function pdfMeta(file: File, password?: string): Promise<FileMeta> {
   return meta;
 }
 
+/** Documents: word/char/line counts from the text layer, sheet names for spreadsheets. */
+async function docMeta(file: File): Promise<FileMeta> {
+  const meta = commonMeta(file);
+  try {
+    const { docToHtml, htmlToText, readSheets } = await import('./docs');
+    const { docTypeOf } = await import('./formats');
+    if (docTypeOf(file) === 'sheet') {
+      const s = await readSheets(file);
+      meta.sheets = s.names;
+      meta.lines = s.names.reduce((n, k) => n + s.rows[k].length, 0);
+    } else {
+      const text = htmlToText(await docToHtml(file));
+      meta.chars = text.replace(/\s/g, '').length;
+      meta.words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      meta.lines = text.trim() ? text.trim().split('\n').length : 0;
+      const h = /^(.{1,80})/.exec(text.trim());
+      if (h && docTypeOf(file) !== 'text') meta.title = h[1].trim();
+    }
+  } catch { /* unparsable — counts stay blank */ }
+  return meta;
+}
+
 export async function extractMeta(file: File, kind: Kind, password?: string): Promise<FileMeta> {
   if (kind === 'image') return imageMeta(file);
+  if (kind === 'doc') return docMeta(file);
   if (kind === 'pdf') return pdfMeta(file, password);
   const meta = await mediaMeta(file, kind);
   if (kind === 'audio') Object.assign(meta, await readAudioTags(file));

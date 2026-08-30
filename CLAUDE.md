@@ -4,7 +4,7 @@ Read this file first. It replaces the need to re-read the whole codebase.
 
 ## What this is
 
-100% static in-browser file converter + editors (image/audio/video/GIF/APNG).
+100% static in-browser file converter + editors (image/audio/video/GIF/APNG/PDF/documents).
 No backend, no uploads. Deployed to GitHub Pages via `.github/workflows/deploy.yml`
 (repo Settings → Pages → Source: GitHub Actions). Vite `base: './'` so any repo name works.
 
@@ -35,7 +35,7 @@ one or two lines to update its map.
 | Map | Read before opening |
 |---|---|
 | `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, SettingsPanel, FormatMatrix, DualRange, Overlay, FramePicker, InfoTip |
-| `docs/claude/editors.md` | ImageEditor.tsx (1.7k lines), GifEditor.tsx |
+| `docs/claude/editors.md` | ImageEditor.tsx (1.7k lines), GifEditor.tsx, PdfEditor.tsx, PdfPasswordModal.tsx, DocEditor.tsx |
 | `docs/claude/studio.md` | Studio.tsx (1.1k), Mixer.tsx, VideoWorkspace.tsx, MediaEditor.tsx |
 | `docs/claude/libs.md` | every lib/*.ts, types.ts, i18n.tsx mechanics |
 | `docs/claude/styles.md` | styles.css section index + responsive/mobile architecture |
@@ -54,14 +54,14 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `types.ts` | `Item` (per-file state incl. `edit`, `edited`, `meta`, `outUrl`), `MediaEdit` (trim/volume/speed/rotate), `Status` |
 | `i18n.tsx` | Custom context. THREE dicts: zh / en / ja — **every new UI string needs all 3 keys** |
 | `styles.css` | Design system "Cyberdeck": circuit-grid ground + scanlines, neon signal palette (`--paint-*`), `--glow`/`--accent-ink` tokens, synthwave hero, Chakra Petch display, IBM Plex Sans/Mono, light default theme. All editors' CSS lives here too |
-| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf`), output lists (image outs include `pdf`; `PDF_OUTPUTS` png/jpeg/webp/txt/pdf), default targets (gif→apng, apng→gif, pdf→png), size thresholds, mime map |
+| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists (image outs include `pdf`; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
 | `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only) |
 | `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) |
 | `lib/animImage.ts` | GIF/APNG/static → RGBA frames (`decodeAnim`), `encodeAPNG` (upng-js, lossless alpha), `encodeGIFBlob(anim, matte\|null)` — `null` keeps binary alpha via gifenc `rgba4444` + `transparent+dispose:2`; `writeGifFrame` shared with GifEditor |
 | `lib/metadata.ts` | Per-kind file info: dims/duration/EXIF-GPS (exifr)/bitrate estimate + `preview` (object URL for images — revoke on remove!, dataURL frame-grab for video) |
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
 | `components/Hero.tsx` | Tagline + title + feature chips only (format pickers were removed on purpose — they misled users) |
-| `components/DropZone.tsx` | Accepts image/audio/video, multi-file |
+| `components/DropZone.tsx` | Accepts image/audio/video/pdf/document extensions, multi-file |
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `vite-env.d.ts` | `vite/client` types (`import.meta.env`) |
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings |
@@ -70,6 +70,8 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `components/PdfEditor.tsx` | **PDF page editor** (modal + Studio `inline`): page-thumb grid + live preview over a `PPage[]` list (source = loaded PDF+index / image blob / blank) with NON-DESTRUCTIVE decorations — rotate, flipH/V, drawing `overlay` (nested ImageEditor → pixel-diff → transparent PNG in page user space; vectors untouched), sticky `notes` (real /Text annots, read back on load), `watermark` flag (doc-level text/image settings), undo/redo. Insert from PDFs+images, blank, dup/move/reverse/drag reorder. Export dialog: scope all/selected, split→ZIP, title/author, AES-256 encrypt. Encrypted sources prompt via `PdfPasswordModal`; export decrypts with qpdf (`getPlainBytes`) else rasterizes |
 | `components/PdfPasswordModal.tsx` | Overlay password prompt; caller verifies with pdf.js before it closes (`onSubmit → Promise<boolean>`, shake on wrong) — password lives in memory only |
 | `lib/pdf.ts` | pdf.js (lazy + `?url` worker) `openPdf(bytes, password?)` (throws `PdfPasswordError` need/wrong)/`closePdf`/`renderPage`/`pdfInfo`/`readNotes`/`sniffEncrypted`; `getPlainBytes` (qpdf decrypt cache); conversions `pdfToImages` (multi-page → ZIP), `pdfToText`, `rasterizePdf` (plan B); pdf-lib `buildPdf(PageSpec[], {watermark, encrypt, title, author})` — rotate/flip (embedPage), overlay PNG, sticky notes (strip + rewrite), watermark (canvas-rendered text or image), qpdf encrypt; `mergeToPdf(inputs w/ passwords)`, `imageToPdf`; user↔display coordinate helpers |
+| `lib/docs.ts` | Documents via ONE intermediate (sanitized HTML): read docx (mammoth UMD) / md (marked) / html / text / sheets (SheetJS) / json → `docToHtml`; write `htmlToMarkdown` (turndown+gfm, tables normalised), `htmlToDocx` (docx lib), `htmlToText`, `htmlToPdf`/`htmlToPngs` via the canvas paginator `layoutHtml` (`htmlToBlocks` block model; rasterized A4 pages — CJK-safe, text not selectable); sheets `readSheets`/`sheetsToXlsx`/`sheetsToCsv`/`sheetsToJson`/`rowsToMarkdown`; entry `convertDoc(file, target)`; editor bridge `docEditSource`/`previewHtml`/`docSave` |
+| `components/DocEditor.tsx` | Source textarea + live preview (split/source/preview) for doc items: md/html/csv(first sheet)/json/text; DOCX edits as Markdown and is regenerated on save; Ctrl+S saves, Tab inserts |
 | `lib/qpdf.ts` | qpdf-wasm (lazy, `qpdf.wasm?url`): `decryptPdf(bytes, pw)` / `encryptPdf(bytes, user, owner)` (AES-256) — fresh module per call, `QpdfError` carries the CLI log |
 | `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
@@ -149,7 +151,15 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     `displayToUserCanvas` with `totalRot = intrinsic + rotate` and flips applied in display space.
     Draw-on-page diffs the ImageEditor result against the UNDECORATED render (`decorate:false`);
     a size change (crop/resize) is the one case that still rasterizes the page.
-26. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
+26. **Documents**: `Kind 'doc'` outputs depend on the SOURCE sub-type — always call `outputsFor(kind, file)` /
+    `defaultTarget` with the file. Every document conversion goes through sanitized HTML
+    (`docToHtml` → `htmlTo*`); spreadsheets/JSON take a data fast path. mammoth MUST be imported as
+    `mammoth/mammoth.browser.js` (the node entry pulls fs/path). PDF/PNG output is RASTERIZED by
+    `layoutHtml` (no font files → CJK renders, text unselectable — say so in UI copy). turndown-gfm
+    only converts tables with a header row and chokes on `<p>` inside cells → `normalizeTablesForMd`
+    runs before every html→md. Documents have no Studio type (`openAsProject` bails, FileCard hides
+    the button). All five doc libs are lazy `import()`s (mammoth 500 kB, xlsx 430 kB chunks).
+27. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
 
 ## Design language ("Cyberdeck")
 

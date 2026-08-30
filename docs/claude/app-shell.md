@@ -17,7 +17,7 @@ Local `useTheme()` hook: 3-state `pref` auto|light|dark (cycled by `toggle`; per
 LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme-color` meta.
 
 **Functions** (greppable): `acquireSlot`/`releaseSlot` · `updateSettings` · `patch(id, partial)` ·
-`addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (pdf→pdfToImages|pdfToText|
+`addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (doc→`convertDoc` (multi → .zip) / pdf→pdfToImages|pdfToText|pdf→docx/md/html via text→convertDoc|
 mergeToPdf re-save, multi-page raster swaps `outName` to .zip / image→pdf→imageToPdf / image→convertImage /
 apng|gif→convertAnimImage / else convertMedia) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
 queue through semaphore) · `mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
@@ -25,7 +25,7 @@ shown when `mergeable` > 1) · `convertAll` · `revokePreview(it)` · `remove`/`
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
 `openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
 `<Studio enterProjectId>` jumps into the workspace) ·
-`saveMediaEdit`/`saveEditedImage`/`saveEditedGif`/`saveEditedPdf` (gif + pdf saves mark the item done immediately —
+`saveMediaEdit`/`saveEditedImage`/`saveEditedGif`/`saveEditedPdf`/`saveEditedDoc` (doc = replace file, status ready) (gif + pdf saves mark the item done immediately —
 the edited file IS the deliverable; pdf save also clears `pdfPassword`). `unlockPdf(id, pw)` verifies with
 pdf.js then patches `pdfPassword` + re-probes meta; `pwFor` state renders `<PdfPasswordModal>` (opened by
 FileCard `onUnlock`, by `schedule` on a locked pdf, by `mergeAll` hitting a locked item, or by `runConvert`
@@ -46,7 +46,7 @@ div.app (+ .studio-mode)
       div.batch-bar > div.bb-info (.bb-count, .bb-progress-wrap > .bb-progress > .bb-bar, .bb-done)
                     + div.bb-actions (convertAll btn-accent · downloadAll · clearAll)
       div.file-list > <FileCard/>×n
-  {editingItem && (<GifEditor>|<ImageEditor>|<PdfEditor>|<MediaEditor>)}   ← portaled to body
+  {editingItem && (<GifEditor>|<ImageEditor>|<PdfEditor>|<DocEditor>|<MediaEditor>)}   ← portaled to body
   {pwFor && <PdfPasswordModal/>}
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
   <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
@@ -65,8 +65,8 @@ tabConvert tabSettings (tab bar) · installTitle installBody installBtn installL
 
 ## FileCard.tsx (~290)
 
-`KIND_ICONS` has 4 kinds (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
-kindImage/kindAudio/kindVideo/kindPdf. PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
+`KIND_ICONS` has 5 kinds (doc = page-with-lines) (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
+kindImage/kindAudio/kindVideo/kindPdf/kindDoc. Doc rows: words chip (`docWordsN`), details `docWords`/`docChars`/`docLines`/`docSheets`; target lists come from `outputsFor(item.kind, item.file)` (docs vary by sub-type); the open-as-project button is hidden for doc. PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
 `pdfPages`/`pdfPageSize`/`tagTitle`/`pdfAuthor`; quality slider also for pdf→jpeg/webp. `locked` (encrypted &&
 no `pdfPassword`) swaps convert for a 🔒 `pdfUnlock` button and routes edit to `onUnlock`; `.fc-lock(.open)` chip.
 
@@ -122,13 +122,13 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
 - **DropZone.tsx (80)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden
-  `input[type=file multiple accept=image/*,audio/*,video/*,application/pdf,.pdf]`; drag handlers + click + Enter/Space;
+  `input[type=file multiple accept=image/*,audio/*,video/*,application/pdf,.pdf,.docx,.md,…,.xlsx,.json]`; drag handlers + click + Enter/Space;
   input value reset after pick so same file re-picks. Prop `compact` (App: items exist) swaps the
   hero layout for a slim row (plus glyph + `dropMore` + kbd hint, `.dz-compact` CSS).
   `.dz-kbd` (Ctrl+V hint) is hidden on touch via `@media (hover:none)`.
 - **Overlay.tsx (14)**: `createPortal(div.editor-overlay, document.body)` — invariant 17 lives here.
   Children must stopPropagation. Page scroll behind overlays is locked via `body:has(.editor-overlay)` CSS.
-- **FormatMatrix.tsx (~70)**: static 4 cards (image/audio/video/pdf — `.mx-pdf` violet) from module const `MATRIX` (chips are hardcoded uppercase
+- **FormatMatrix.tsx (~85)**: static 5 cards (image/audio/video/pdf/doc — `.mx-pdf` violet, `.mx-doc` accent) from module const `MATRIX` (chips are hardcoded uppercase
   strings, NOT derived from lib/formats — update both when adding formats).
 - **InfoTip.tsx (47)**: `span.info-i` + portal `.tip-pop` (fixed-position tooltip, never clipped).
 - **InstallPrompt.tsx (~110)**: `.install-card > .install-icon + .install-text + .install-btns`.

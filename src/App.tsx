@@ -12,12 +12,14 @@ import { ImageEditor } from './components/ImageEditor';
 import { GifEditor } from './components/GifEditor';
 import { PdfEditor } from './components/PdfEditor';
 import { PdfPasswordModal } from './components/PdfPasswordModal';
+import { DocEditor } from './components/DocEditor';
 import { LANGS, useI18n } from './i18n';
 import { defaultTarget, detectKind, extOf, formatBytes, outputFileName } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
+import { convertDoc } from './lib/docs';
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { createProjectWithAsset } from './lib/idb';
@@ -172,12 +174,23 @@ export default function App() {
     try {
       let blob: Blob;
       let outName = outputFileName(item.file.name, item.target);
-      if (item.kind === 'pdf') {
+      if (item.kind === 'doc') {
+        // documents: html intermediate → md/txt/html/docx/pdf/png, sheets → csv/xlsx/json
+        const r = await convertDoc(item.file, item.target, (p) => patch(id, { progress: p }));
+        blob = r.blob;
+        if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip');
+      } else if (item.kind === 'pdf') {
         // pdf.js render / text extraction / pdf-lib re-save — no ffmpeg involved
         const onP = (p: number) => patch(id, { progress: p });
         const pw = item.pdfPassword;
         const enc = !!item.meta?.encrypted;
         if (item.target === 'txt') blob = await pdfToText(item.file, onP, pw);
+        else if (item.target === 'docx' || item.target === 'md' || item.target === 'html') {
+          // text-layer export: paragraphs from pdf.js text, re-flowed through the doc pipeline
+          const txt = await (await pdfToText(item.file, (p) => onP(p * 0.6), pw)).text();
+          const { convertDoc: cd } = await import('./lib/docs');
+          blob = (await cd(new File([txt], item.file.name.replace(/\.pdf$/i, '.txt'), { type: 'text/plain' }), item.target, (p) => onP(0.6 + p * 0.4))).blob;
+        }
         else if (item.target === 'pdf') {
           try {
             blob = await mergeToPdf([{ file: item.file, password: pw, encrypted: enc }], onP);
@@ -369,7 +382,7 @@ export default function App() {
   /** Send a queued file into Studio as a fresh typed project and jump there. */
   const openAsProject = async (id: string) => {
     const it = itemsRef.current.find((i) => i.id === id);
-    if (!it) return;
+    if (!it || it.kind === 'doc') return; // documents have no Studio project type
     const type: ProjectType = isGifItem(it) ? 'gif' : (it.kind as ProjectType);
     const p = await createProjectWithAsset(it.file.name, it.kind, it.file, type);
     try { localStorage.setItem('morphkit-project', p.id); } catch { /* ignore */ }
@@ -390,6 +403,15 @@ export default function App() {
     revokePreview(it);
     patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
     extractMeta(file, 'image').then((meta) => patch(id, { meta }));
+    setEditingId(null);
+  };
+
+  /** Edited document replaces the source file (same format), like saveEditedImage. */
+  const saveEditedDoc = (id: string, file: File) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
+    patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
+    extractMeta(file, 'doc').then((meta) => patch(id, { meta }));
     setEditingId(null);
   };
 
@@ -631,6 +653,8 @@ export default function App() {
           <ImageEditor item={editingItem} onSave={saveEditedImage} onClose={() => setEditingId(null)} />
         ) : editingItem.kind === 'pdf' ? (
           <PdfEditor item={editingItem} onSave={saveEditedPdf} onClose={() => setEditingId(null)} />
+        ) : editingItem.kind === 'doc' ? (
+          <DocEditor item={editingItem} onSave={saveEditedDoc} onClose={() => setEditingId(null)} />
         ) : (
           <MediaEditor item={editingItem} onSave={saveMediaEdit} onClose={() => setEditingId(null)} />
         )

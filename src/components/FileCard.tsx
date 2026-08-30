@@ -17,6 +17,7 @@ const KIND_ICONS: Record<Kind, string> = {
   audio: 'M9 18a3 3 0 1 1-2-2.83V6l11-2v10a3 3 0 1 1-2-2.83V7.4l-7 1.27V18z',
   video: 'M4 6h11a1 1 0 0 1 1 1v2.5l4-2.5a.6.6 0 0 1 1 .5v9a.6.6 0 0 1-1 .5l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
   pdf: PDF_ICON,
+  doc: 'M6 3h9l4 4v14H6zM15 3v4h4M8 12h8M8 15h8M8 18h5',
 };
 
 interface Props {
@@ -37,6 +38,7 @@ const EDIT_ICONS = {
   image: 'M4 20l1-4L16 5l3 3L8 19l-4 1zM14.5 6.5l3 3',
   gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
   pdf: 'M5 4h6v6H5zM13 4h6v6h-6zM5 14h6v6H5zM13 14h6v6h-6z',
+  doc: 'M4 6h16M4 12h10M4 18h13',
 };
 
 export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock }: Props) {
@@ -72,8 +74,8 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
   const large = !huge && item.file.size > LARGE_FILE_BYTES && item.kind !== 'image';
   const isGif = item.kind === 'image' && (extOf(item.file.name) === 'gif' || item.file.type === 'image/gif');
   const locked = item.kind === 'pdf' && !!item.meta?.encrypted && !item.pdfPassword;
-  const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : item.kind === 'pdf' ? EDIT_ICONS.pdf : EDIT_ICONS.media;
-  const kindKey = item.kind === 'image' ? 'kindImage' : item.kind === 'audio' ? 'kindAudio' : item.kind === 'pdf' ? 'kindPdf' : 'kindVideo';
+  const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : item.kind === 'pdf' ? EDIT_ICONS.pdf : item.kind === 'doc' ? EDIT_ICONS.doc : EDIT_ICONS.media;
+  const kindKey = item.kind === 'image' ? 'kindImage' : item.kind === 'audio' ? 'kindAudio' : item.kind === 'pdf' ? 'kindPdf' : item.kind === 'doc' ? 'kindDoc' : 'kindVideo';
 
   const editSummary: string[] = [];
   if (item.edit) {
@@ -99,6 +101,12 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
     if (item.kind === 'image') {
       if (m.mp) detailRows.push([t('megapixels'), m.mp]);
       if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
+    } else if (item.kind === 'doc') {
+      if (m.words != null) detailRows.push([t('docWords'), m.words.toLocaleString()]);
+      if (m.chars != null) detailRows.push([t('docChars'), m.chars.toLocaleString()]);
+      if (m.lines != null) detailRows.push([t('docLines'), m.lines.toLocaleString()]);
+      if (m.sheets?.length) detailRows.push([t('docSheets'), m.sheets.join(', ')]);
+      if (m.title) detailRows.push([t('tagTitle'), m.title]);
     } else if (item.kind === 'pdf') {
       if (m.pages != null) detailRows.push([t('pdfPages'), String(m.pages)]);
       if (m.width != null && m.height != null) detailRows.push([t('pdfPageSize'), `${m.width} × ${m.height} pt`]);
@@ -145,6 +153,9 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             {item.kind === 'pdf' && m?.pages != null && (
               <span className="fc-size">{t('pdfPagesN', { n: String(m.pages) })}</span>
             )}
+            {item.kind === 'doc' && m?.words != null && (
+              <span className="fc-size">{t('docWordsN', { n: m.words.toLocaleString() })}</span>
+            )}
             {item.kind !== 'pdf' && m?.width != null && m?.height != null && (
               <span className="fc-size">{m.width}×{m.height}</span>
             )}
@@ -169,6 +180,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             <svg viewBox="0 0 24 24" width="14" height="14"><path d={editIcon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {t('edit')}
           </button>
+          {item.kind !== 'doc' && (
           <button
             className="btn btn-ghost btn-sm fc-to-studio"
             disabled={busy}
@@ -178,6 +190,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             <svg viewBox="0 0 24 24" width="14" height="14"><path d="M8 8h12v12H8zM4 16V4h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
             {t('openAsProject')}
           </button>
+          )}
           {hasDetails && (
             <button
               className={`btn btn-ghost fc-detail-btn${showDetails ? ' active' : ''}`}
@@ -196,7 +209,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
               disabled={busy}
               onChange={(e) => onTarget(item.id, e.target.value)}
             >
-              {outputsFor(item.kind).map((o) => (
+              {outputsFor(item.kind, item.file).map((o) => (
                 <option key={o} value={o}>{o.toUpperCase()}</option>
               ))}
             </select>
@@ -206,7 +219,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
               popup covered the card's convert/quality controls (looked broken) */}
           <div className="fc-chips" role="radiogroup" aria-label={t('targetLabel')}>
             <span className="fc-chips-label">{t('targetLabel')}</span>
-            {outputsFor(item.kind).map((o) => (
+            {outputsFor(item.kind, item.file).map((o) => (
               <button
                 key={o}
                 className={`fc-chip${item.target === o ? ' active' : ''}`}

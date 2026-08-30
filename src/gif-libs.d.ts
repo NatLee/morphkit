@@ -57,3 +57,18 @@ declare module '@jspawn/qpdf-wasm/qpdf.js' {
   const createQpdf: (opts?: Record<string, unknown>) => Promise<unknown>;
   export default createQpdf;
 }
+
+declare module 'mammoth/mammoth.browser.js' {
+  /** UMD bundle of mammoth (node-free); same API as the `mammoth` typings. */
+  import type * as Mammoth from 'mammoth';
+  const m: typeof Mammoth & { default?: typeof Mammoth };
+  export = m;
+}
+
+declare module 'turndown-plugin-gfm' {
+  import type TurndownService from 'turndown';
+  export const gfm: TurndownService.Plugin;
+  export const tables: TurndownService.Plugin;
+  export const strikethrough: TurndownService.Plugin;
+  export const taskListItems: TurndownService.Plugin;
+}

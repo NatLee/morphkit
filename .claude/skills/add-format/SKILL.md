@@ -28,6 +28,8 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
      (browser `toBlob` must support the MIME) + App `runConvert` routing.
    - PDF-based (pdf ⇄ image/text): extend `src/lib/pdf.ts` (`pdfToImages` / `pdfToText` /
      `buildPdf`) + `PDF_OUTPUTS`; pdf.js and pdf-lib stay lazy `import()`s (invariant 25).
+   - Document-based (docx/md/html/txt/csv/xlsx/json): extend `convertDoc` in `src/lib/docs.ts`
+     (+ `docOutputs`/`docTypeOf` in formats.ts). New targets usually mean one more `htmlTo*` writer.
    - Frame-based (animated): extend `convertAnimImage` in `src/lib/animImage.ts`. Keep-alpha GIF
      output MUST use `rgba4444` + `transparent: true` + `dispose: 2` (invariant 4).
 3. `src/App.tsx` `runConvert` — make sure the new target reaches the right converter

@@ -74,7 +74,11 @@
     .pdf-export .pdf-x-row .pdf-x-pw · .pw-modal(.shake, pwShake keyframes) .pw-file .pw-row .pw-input .pw-err ·
     .pdf-lock .fc-lock(.open) · inline: `.editor.ie-inline.pdf-editor` flex column, grid+preview fill ·
     `.mx-pdf` + `.file-card.kind-pdf .fc-icon` violet live in the format-matrix section
-19. `studio` — .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
+19. `doc editor` — .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
+    58vh; ≤760 two rows; ≤640 100dvh sheet) textarea.doc-source(mono, tab-size 2) .doc-preview(always-light sheet)
+    .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.mx-doc` + `.file-card.kind-doc .fc-icon`
+    accent live in the format-matrix section
+20. `studio` — .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
     calc(100vh−96px); ≤760: height auto, page scrolls**) .st-bar .st-name
     .st-body(min(--st-assets-w,40vw)|8px .split-gutter|1fr, resizable; 1fr ≤760)
     .st-assets .st-main .view-anim .mixer .media-view .st-assets-head .st-import .st-empty .asset-row
@@ -93,13 +97,13 @@
     .vw-pick .frame-modal .fp-preview(240px; 180 ≤640) .st-note(fixed toast z150, safe-area aware) ·
     .footer-link · .st-tabs · `media view`: .media-grid .media-card .media-thumb .media-name .media-actions ·
     `info tooltip`: .info-i .tip-pop(fixed z300)
-20. `footer` — .footer
-21. `pwa / app shell` — .install-card (fixed corner card, z95; phone: full-width above tab bar)
+21. `footer` — .footer
+22. `pwa / app shell` — .install-card (fixed corner card, z95; phone: full-width above tab bar)
     .install-icon .install-text .install-btns · .m-tabbar (base display:none — shown ≤640 in the
     mobile layer) · .wand-global lives in section 16 (text tool-btn, width:auto)
-22. `shared motion` — `rise` keyframes (**end frames MUST be `transform:none`** — invariant 17)
-23. `responsive & motion` + **mobile optimization layer** (see below)
-24. `micro-interactions` — tap-highlight, :active press, focus-visible, .drop-hot, modalPop,
+23. `shared motion` — `rise` keyframes (**end frames MUST be `transform:none`** — invariant 17)
+24. `responsive & motion` + **mobile optimization layer** (see below)
+25. `micro-interactions` — tap-highlight, :active press, focus-visible, .drop-hot, modalPop,
     `prefers-reduced-motion` (last block in file)
 
 ## Responsive architecture (all breakpoints, why)

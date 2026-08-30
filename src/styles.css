@@ -1293,6 +1293,11 @@ select optgroup {
 .mx-pdf:hover { border-color: var(--paint-violet); box-shadow: 0 0 18px color-mix(in srgb, var(--paint-violet) 22%, transparent); }
 .mx-pdf .mx-icon { color: var(--paint-violet); border-color: var(--paint-violet); }
 .file-card.kind-pdf .fc-icon { color: var(--paint-violet); }
+/* documents = accent (indigo/cyan) */
+.mx-doc { border-top-color: var(--accent); }
+.mx-doc:hover { border-color: var(--accent); box-shadow: var(--glow); }
+.mx-doc .mx-icon { color: var(--accent); border-color: var(--accent); }
+.file-card.kind-doc .fc-icon { color: var(--accent); }
 
 .mx-head {
   display: flex;
@@ -3071,6 +3076,68 @@ kbd {
 }
 @media (pointer: coarse) {
   .pdf-check, .pdf-ins { width: 28px; height: 28px; }
+}
+
+/* ============ doc editor ============ */
+/* source textarea | rendered preview; .view-source / .view-preview collapse to one pane */
+.doc-editor { display: flex; flex-direction: column; }
+.doc-tools .chip { font-family: var(--font-mono); font-size: 11px; }
+.doc-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  height: 58vh;
+  min-height: 240px;
+}
+.doc-editor.view-source .doc-body, .doc-editor.view-preview .doc-body { grid-template-columns: minmax(0, 1fr); }
+.doc-source {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--wobble-sm);
+  background: var(--bg-sunken);
+  color: var(--ink);
+  font: 13px/1.55 var(--font-mono);
+  tab-size: 2;
+}
+.doc-source:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
+.doc-preview {
+  overflow: auto;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--wobble-sm);
+  background: #fff;
+  color: #1c2030;
+}
+/* readable prose inside the (always light) preview sheet */
+.doc-prose { font: 15px/1.65 var(--font-body); word-break: break-word; }
+.doc-prose h1, .doc-prose h2, .doc-prose h3, .doc-prose h4 { font-family: var(--font-display); line-height: 1.25; margin: 1.2em 0 0.5em; color: #0d1020; }
+.doc-prose h1 { font-size: 1.9em; border-bottom: 1px solid #ddd; padding-bottom: 0.25em; }
+.doc-prose h2 { font-size: 1.5em; }
+.doc-prose h3 { font-size: 1.2em; }
+.doc-prose p, .doc-prose ul, .doc-prose ol, .doc-prose table, .doc-prose pre, .doc-prose blockquote { margin: 0 0 0.9em; }
+.doc-prose ul, .doc-prose ol { padding-left: 1.6em; }
+.doc-prose a { color: #3a56d4; }
+.doc-prose code { font-family: var(--font-mono); font-size: 0.9em; background: #f0f2f7; padding: 1px 5px; border-radius: 4px; }
+.doc-prose pre { background: #f0f2f7; padding: 12px 14px; border-radius: 6px; overflow: auto; }
+.doc-prose pre code { background: none; padding: 0; }
+.doc-prose blockquote { border-left: 3px solid #c9cfe0; padding-left: 12px; color: #555c70; }
+.doc-prose table { border-collapse: collapse; max-width: 100%; display: block; overflow-x: auto; }
+.doc-prose th, .doc-prose td { border: 1px solid #c9cfe0; padding: 4px 10px; text-align: left; }
+.doc-prose th { background: #eef1f8; }
+.doc-prose img { max-width: 100%; height: auto; }
+.doc-prose hr { border: 0; border-top: 1px solid #ddd; margin: 1.2em 0; }
+
+@media (max-width: 760px) {
+  .doc-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr 1fr; height: auto; flex: 1 1 auto; min-height: 0; }
+  .doc-editor.view-source .doc-body, .doc-editor.view-preview .doc-body { grid-template-rows: 1fr; }
+}
+@media (max-width: 640px) {
+  .editor-overlay > .editor.doc-editor { height: 100dvh; }
+  .doc-tools .ed-hint { display: none; }
+  .doc-source { font-size: 16px; }
 }
 
 /* ============ studio ============ */

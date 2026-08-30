@@ -56,7 +56,7 @@ export function DropZone({ onFiles, compact = false }: { onFiles: (files: File[]
         type="file"
         multiple
         hidden
-        accept="image/*,audio/*,video/*,application/pdf,.pdf"
+        accept="image/*,audio/*,video/*,application/pdf,.pdf,.docx,.md,.markdown,.txt,.html,.htm,.csv,.tsv,.xlsx,.xls,.ods,.json"
         onChange={(e) => {
           onFiles(Array.from(e.target.files ?? []));
           e.target.value = '';
