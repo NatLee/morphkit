@@ -198,7 +198,7 @@ toggle) + .pw-err|.ed-hint + .ed-foot.
 ## DocEditor.tsx (~150) — source + preview for documents
 
 Props `{item, onSave(id, file), onClose}`. On mount `docEditSource(file)` picks the edit `mode`
-(`md` for .md AND .docx, `html`, `csv` (first sheet, `sheetName`), `json`, `text`) and the source text;
+(`md` for .md, .txt AND .docx/.pptx, `html`, `csv` (first sheet, `sheetName`), `json`, `text`) and the source text;
 `previewHtml(mode, text)` re-renders 250 ms after typing into `.doc-prose` (already sanitized by lib/docs).
 State: mode · text · orig (dirty check) · sheetName · html · loaded/error/busy · view split|source|preview · wrap.
 `save()` → `docSave(original, mode, text, sheetName)` regenerates the ORIGINAL format (docx/xlsx rebuilt) →
@@ -206,3 +206,29 @@ App saveEditedDoc (replaces the item file, status ready, like images). Keys: Tab
 DOM: `.editor-overlay > .editor.editor-wide.doc-editor.view-* > .ed-head + .ed-toolbar.doc-tools (.chip mode ·
 hints · .ed-seg view · wrap) + .doc-body (textarea.doc-source | .doc-preview > .doc-prose) + .ed-foot (docStats)`.
 i18n: doc* keys (docSource docSplit docWrap docStats{words,lines,chars} docUnsaved docLoadError docDocxHint docSheetHint).
+
+## SheetEditor.tsx (~330) — spreadsheet grid (modal)
+
+Routed by App for `docTypeOf(file) === 'sheet'`. Model: `info: SheetInfo` (all sheets) + `rows: Cell[][]`
+(ACTIVE sheet, padded to ≥12×4 plus one spare row/col — typing into the spare grows the grid; `trim` strips
+empties on flush). `flushInto` writes the active grid back into `info` on sheet switch/save. Ops:
+`setCell` (coerces numbers/booleans), insert/delete/move row+col, `sortByCol` (row 1 pinned as header),
+undo (50 snapshots, Ctrl+Z), add/delete/rename sheets (double-click a tab; csv/tsv = single fixed tab).
+Nav: Enter/Tab/arrows via `focusCell` on `input[data-r][data-c]`; PAGE=300 row windows + `.sheet-more`.
+Save: csv/tsv → text of the active sheet; else `sheetsToXlsx` (xls/ods renamed .xlsx) → the App doc-save path.
+DOM: `.editor.editor-wide.sheet-editor > .ed-toolbar.sheet-tools + .sheet-tabs (.sheet-tab.active
+.sheet-add .sheet-del .sheet-rename) + .sheet-grid (table, sticky thead th + tbody th, td>input.num,
+tr.sh-header, .sh-corner, th/td .sel) + .ed-foot (shStats)`. i18n: sh* keys.
+
+## QrTool.tsx (~330) — QR maker/reader (modal)
+
+Props `{initialDecoded?, onAddImage, onClose}` — a FileCard QR chip opens it on READ with the payload.
+MAKE: `tpl` url|text|wifi|vcard|mail (payload built by lib/qr `payloads`), style `QrStyle` {fg, bg
+(''=transparent), size 128–2048, margin, ecl, logo (forces ecl H)}; 150 ms-debounced preview via
+`qrToCanvas`; actions download PNG (`qr-<host|tpl>.png`)/SVG, copy PNG, `onAddImage` → converter list.
+READ: `.qr-drop` (drop/click/paste; paste listener active on the read tab only), `startCam`/`stopCam`
+(getUserMedia environment cam, 250 ms `decodeFrame` loop, tracks stopped on close), result =
+`classifyPayload` chip + textarea + open-link (url) / copy / remake. DOM: `.editor.editor-wide.qr-tool >
+.ed-head (.qr-tabs) + (.qr-make (.qr-form .qr-tpl .qr-field .qr-text .qr-style .qr-colors) | .qr-preview
+(.qr-canvas[.checker] .qr-payload .qr-actions)) | (.qr-read (.qr-drop .qr-video .qr-read-actions
+.qr-result .qr-decoded .qr-kind))`. i18n: qr* keys.

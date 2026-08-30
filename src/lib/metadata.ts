@@ -36,6 +36,8 @@ export interface FileMeta {
   author?: string;
   /** PDF needs a user password (card shows the lock; probing stops here) */
   encrypted?: boolean;
+  /** image contains a QR code — decoded payload */
+  qr?: string;
   /** documents */
   words?: number;
   chars?: number;
@@ -77,6 +79,15 @@ async function imageMeta(file: File): Promise<FileMeta> {
     meta.aspect = aspectOf(bmp.width, bmp.height);
     bmp.close();
   } catch { /* undecodable in this browser — skip dims */ }
+
+  // QR payload (jsQR, lazy) — screenshots / photos of codes get a chip + the QR tool shortcut
+  if (file.size < 25 * 1024 * 1024 && !/gif|apng/.test(file.type)) {
+    try {
+      const { decodeQr } = await import('./qr');
+      const hit = await decodeQr(file);
+      if (hit) meta.qr = hit.text;
+    } catch { /* not a QR */ }
+  }
 
   // EXIF / GPS (JPEG, TIFF, HEIC…) — mature fixed format, parsed by exifr
   try {
@@ -229,7 +240,14 @@ async function docMeta(file: File): Promise<FileMeta> {
   try {
     const { docToHtml, htmlToText, readSheets } = await import('./docs');
     const { docTypeOf } = await import('./formats');
-    if (docTypeOf(file) === 'sheet') {
+    if (docTypeOf(file) === 'pptx') {
+      const { unzipSync } = await import('fflate');
+      const zip = unzipSync(new Uint8Array(await file.arrayBuffer()));
+      meta.pages = Object.keys(zip).filter((k) => /^ppt\/slides\/slide\d+\.xml$/.test(k)).length;
+      const text = htmlToText(await docToHtml(file));
+      meta.chars = text.replace(/\s/g, '').length;
+      meta.words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    } else if (docTypeOf(file) === 'sheet') {
       const s = await readSheets(file);
       meta.sheets = s.names;
       meta.lines = s.names.reduce((n, k) => n + s.rows[k].length, 0);

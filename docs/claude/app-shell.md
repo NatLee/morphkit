@@ -20,7 +20,9 @@ LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme
 `addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (doc→`convertDoc` (multi → .zip) / pdf→pdfToImages|pdfToText|pdf→docx/md/html via text→convertDoc|
 mergeToPdf re-save, multi-page raster swaps `outName` to .zip / image→pdf→imageToPdf / image→convertImage /
 apng|gif→convertAnimImage / else convertMedia) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
-queue through semaphore) · `mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
+queue through semaphore) · `addNote(text)` (Ctrl+V plain text or the DropZone `.dz-note` link → note-N.md doc item, editor opens) ·
+`qrOpen` state (null closed / '' maker / text reader) renders `<QrTool>`; topbar `.qr-btn` + 4-tab phone bar + FileCard chip open it ·
+`mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
 shown when `mergeable` > 1) · `convertAll` · `revokePreview(it)` · `remove`/`clearAll` (must revoke `outUrl` + `meta.preview`) ·
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
 `openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
@@ -38,7 +40,7 @@ div.app (+ .studio-mode)
   header.topbar
     div.brand > span.brand-mark + span.brand-name
     div.topbar-actions > button.studio-toggle + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(auto half-circle/sun/moon cycle)
-  main → <Studio/>  |  <Hero/> + section.workbench + <FormatMatrix/>
+  main → <Studio/>  |  <Hero compact={items.length>0}/> + section.workbench + <FormatMatrix/>
     section.workbench
       <DropZone onFiles=addFiles compact={items.length>0}/>
       div.banner.info.engine-banner (loading: .spinner + .engine-dl > .fc-progress > .fc-bar + .fc-pct)
@@ -66,7 +68,7 @@ tabConvert tabSettings (tab bar) · installTitle installBody installBtn installL
 ## FileCard.tsx (~290)
 
 `KIND_ICONS` has 5 kinds (doc = page-with-lines) (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
-kindImage/kindAudio/kindVideo/kindPdf/kindDoc. Doc rows: words chip (`docWordsN`), details `docWords`/`docChars`/`docLines`/`docSheets`; target lists come from `outputsFor(item.kind, item.file)` (docs vary by sub-type); the open-as-project button is hidden for doc. PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
+kindImage/kindAudio/kindVideo/kindPdf/kindDoc. `.fc-qr` chip (meta.qr) opens the QR tool via `onQr`. Doc rows: words chip (`docWordsN`), details `docWords`/`docChars`/`docLines`/`docSheets`; target lists come from `outputsFor(item.kind, item.file)` (docs vary by sub-type); the open-as-project button is hidden for doc. PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
 `pdfPages`/`pdfPageSize`/`tagTitle`/`pdfAuthor`; quality slider also for pdf→jpeg/webp. `locked` (encrypted &&
 no `pdfPassword`) swaps convert for a 🔒 `pdfUnlock` button and routes edit to `onUnlock`; `.fc-lock(.open)` chip.
 
@@ -118,11 +120,16 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 
 ## Small components
 
-- **Hero.tsx (30)**: static — `.hero > p.hero-tagline + h1.hero-title(>span.hero-accent) + div.feat-row>span.feat×3`.
+- **Hero.tsx (~50)**: prop `compact` (App passes `items.length > 0`) — `.hero(+.hero-compact) >
+  div.hero-fold > div.hero-fold-inner (p.hero-tagline + h1.hero-title>span.hero-accent) + div.feat-row>span.feat×6`.
+  Compact folds tagline+title away (grid-template-rows 1fr→0fr transition on `.hero-fold`) and shrinks
+  hero padding; feat chips stay. Chips: featTrim/featPaint/featGif/featPdf/featDoc/featQr, coloured
+  by `.feat:nth-child(n)` — new chips must extend both the i18n keys (×3) and the nth-child CSS.
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
 - **DropZone.tsx (80)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden
-  `input[type=file multiple accept=image/*,audio/*,video/*,application/pdf,.pdf,.docx,.md,…,.xlsx,.json]`; drag handlers + click + Enter/Space;
+  `input[type=file multiple accept=image/*,audio/*,video/*,application/pdf,.pdf,.docx,.pptx,.md,…,.xlsx,.json]`;
+  optional `onNewNote` renders the `.dz-note` blank-Markdown link (stopPropagation).; drag handlers + click + Enter/Space;
   input value reset after pick so same file re-picks. Prop `compact` (App: items exist) swaps the
   hero layout for a slim row (plus glyph + `dropMore` + kbd hint, `.dz-compact` CSS).
   `.dz-kbd` (Ctrl+V hint) is hidden on touch via `@media (hover:none)`.

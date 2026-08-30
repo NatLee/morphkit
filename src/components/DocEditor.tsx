@@ -106,6 +106,7 @@ export function DocEditor({ item, onSave, onClose }: Props) {
         <div className="ed-toolbar doc-tools">
           <span className="chip">{modeLabel}</span>
           {type === 'docx' && <span className="ed-hint">{t('docDocxHint')}</span>}
+          {type === 'pptx' && <span className="ed-hint">{t('docPptxHint')}</span>}
           {type === 'sheet' && sheetName && <span className="ed-hint">{t('docSheetHint')}</span>}
           <span className="opt-spacer" />
           <div className="ed-seg">

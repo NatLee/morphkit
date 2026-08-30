@@ -2,7 +2,7 @@ import { useRef, useState, type DragEvent } from 'react';
 import { useI18n } from '../i18n';
 
 /** `compact`: slim add-more strip shown once the file list exists below. */
-export function DropZone({ onFiles, compact = false }: { onFiles: (files: File[]) => void; compact?: boolean }) {
+export function DropZone({ onFiles, compact = false, onNewNote }: { onFiles: (files: File[]) => void; compact?: boolean; onNewNote?: () => void }) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -49,6 +49,9 @@ export function DropZone({ onFiles, compact = false }: { onFiles: (files: File[]
           <p className="dz-kbd">
             <kbd>Ctrl</kbd>+<kbd>V</kbd> {t('dzPasteHint')}
           </p>
+          {onNewNote && (
+            <button className="dz-note" onClick={(e) => { e.stopPropagation(); onNewNote(); }}>{t('dzNewNote')}</button>
+          )}
         </>
       )}
       <input
@@ -56,7 +59,7 @@ export function DropZone({ onFiles, compact = false }: { onFiles: (files: File[]
         type="file"
         multiple
         hidden
-        accept="image/*,audio/*,video/*,application/pdf,.pdf,.docx,.md,.markdown,.txt,.html,.htm,.csv,.tsv,.xlsx,.xls,.ods,.json"
+        accept="image/*,audio/*,video/*,application/pdf,.pdf,.docx,.md,.markdown,.txt,.html,.htm,.csv,.tsv,.xlsx,.xls,.ods,.json,.pptx"
         onChange={(e) => {
           onFiles(Array.from(e.target.files ?? []));
           e.target.value = '';

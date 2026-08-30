@@ -13,8 +13,10 @@ import { GifEditor } from './components/GifEditor';
 import { PdfEditor } from './components/PdfEditor';
 import { PdfPasswordModal } from './components/PdfPasswordModal';
 import { DocEditor } from './components/DocEditor';
+import { QrTool } from './components/QrTool';
+import { SheetEditor } from './components/SheetEditor';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, extOf, formatBytes, outputFileName } from './lib/formats';
+import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, outputFileName } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
@@ -100,6 +102,8 @@ export default function App() {
   const [studioEnterId, setStudioEnterId] = useState<string | null>(null);
   // encrypted PDF awaiting its password (item id)
   const [pwFor, setPwFor] = useState<string | null>(null);
+  // QR tool modal: null = closed, '' = generator, text = reader with that payload
+  const [qrOpen, setQrOpen] = useState<string | null>(null);
 
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -164,6 +168,17 @@ export default function App() {
       setSkipped(bad.join(', '));
       window.setTimeout(() => setSkipped(''), 6000);
     }
+  };
+
+  /** New Markdown note (from Ctrl+V text or the DropZone link) — added AND opened in the editor. */
+  let noteN = 0;
+  const addNote = (text = '') => {
+    const n = itemsRef.current.filter((i) => /^note-\d+\.md$/.test(i.file.name)).length + 1 + noteN++;
+    const f = new File([text], `note-${n}.md`, { type: 'text/markdown' });
+    const id = `f${++uid}`;
+    setItems((prev) => [...prev, { id, file: f, kind: 'doc', target: 'pdf', quality: 0.9, status: 'ready', progress: 0 }]);
+    extractMeta(f, 'doc').then((meta) => patch(id, { meta }));
+    setEditingId(id);
   };
 
   const runConvert = async (id: string) => {
@@ -344,7 +359,7 @@ export default function App() {
   // global paste: Ctrl+V with a file (e.g. a screenshot) adds it to the list
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      if (editingId || showSettings) return;
+      if (editingId || showSettings || qrOpen != null) return;
       const files: File[] = [];
       for (const it of Array.from(e.clipboardData?.items ?? [])) {
         if (it.kind === 'file') {
@@ -355,12 +370,19 @@ export default function App() {
       if (files.length) {
         e.preventDefault();
         addFiles(files);
+        return;
+      }
+      // plain text → a Markdown note item (opens straight into the editor)
+      const txt = e.clipboardData?.getData('text/plain');
+      if (txt && txt.trim() && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        addNote(txt);
       }
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingId, showSettings]);
+  }, [editingId, showSettings, qrOpen]);
 
   // close settings drawer on Escape
   useEffect(() => {
@@ -516,6 +538,9 @@ export default function App() {
             <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {mode === 'studio' ? t('backLabel') : 'Studio'}
           </button>
+          <button className="theme-toggle qr-btn" onClick={() => setQrOpen('')} aria-label={t('qrTitle')} title={t('qrTitle')}>
+            <svg viewBox="0 0 24 24" width="17" height="17"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2zM14 20h1M20 18v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+          </button>
           <div className="lang-switch" role="group">
             {LANGS.map((l) => (
               <button
@@ -559,10 +584,10 @@ export default function App() {
         </main>
       ) : (
       <main>
-        <Hero />
+        <Hero compact={items.length > 0} />
 
         <section className="workbench">
-          <DropZone onFiles={addFiles} compact={items.length > 0} />
+          <DropZone onFiles={addFiles} compact={items.length > 0} onNewNote={() => addNote()} />
 
           {engine === 'loading' && (
             <div className="banner info engine-banner">
@@ -635,6 +660,7 @@ export default function App() {
                     onEdit={setEditingId}
                     onToProject={(id) => void openAsProject(id)}
                     onUnlock={setPwFor}
+                    onQr={(text) => setQrOpen(text)}
                   />
                 ))}
               </div>
@@ -653,11 +679,17 @@ export default function App() {
           <ImageEditor item={editingItem} onSave={saveEditedImage} onClose={() => setEditingId(null)} />
         ) : editingItem.kind === 'pdf' ? (
           <PdfEditor item={editingItem} onSave={saveEditedPdf} onClose={() => setEditingId(null)} />
+        ) : editingItem.kind === 'doc' && docTypeOf(editingItem.file) === 'sheet' ? (
+          <SheetEditor item={editingItem} onSave={saveEditedDoc} onClose={() => setEditingId(null)} />
         ) : editingItem.kind === 'doc' ? (
           <DocEditor item={editingItem} onSave={saveEditedDoc} onClose={() => setEditingId(null)} />
         ) : (
           <MediaEditor item={editingItem} onSave={saveMediaEdit} onClose={() => setEditingId(null)} />
         )
+      )}
+
+      {qrOpen != null && (
+        <QrTool initialDecoded={qrOpen || null} onAddImage={(f) => addFiles([f])} onClose={() => setQrOpen(null)} />
       )}
 
       {pwFor && (() => {
@@ -716,6 +748,10 @@ export default function App() {
         >
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span>Studio</span>
+        </button>
+        <button className={qrOpen != null ? 'active' : ''} onClick={() => setQrOpen((v) => (v == null ? '' : null))}>
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2zM14 20h1M20 18v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+          <span>QR</span>
         </button>
         <button className={showSettings ? 'active' : ''} onClick={() => setShowSettings((v) => !v)}>
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10.3 3.6a2 2 0 0 1 3.4 0l.6 1a2 2 0 0 0 2.1.9l1.1-.2a2 2 0 0 1 2.3 2.3l-.2 1.1a2 2 0 0 0 .9 2.1l1 .6a2 2 0 0 1 0 3.4l-1 .6a2 2 0 0 0-.9 2.1l.2 1.1a2 2 0 0 1-2.3 2.3l-1.1-.2a2 2 0 0 0-2.1.9l-.6 1a2 2 0 0 1-3.4 0l-.6-1a2 2 0 0 0-2.1-.9l-1.1.2a2 2 0 0 1-2.3-2.3l.2-1.1a2 2 0 0 0-.9-2.1l-1-.6a2 2 0 0 1 0-3.4l1-.6a2 2 0 0 0 .9-2.1l-.2-1.1A2 2 0 0 1 6.5 5.3l1.1.2a2 2 0 0 0 2.1-.9z" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>

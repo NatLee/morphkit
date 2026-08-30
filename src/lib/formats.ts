@@ -7,11 +7,12 @@ export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', 'mp3'] as const;
 export const PDF_OUTPUTS = ['png', 'jpeg', 'webp', 'txt', 'docx', 'md', 'html', 'pdf'] as const;
 
 /** Documents: outputs depend on the SOURCE format — see `docOutputs`. */
-export const DOC_TEXT_EXT = ['docx', 'txt', 'md', 'markdown', 'html', 'htm'] as const;
+export const DOC_TEXT_EXT = ['docx', 'pptx', 'txt', 'md', 'markdown', 'html', 'htm'] as const;
 export const DOC_SHEET_EXT = ['csv', 'tsv', 'xlsx', 'xls', 'ods'] as const;
 const DOC_EXT: readonly string[] = [...DOC_TEXT_EXT, ...DOC_SHEET_EXT, 'json'];
 const DOC_MIME = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-excel',
   'application/vnd.oasis.opendocument.spreadsheet',
@@ -19,10 +20,11 @@ const DOC_MIME = new Set([
 ]);
 
 /** Normalised document sub-type used by lib/docs.ts. */
-export type DocType = 'docx' | 'text' | 'md' | 'html' | 'sheet' | 'json';
+export type DocType = 'docx' | 'pptx' | 'text' | 'md' | 'html' | 'sheet' | 'json';
 export function docTypeOf(file: File): DocType {
   const ext = extOf(file.name);
   if (ext === 'docx') return 'docx';
+  if (ext === 'pptx') return 'pptx';
   if (ext === 'md' || ext === 'markdown') return 'md';
   if (ext === 'html' || ext === 'htm') return 'html';
   if (ext === 'json') return 'json';
@@ -32,12 +34,13 @@ export function docTypeOf(file: File): DocType {
 /** Output list for a document, by its sub-type. */
 export function docOutputs(file: File): readonly string[] {
   switch (docTypeOf(file)) {
-    case 'docx': return ['pdf', 'html', 'md', 'txt', 'png'];
-    case 'md': return ['pdf', 'html', 'docx', 'txt', 'png'];
-    case 'html': return ['pdf', 'md', 'docx', 'txt', 'png'];
+    case 'docx': return ['pdf', 'html', 'md', 'txt', 'pptx', 'png'];
+    case 'pptx': return ['pdf', 'docx', 'md', 'html', 'txt', 'png'];
+    case 'md': return ['pdf', 'html', 'docx', 'pptx', 'txt', 'png'];
+    case 'html': return ['pdf', 'md', 'docx', 'pptx', 'txt', 'png'];
     case 'sheet': return ['xlsx', 'csv', 'json', 'html', 'md', 'pdf'];
     case 'json': return ['csv', 'xlsx', 'md', 'html', 'pdf'];
-    default: return ['pdf', 'docx', 'md', 'html', 'png'];
+    default: return ['pdf', 'docx', 'md', 'html', 'pptx', 'png'];
   }
 }
 
@@ -120,6 +123,7 @@ export function mimeFor(target: string): string {
     pdf: 'application/pdf',
     txt: 'text/plain',
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     csv: 'text/csv',
     json: 'application/json',

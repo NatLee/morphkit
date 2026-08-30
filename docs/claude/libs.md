@@ -151,13 +151,15 @@ tile rhythm). Coordinate helpers: `userToDisplay`/`displayToUser` (fractions), `
 ## lib/docs.ts (~520)
 
 All libs lazy: `mammoth/mammoth.browser.js` (UMD — the node entry needs fs), `xlsx` (SheetJS), `marked`,
+`pptxgenjs` (write side of lib/pptx.ts),
 `turndown` + `turndown-plugin-gfm`, `docx`. **Read**: `sanitizeHtml` (drops script/style/frames/on*, keeps
 data:/https: images) · `readSheets(file)` → `SheetInfo {names, rows}` (csv/tsv read as strings) · `docToHtml(file)`
 (docx→mammoth, md→marked gfm, html→sanitize, sheet→tables (+h2 per sheet), json→table|pre, text→<p>+<br>).
 **Write**: `htmlToText` (blocks → newlines, rows → tabs) · `htmlToMarkdown` (`normalizeTablesForMd` first:
 unwrap <p> in cells, promote row 1 to <thead>/<th>) · `markdownToHtml` · `wrapHtmlDocument` (standalone page
 with inline CSS) · block model `htmlToBlocks` → `Block` (heading|para{indent,quote,bullet}|pre|table|image|hr)
-with inline `Run {bold italic code underline}` — shared by the paginator and the docx writer · `layoutHtml(html,
+with inline `Run {bold italic code underline}` (+`pagebreak` from `hr[data-page-break]`; bare hr stays a rule)
+— shared by the paginator, the docx writer and blocksToPptx · `layoutHtml(html,
 PageStyle)` canvas paginator (A4 @2×, margin 56pt, 11pt body, `wrapRuns` breaks on spaces + every CJK char,
 tables = equal columns, atomic rows, header tint; pre = clipped mono chunks; images fit width/70% height) ·
 `htmlToPdf` (JPEG pages → `buildPdf` image specs) · `htmlToPngs` (1 page → PNG, else ZIP) · `htmlToDocx`
@@ -166,6 +168,25 @@ tables = equal columns, atomic rows, header tint; pre = clipped mono chunks; ima
 onProgress)` → `{blob, multi}` (sheet/json fast path for xlsx/csv/json/md; else html → target). **Editor bridge**:
 `EditMode`, `docEditSource` (docx → markdown via html), `previewHtml`, `docSave` (docx/xlsx regenerated; csv/tsv
 and text formats saved verbatim).
+
+## lib/pptx.ts (~230)
+
+READ (no library): fflate `unzipSync` + DOMParser('application/xml'); helpers `relsOf` (part → .rels map,
+relative-target resolution), `q`/`local` (localName matching — prefixes vary). `pptxToHtml(file)`:
+slide order from presentation.xml `sldId`→rels; per slide walk `spTree` (`sp` → `shapeHtml` — a:p runs
+w/ b/i, `lvl`-nested <ul>, first title/ctrTitle placeholder → <h3>; `pic` → media data URI ≤8 MB;
+`graphicFrame`→a:tbl → <table>; `grpSp` recursed); slides separated by `<hr data-page-break>`
+(→ `---` in md, page break in pdf/docx). WRITE: `blocksToPptx(blocks, title)` (pptxgenjs lazy, WIDE 16:9):
+h1/h2 = new slide + title, h3+ = bold line, paras/pre = bullet lines (indentLevel), tables → addTable,
+data-URI images bottom-right, hr/pagebreak = slide break.
+
+## lib/qr.ts (~130)
+
+`qrToCanvas(text, QrStyle)` (node-qrcode; bg '' → '#0000' transparent; centre logo drawn on a plate,
+use ecl H) · `qrToSvg` · `decodeQr(blob)` → `QrHit {text, corners}` (jsQR over attempts:
+1000/1600px, invert, contrast-boost, 600px — dark screenshots need the retries) · `decodeFrame(video)`
+(camera loop) · `classifyPayload` (url/wifi/vcard/mail/tel/text) · `payloads.wifi/vcard/mail` ·
+`DEFAULT_QR`.
 
 ## lib/qpdf.ts (~60)
 

@@ -74,11 +74,18 @@
     .pdf-export .pdf-x-row .pdf-x-pw · .pw-modal(.shake, pwShake keyframes) .pw-file .pw-row .pw-input .pw-err ·
     .pdf-lock .fc-lock(.open) · inline: `.editor.ie-inline.pdf-editor` flex column, grid+preview fill ·
     `.mx-pdf` + `.file-card.kind-pdf .fc-icon` violet live in the format-matrix section
-19. `doc editor` — .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
+19. `sheet editor` — .sheet-editor .sheet-tools .sheet-tabs .sheet-tab(.active .sheet-add .sheet-del)
+    .sheet-rename .sheet-grid(58vh scroller; sticky thead th top / tbody th left, .sh-corner z3; td input
+    transparent, .num right-blue; .sel outlines; tr.sh-header tint) .sheet-more · ≤640 100dvh sheet, 16px inputs
+20. `qr tool` — .qr-tool .qr-tabs .qr-make(1fr|300px; 1 col ≤760, preview first) .qr-form .qr-tpl .qr-field
+    .qr-text .qr-style .qr-colors .qr-preview .qr-canvas(.checker) .qr-payload .qr-actions · .qr-read .qr-drop
+    (.drop-hot) .qr-video .qr-read-actions .qr-result .qr-decoded .qr-kind(-url) · .fc-qr chip · .dz-note ·
+    ≤640: topbar .qr-btn hidden, .m-tabbar 4 columns
+21. `doc editor` — .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
     58vh; ≤760 two rows; ≤640 100dvh sheet) textarea.doc-source(mono, tab-size 2) .doc-preview(always-light sheet)
     .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.mx-doc` + `.file-card.kind-doc .fc-icon`
     accent live in the format-matrix section
-20. `studio` — .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
+22. `studio` — .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
     calc(100vh−96px); ≤760: height auto, page scrolls**) .st-bar .st-name
     .st-body(min(--st-assets-w,40vw)|8px .split-gutter|1fr, resizable; 1fr ≤760)
     .st-assets .st-main .view-anim .mixer .media-view .st-assets-head .st-import .st-empty .asset-row
@@ -97,13 +104,13 @@
     .vw-pick .frame-modal .fp-preview(240px; 180 ≤640) .st-note(fixed toast z150, safe-area aware) ·
     .footer-link · .st-tabs · `media view`: .media-grid .media-card .media-thumb .media-name .media-actions ·
     `info tooltip`: .info-i .tip-pop(fixed z300)
-21. `footer` — .footer
-22. `pwa / app shell` — .install-card (fixed corner card, z95; phone: full-width above tab bar)
+23. `footer` — .footer
+24. `pwa / app shell` — .install-card (fixed corner card, z95; phone: full-width above tab bar)
     .install-icon .install-text .install-btns · .m-tabbar (base display:none — shown ≤640 in the
     mobile layer) · .wand-global lives in section 16 (text tool-btn, width:auto)
-23. `shared motion` — `rise` keyframes (**end frames MUST be `transform:none`** — invariant 17)
-24. `responsive & motion` + **mobile optimization layer** (see below)
-25. `micro-interactions` — tap-highlight, :active press, focus-visible, .drop-hot, modalPop,
+25. `shared motion` — `rise` keyframes (**end frames MUST be `transform:none`** — invariant 17)
+26. `responsive & motion` + **mobile optimization layer** (see below)
+27. `micro-interactions` — tap-highlight, :active press, focus-visible, .drop-hot, modalPop,
     `prefers-reduced-motion` (last block in file)
 
 ## Responsive architecture (all breakpoints, why)
@@ -143,7 +150,10 @@ strips (.ed-options/.ed-toolbar/.gif-transport) get `overscroll-behavior-x: cont
 3. Hover-only affordances need a `@media (hover:none)` fallback.
 4. New drag surfaces need `touch-action:none` (CSS or inline) + setPointerCapture.
 5. Fixed-height stages (`.ed-options`, `.media-preview.*`) are intentional anti-layout-shift
-   devices — don't make them auto-height.
+   devices — don't make them auto-height. A grid stage whose child uses `height:100%`/
+   `max-height:100%` (`.mp-video`, `.vw-preview`, mobile `.gif-preview`) MUST keep
+   `grid-template-rows:100%` + `overflow:hidden`: with the default auto row the child's
+   intrinsic pixel size wins and the media overflows onto the controls below.
 6. Keyframes must end `transform:none`; modals must portal to body (invariant 17).
 7. `.tool-btn.active:hover` keeps `color: var(--bg)` (invariant 6).
 8. The page body must NEVER scroll horizontally (html/body overflow-x clip stays; a decorative

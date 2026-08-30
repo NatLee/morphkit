@@ -36,8 +36,8 @@ const MATRIX = [
     key: 'kindDoc',
     editKey: 'mxEditDoc',
     icon: 'M6 3h9l4 4v14H6zM8 12h8v1.6H8zm0 3.2h8v1.6H8zm0 3.2h5V20H8z',
-    ins: ['DOCX', 'MD', 'TXT', 'HTML', 'CSV', 'XLSX', 'JSON'],
-    outs: ['PDF', 'DOCX', 'MD', 'HTML', 'TXT', 'CSV', 'XLSX', 'JSON', 'PNG'],
+    ins: ['DOCX', 'PPTX', 'MD', 'TXT', 'HTML', 'CSV', 'XLSX', 'JSON'],
+    outs: ['PDF', 'DOCX', 'PPTX', 'MD', 'HTML', 'TXT', 'CSV', 'XLSX', 'JSON', 'PNG'],
   },
 ];
 

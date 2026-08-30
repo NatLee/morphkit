@@ -228,7 +228,34 @@ select optgroup {
   /* the synthwave floor + orb pseudos are wider than the viewport on
      phones — clip them here so the page never gains a horizontal pan */
   overflow: hidden;
+  transition: padding 0.5s ease;
 }
+
+/* tagline + title collapse (grid-rows fold) once files are in the list —
+   the feat chips stay as the compact "what this can do" strip */
+.hero-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.5s ease;
+}
+
+.hero-fold-inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.35s ease, transform 0.5s ease;
+}
+
+.hero-compact { padding: 24px 0 22px; }
+.hero-compact .hero-fold { grid-template-rows: 0fr; }
+
+.hero-compact .hero-fold-inner {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.hero-compact .feat-row { margin-top: 0; }
 
 /* synthwave floor: perspective grid scrolling toward the viewer */
 .hero::before {
@@ -1399,6 +1426,12 @@ select optgroup {
 .feat:nth-child(2) svg { color: var(--paint-red); }
 .feat:nth-child(3) { border-color: var(--paint-green); background: color-mix(in srgb, var(--paint-green) 7%, var(--bg-raised)); }
 .feat:nth-child(3) svg { color: var(--paint-green); }
+.feat:nth-child(4) { border-color: var(--paint-violet); background: color-mix(in srgb, var(--paint-violet) 7%, var(--bg-raised)); }
+.feat:nth-child(4) svg { color: var(--paint-violet); }
+.feat:nth-child(5) { border-color: var(--paint-yellow); background: color-mix(in srgb, var(--paint-yellow) 7%, var(--bg-raised)); }
+.feat:nth-child(5) svg { color: var(--paint-yellow); }
+.feat:nth-child(6) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--bg-raised)); }
+.feat:nth-child(6) svg { color: var(--accent); }
 
 .mx-edit {
   font-family: var(--font-mono);
@@ -1479,8 +1512,15 @@ select optgroup {
   margin-bottom: 16px;
 }
 
-/* fixed-height media stage — state updates while trimming can never shift layout */
-.media-preview.mp-video { height: 42vh; }
+/* fixed-height media stage — state updates while trimming can never shift layout.
+   The 100% row track is REQUIRED: with the default auto row, the video's intrinsic
+   pixel height sizes the row, `height:100%` resolves against that, and the video
+   overflows the stage onto the controls below. overflow:hidden is the safety net. */
+.media-preview.mp-video {
+  height: 42vh;
+  grid-template-rows: 100%;
+  overflow: hidden;
+}
 
 .media-preview.mp-audio { height: 84px; }
 
@@ -3140,6 +3180,97 @@ kbd {
   .doc-source { font-size: 16px; }
 }
 
+/* ============ sheet editor ============ */
+.sheet-editor { display: flex; flex-direction: column; gap: 10px; }
+.sheet-tools { flex-wrap: wrap; row-gap: 6px; }
+.sheet-tabs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.sheet-tab {
+  padding: 4px 12px; border: 1px solid var(--line); border-bottom-color: transparent; border-radius: 6px 6px 0 0;
+  background: var(--bg-sunken); color: var(--ink-dim); font: 500 12px var(--font-mono); cursor: pointer;
+}
+.sheet-tab.active { background: var(--bg-raised); color: var(--ink); border-color: var(--accent); }
+.sheet-tab.sheet-add, .sheet-tab.sheet-del { padding: 4px 8px; }
+.sheet-tab.sheet-del:hover { color: var(--danger); border-color: var(--danger); }
+.sheet-rename { width: 140px; padding: 3px 8px; font-size: 12px; }
+.sheet-grid {
+  position: relative; overflow: auto; max-height: 58vh; min-height: 220px;
+  border: 1px solid var(--line); border-radius: 0 var(--wobble-sm) var(--wobble-sm); background: var(--bg-raised);
+}
+.sheet-grid table { border-collapse: separate; border-spacing: 0; min-width: 100%; font: 13px var(--font-mono); }
+.sheet-grid th, .sheet-grid td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0; }
+.sheet-grid thead th {
+  position: sticky; top: 0; z-index: 2; height: 26px; min-width: 96px; padding: 0 8px;
+  background: var(--bg-sunken); color: var(--ink-faint); font-weight: 600; font-size: 11px; letter-spacing: 0.06em; cursor: pointer;
+}
+.sheet-grid tbody th {
+  position: sticky; left: 0; z-index: 1; width: 44px; min-width: 44px; padding: 0 6px; text-align: right;
+  background: var(--bg-sunken); color: var(--ink-faint); font-weight: 500; font-size: 11px; cursor: pointer;
+}
+.sheet-grid th.sh-corner { left: 0; z-index: 3; }
+.sheet-grid th.sel { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-sunken)); }
+.sheet-grid td { min-width: 96px; background: var(--bg-raised); }
+.sheet-grid td.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sheet-grid tr.sh-header td { background: color-mix(in srgb, var(--accent) 7%, var(--bg-raised)); }
+.sheet-grid tr.sh-header input { font-weight: 600; }
+.sheet-grid td input {
+  width: 100%; min-width: 96px; height: 28px; padding: 0 8px; border: 0; background: transparent; color: var(--ink);
+  font: inherit; outline: none;
+}
+.sheet-grid td input.num { text-align: right; color: var(--paint-blue); }
+.sheet-grid td input:focus { background: color-mix(in srgb, var(--accent) 10%, var(--bg-raised)); }
+.sheet-more { display: block; margin: 10px auto; }
+@media (max-width: 640px) {
+  .editor-overlay > .editor.sheet-editor { height: 100dvh; }
+  .sheet-grid { max-height: none; flex: 1 1 auto; min-height: 0; }
+  .sheet-grid td input { height: 34px; font-size: 16px; }
+}
+
+/* ============ qr tool ============ */
+.qr-tool { display: flex; flex-direction: column; gap: 12px; }
+.qr-tool .ed-head { gap: 12px; }
+.qr-tabs { margin-left: auto; }
+.qr-make { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
+.qr-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.qr-tpl { flex-wrap: wrap; }
+.qr-field { display: flex; flex-direction: column; gap: 4px; }
+.qr-field .ed-input { width: 100%; }
+.qr-text { resize: vertical; font-family: var(--font-mono); font-size: 13px; }
+.qr-style { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 14px; align-items: end; padding-top: 6px; border-top: 1px solid var(--line); }
+.qr-colors { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.qr-colors .cp { max-width: 240px; }
+.qr-preview { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.qr-canvas { width: 100%; aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--wobble-sm); overflow: hidden; background: #fff; }
+.qr-canvas.checker { background: repeating-conic-gradient(#ccd 0 25%, #fff 0 50%) 0 0 / 20px 20px; }
+.qr-canvas img { width: 100%; height: 100%; image-rendering: pixelated; }
+.qr-payload { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qr-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.qr-read { display: flex; flex-direction: column; gap: 12px; }
+.qr-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 200px; padding: 20px; text-align: center; cursor: pointer;
+  border: 1.5px dashed var(--line-strong); border-radius: var(--wobble-lg); background: var(--bg-sunken); color: var(--ink-dim);
+}
+.qr-drop:hover, .qr-drop.drop-hot { border-color: var(--accent); box-shadow: var(--glow); }
+.qr-drop p { margin: 0; }
+.qr-video { width: 100%; max-height: 50vh; border-radius: var(--wobble-sm); background: #000; }
+.qr-read-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.qr-result { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--wobble-sm); background: var(--bg-raised); }
+.qr-decoded { font-family: var(--font-mono); font-size: 13px; resize: vertical; }
+.qr-kind { align-self: flex-start; }
+.qr-kind-url { border-color: var(--paint-green); color: var(--paint-green); }
+.fc-qr { cursor: pointer; border-color: var(--paint-green); color: var(--paint-green); background: transparent; font: inherit; }
+.fc-qr:hover { box-shadow: var(--glow); }
+.dz-note { margin-top: 8px; background: none; border: 0; color: var(--accent); font: 500 13px var(--font-body); text-decoration: underline dotted; cursor: pointer; }
+@media (max-width: 760px) {
+  .qr-make { grid-template-columns: minmax(0, 1fr); }
+  .qr-preview { order: -1; }
+  .qr-canvas { max-width: 260px; }
+}
+@media (max-width: 640px) {
+  .topbar .qr-btn { display: none; } /* the tab bar owns it on phones */
+  .m-tabbar { grid-template-columns: repeat(4, 1fr); }
+}
+
 /* ============ studio ============ */
 
 .studio-toggle {
@@ -3840,6 +3971,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   display: grid;
+  grid-template-rows: 100%; /* definite track — video height:100% fits instead of being clipped */
   place-items: center;
   height: var(--vw-ph, 34vh); /* draggable via the .split-gutter.h below .vw-top */
   overflow: hidden;
@@ -4212,6 +4344,7 @@ kbd {
 
 @media (max-width: 640px) {
   .hero { padding: 30px 0 32px; }
+  .hero-compact { padding: 18px 0 18px; }
   .fc-controls { width: 100%; justify-content: flex-end; }
 }
 
@@ -4606,6 +4739,11 @@ body:has(.drawer-overlay) { overflow: hidden; }
     flex: 1 1 auto;
     min-height: 120px;
     margin-bottom: 10px;
+    /* flex resolves the stage height (definite) — the 100% row makes the
+       canvas max-height:100% below actually bind instead of falling back
+       to the intrinsic frame size and overflowing onto the transport */
+    grid-template-rows: 100%;
+    overflow: hidden;
   }
   .editor-overlay > .editor:has(.gif-preview) .gif-preview canvas { max-height: 100%; }
 

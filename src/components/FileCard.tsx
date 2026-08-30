@@ -10,6 +10,7 @@ import {
 import { fmtDuration } from '../lib/metadata';
 import { extOf } from '../lib/formats';
 import type { Item } from '../types';
+import { docTypeOf } from '../lib/formats';
 import { PDF_ICON } from './FormatMatrix';
 
 const KIND_ICONS: Record<Kind, string> = {
@@ -31,6 +32,8 @@ interface Props {
   onToProject: (id: string) => void;
   /** encrypted PDF: ask for its password */
   onUnlock: (id: string) => void;
+  /** image with a QR code: open the QR tool on its payload */
+  onQr: (text: string) => void;
 }
 
 const EDIT_ICONS = {
@@ -39,9 +42,10 @@ const EDIT_ICONS = {
   gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
   pdf: 'M5 4h6v6H5zM13 4h6v6h-6zM5 14h6v6H5zM13 14h6v6h-6z',
   doc: 'M4 6h16M4 12h10M4 18h13',
+  sheet: 'M4 5h16v14H4zM4 10h16M4 15h16M10 5v14M16 5v14',
 };
 
-export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock }: Props) {
+export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr }: Props) {
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -74,7 +78,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
   const large = !huge && item.file.size > LARGE_FILE_BYTES && item.kind !== 'image';
   const isGif = item.kind === 'image' && (extOf(item.file.name) === 'gif' || item.file.type === 'image/gif');
   const locked = item.kind === 'pdf' && !!item.meta?.encrypted && !item.pdfPassword;
-  const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : item.kind === 'pdf' ? EDIT_ICONS.pdf : item.kind === 'doc' ? EDIT_ICONS.doc : EDIT_ICONS.media;
+  const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : item.kind === 'pdf' ? EDIT_ICONS.pdf : item.kind === 'doc' ? (docTypeOf(item.file) === 'sheet' ? EDIT_ICONS.sheet : EDIT_ICONS.doc) : EDIT_ICONS.media;
   const kindKey = item.kind === 'image' ? 'kindImage' : item.kind === 'audio' ? 'kindAudio' : item.kind === 'pdf' ? 'kindPdf' : item.kind === 'doc' ? 'kindDoc' : 'kindVideo';
 
   const editSummary: string[] = [];
@@ -102,6 +106,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
       if (m.mp) detailRows.push([t('megapixels'), m.mp]);
       if (m.aspect) detailRows.push([t('aspect'), m.aspect]);
     } else if (item.kind === 'doc') {
+      if (m.pages != null) detailRows.push([t('docSlides'), String(m.pages)]);
       if (m.words != null) detailRows.push([t('docWords'), m.words.toLocaleString()]);
       if (m.chars != null) detailRows.push([t('docChars'), m.chars.toLocaleString()]);
       if (m.lines != null) detailRows.push([t('docLines'), m.lines.toLocaleString()]);
@@ -153,6 +158,9 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             {item.kind === 'pdf' && m?.pages != null && (
               <span className="fc-size">{t('pdfPagesN', { n: String(m.pages) })}</span>
             )}
+            {item.kind === 'doc' && m?.pages != null && (
+              <span className="fc-size">{t('docSlidesN', { n: String(m.pages) })}</span>
+            )}
             {item.kind === 'doc' && m?.words != null && (
               <span className="fc-size">{t('docWordsN', { n: m.words.toLocaleString() })}</span>
             )}
@@ -162,6 +170,12 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             {m?.duration != null && <span className="fc-size">{fmtDuration(m.duration)}</span>}
             {item.kind === 'pdf' && item.meta?.encrypted && (
               <span className={`fc-edited fc-lock${locked ? '' : ' open'}`}>{locked ? '🔒 ' : '🔓 '}{t(locked ? 'pdfEncrypted' : 'pdfUnlockedChip')}</span>
+            )}
+            {m?.qr && (
+              <button className="fc-edited fc-qr" title={m.qr} onClick={() => onQr(m.qr as string)}>
+                <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2z" fill="none" stroke="currentColor" strokeWidth="2" /></svg>
+                {' '}QR · {m.qr.length > 28 ? m.qr.slice(0, 28) + '…' : m.qr}
+              </button>
             )}
             {(editSummary.length > 0 || item.edited) && (
               <span className="fc-edited">

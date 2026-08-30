@@ -32,6 +32,7 @@ export function sanitizeHtml(html: string): string {
   doc.querySelectorAll('*').forEach((el) => {
     for (const a of [...el.attributes]) {
       const n = a.name.toLowerCase();
+      if (n === 'data-page-break' || n === 'data-slide') continue;
       if (n.startsWith('on') || (n === 'href' && /^\s*javascript:/i.test(a.value))) el.removeAttribute(a.name);
       if (n === 'src' && !/^data:image\//i.test(a.value) && !/^https?:/i.test(a.value)) el.removeAttribute(a.name);
     }
@@ -94,6 +95,10 @@ export async function readSheets(file: File): Promise<SheetInfo> {
 /** Normalised HTML for any supported document. */
 export async function docToHtml(file: File): Promise<string> {
   const t = docTypeOf(file);
+  if (t === 'pptx') {
+    const { pptxToHtml } = await import('./pptx');
+    return sanitizeHtml(await pptxToHtml(file));
+  }
   if (t === 'docx') {
     const m = await mammoth();
     const r = await m.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
@@ -183,14 +188,15 @@ export function wrapHtmlDocument(body: string, title: string): string {
 
 // ---------- block model (shared by the paginator and the docx writer) ----------
 
-interface Run { text: string; bold?: boolean; italic?: boolean; code?: boolean; underline?: boolean }
-type Block =
+export interface Run { text: string; bold?: boolean; italic?: boolean; code?: boolean; underline?: boolean }
+export type Block =
   | { kind: 'heading'; level: number; runs: Run[] }
   | { kind: 'para'; runs: Run[]; indent?: number; quote?: boolean; bullet?: string }
   | { kind: 'pre'; text: string }
   | { kind: 'table'; rows: string[][]; header: boolean }
   | { kind: 'image'; src: string }
-  | { kind: 'hr' };
+  | { kind: 'hr' }
+  | { kind: 'pagebreak' };
 
 function inlineRuns(el: Node, st: Run = { text: '' }, out: Run[] = []): Run[] {
   el.childNodes.forEach((n) => {
@@ -239,7 +245,8 @@ export function htmlToBlocks(html: string): Block[] {
       if (/^h[1-6]$/.test(tag)) blocks.push({ kind: 'heading', level: Number(tag[1]), runs: inlineRuns(e) });
       else if (tag === 'p') pushPara(e, { indent, quote });
       else if (tag === 'pre') blocks.push({ kind: 'pre', text: e.textContent ?? '' });
-      else if (tag === 'hr') blocks.push({ kind: 'hr' });
+      else if (tag === 'hr' || (tag === 'div' && e.hasAttribute('data-page-break')))
+        blocks.push({ kind: e.hasAttribute('data-page-break') ? 'pagebreak' : 'hr' });
       else if (tag === 'img') { const src = e.getAttribute('src'); if (src) blocks.push({ kind: 'image', src }); }
       else if (tag === 'blockquote') walk(e, indent, true);
       else if (tag === 'ul' || tag === 'ol') {
@@ -386,7 +393,9 @@ export async function layoutHtml(html: string, style: Partial<PageStyle> = {}, o
 
   for (let bi = 0; bi < blocks.length; bi++) {
     const b = blocks[bi];
-    if (b.kind === 'heading') {
+    if (b.kind === 'pagebreak') {
+      if (y > M) newPage();
+    } else if (b.kind === 'heading') {
       const size = px * [2.0, 1.6, 1.35, 1.15, 1.05, 1][Math.min(5, b.level - 1)];
       const lines = wrapRuns(ctx, b.runs.map((r) => ({ ...r, bold: true })), contentW, size, size * 1.35);
       y += b.level <= 2 ? lh * 0.8 : lh * 0.5;
@@ -560,6 +569,8 @@ export async function htmlToDocx(html: string, title: string): Promise<Blob> {
         children.push(new D.Paragraph({ children: [new D.TextRun({ text: line || ' ', font: 'Consolas', size: 18 })], shading: { type: D.ShadingType.CLEAR, fill: 'F3F3F3' }, spacing: { after: 0 } }));
       }
       children.push(new D.Paragraph({ text: '' }));
+    } else if (b.kind === 'pagebreak') {
+      children.push(new D.Paragraph({ pageBreakBefore: true, text: '' }));
     } else if (b.kind === 'hr') {
       children.push(new D.Paragraph({ border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: 'CCCCCC', space: 1 } }, text: '' }));
     } else if (b.kind === 'image') {
@@ -662,6 +673,10 @@ export async function convertDoc(file: File, target: string, onProgress?: (p: nu
     case 'md': return one(new Blob([await htmlToMarkdown(html)], { type: 'text/markdown;charset=utf-8' }));
     case 'txt': return one(new Blob([htmlToText(html)], { type: 'text/plain;charset=utf-8' }));
     case 'docx': return one(await htmlToDocx(html, base));
+    case 'pptx': {
+      const { blocksToPptx } = await import('./pptx');
+      return one(await blocksToPptx(htmlToBlocks(html), base));
+    }
     case 'pdf': return one(await htmlToPdf(html, base, prog));
     case 'png': return htmlToPngs(html, base, prog);
     default: throw new Error(`unsupported doc target ${target}`);
@@ -675,7 +690,7 @@ export type EditMode = 'md' | 'text' | 'html' | 'csv' | 'json';
 /** What the DocEditor edits for a given file, plus how it renders/saves. */
 export async function docEditSource(file: File): Promise<{ mode: EditMode; text: string; sheetName?: string }> {
   const t = docTypeOf(file);
-  if (t === 'docx') return { mode: 'md', text: await htmlToMarkdown(await docToHtml(file)) };
+  if (t === 'docx' || t === 'pptx') return { mode: 'md', text: await htmlToMarkdown(await docToHtml(file)) };
   if (t === 'md') return { mode: 'md', text: await file.text() };
   if (t === 'html') return { mode: 'html', text: await file.text() };
   if (t === 'json') return { mode: 'json', text: await file.text() };
@@ -684,7 +699,8 @@ export async function docEditSource(file: File): Promise<{ mode: EditMode; text:
     const X = await xlsx();
     return { mode: 'csv', text: csvOf(s.rows[s.names[0]], X), sheetName: s.names[0] };
   }
-  return { mode: 'text', text: await file.text() };
+  // plain text edits as Markdown (preview renders headings/lists); saving keeps the .txt bytes verbatim
+  return { mode: 'md', text: await file.text() };
 }
 
 /** Preview HTML for the editor pane. */
@@ -705,6 +721,10 @@ export async function docSave(original: File, mode: EditMode, text: string, shee
   const t = docTypeOf(original);
   const name = original.name;
   if (t === 'docx') return new File([await htmlToDocx(await markdownToHtml(text), name.replace(/\.docx$/i, ''))], name, { type: original.type });
+  if (t === 'pptx') {
+    const { blocksToPptx } = await import('./pptx');
+    return new File([await blocksToPptx(htmlToBlocks(await markdownToHtml(text)), name.replace(/\.pptx$/i, ''))], name, { type: original.type });
+  }
   if (t === 'sheet' && !/\.(csv|tsv)$/i.test(name)) {
     const X = await xlsx();
     const wb = X.read(text, { type: 'string' });
