@@ -34,6 +34,8 @@ export interface FileMeta {
   /** PDF: page count + document author (title reuses `title`) */
   pages?: number;
   author?: string;
+  /** PDF needs a user password (card shows the lock; probing stops here) */
+  encrypted?: boolean;
 }
 
 function fmtExposure(sec: number): string {
@@ -190,12 +192,14 @@ function mediaMeta(file: File, kind: 'audio' | 'video'): Promise<FileMeta> {
 }
 
 /** PDF: page count, first-page size (points), Title/Author, 180px JPEG thumb of page 1. */
-async function pdfMeta(file: File): Promise<FileMeta> {
+async function pdfMeta(file: File, password?: string): Promise<FileMeta> {
   const meta = commonMeta(file);
   meta.mime = 'application/pdf';
+  const { openPdf, closePdf, pdfInfo, renderPage, PdfPasswordError, sniffEncrypted } = await import('./pdf');
   try {
-    const { openPdf, closePdf, pdfInfo, renderPage } = await import('./pdf');
-    const doc = await openPdf(await file.arrayBuffer());
+    const doc = await openPdf(await file.arrayBuffer(), password);
+    // opened with a password (or an owner-only file) — remember it needs unlocking downstream
+    if (password || await sniffEncrypted(file)) meta.encrypted = true;
     const info = await pdfInfo(doc);
     meta.pages = info.pages;
     meta.width = Math.round(info.width);
@@ -207,13 +211,16 @@ async function pdfMeta(file: File): Promise<FileMeta> {
     meta.preview = c.toDataURL('image/jpeg', 0.82);
     c.width = c.height = 0;
     await closePdf(doc);
-  } catch { /* corrupt / encrypted — card shows the generic icon */ }
+  } catch (e) {
+    if (e instanceof PdfPasswordError) meta.encrypted = true;
+    /* else corrupt — card shows the generic icon */
+  }
   return meta;
 }
 
-export async function extractMeta(file: File, kind: Kind): Promise<FileMeta> {
+export async function extractMeta(file: File, kind: Kind, password?: string): Promise<FileMeta> {
   if (kind === 'image') return imageMeta(file);
-  if (kind === 'pdf') return pdfMeta(file);
+  if (kind === 'pdf') return pdfMeta(file, password);
   const meta = await mediaMeta(file, kind);
   if (kind === 'audio') Object.assign(meta, await readAudioTags(file));
   return meta;

@@ -67,8 +67,10 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings |
 | `components/MediaEditor.tsx` | A/V trim (DualRange + playhead buttons), volume/speed/rotate → saved as `Item.edit`, applied at ffmpeg time |
 | `components/ImageEditor.tsx` | **Raster layer editor**: layer = canvas surface. Tools: pan/move/pen(3 brushes)/eraser/line/rect/ellipse/arrow/text/crop/wand/rectsel/lasso/fill — all paint into the active layer. Layer panel (add/dup/merge-down/delete/reorder/opacity/blend/lock/mask), pixel history, wheel zoom, marching-ants selections, bg layer |
-| `components/PdfEditor.tsx` | **PDF page editor** (modal): page-thumb grid over a `PPage[]` list (source = loaded PDF+index / image blob / blank); select (click, Shift range, Ctrl toggle, check button on touch), delete/dup/rotate/move/mouse-drag reorder, insert pages from other PDFs+images (`+` per page or toolbar), blank page, "draw on page" = rasterize → nested ImageEditor → page becomes an image page; Save assembles via `buildPdf` (pdf-lib) → App `saveEditedPdf` (deliverable, like GIF) |
-| `lib/pdf.ts` | pdf.js (lazy import + `?url` worker) `openPdf`/`closePdf`/`renderPage`/`pdfInfo`; conversions `pdfToImages` (multi-page → ZIP), `pdfToText`; pdf-lib `buildPdf(PageSpec[])`, `mergeToPdf(files)` (PDFs + images), `imageToPdf` |
+| `components/PdfEditor.tsx` | **PDF page editor** (modal + Studio `inline`): page-thumb grid + live preview over a `PPage[]` list (source = loaded PDF+index / image blob / blank) with NON-DESTRUCTIVE decorations — rotate, flipH/V, drawing `overlay` (nested ImageEditor → pixel-diff → transparent PNG in page user space; vectors untouched), sticky `notes` (real /Text annots, read back on load), `watermark` flag (doc-level text/image settings), undo/redo. Insert from PDFs+images, blank, dup/move/reverse/drag reorder. Export dialog: scope all/selected, split→ZIP, title/author, AES-256 encrypt. Encrypted sources prompt via `PdfPasswordModal`; export decrypts with qpdf (`getPlainBytes`) else rasterizes |
+| `components/PdfPasswordModal.tsx` | Overlay password prompt; caller verifies with pdf.js before it closes (`onSubmit → Promise<boolean>`, shake on wrong) — password lives in memory only |
+| `lib/pdf.ts` | pdf.js (lazy + `?url` worker) `openPdf(bytes, password?)` (throws `PdfPasswordError` need/wrong)/`closePdf`/`renderPage`/`pdfInfo`/`readNotes`/`sniffEncrypted`; `getPlainBytes` (qpdf decrypt cache); conversions `pdfToImages` (multi-page → ZIP), `pdfToText`, `rasterizePdf` (plan B); pdf-lib `buildPdf(PageSpec[], {watermark, encrypt, title, author})` — rotate/flip (embedPage), overlay PNG, sticky notes (strip + rewrite), watermark (canvas-rendered text or image), qpdf encrypt; `mergeToPdf(inputs w/ passwords)`, `imageToPdf`; user↔display coordinate helpers |
+| `lib/qpdf.ts` | qpdf-wasm (lazy, `qpdf.wasm?url`): `decryptPdf(bytes, pw)` / `encryptPdf(bytes, user, owner)` (AES-256) — fresh module per call, `QpdfError` carries the CLI log |
 | `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
@@ -130,13 +132,23 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     clipped by their container (`.hero` overflow:hidden). Breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
 23. **Mobile image editor** (≤720): layers panel becomes a fixed bottom sheet (`.layers-panel.open`, `panelOpen` state + `.lp-fab` toggle + `.lp-scrim` in ImageEditor.tsx). ≤640 the modal editor with `.ie-layout` is a **100dvh paint-app GRID** — canvas owns the screen, `.ed-toolbar` becomes a 50px vertical scrolling left rail, `.ed-options` a thin bottom strip, foot last (`.kbd-hints` hidden). The inline editor gets the same rail grid ≤760, where the rail MUST keep its `max-height` cap (42vh/56vh + strip) or its content sizes the grid row and the page grows huge. The base `.ie-layout` is `align-items:start` — the modal override needs `stretch` or the viewport collapses.
 25. **PDF**: `Kind` includes `'pdf'` — every `kind` switch needs a pdf arm (FileCard icons/labels,
-    `extractMeta`, `runConvert`, editor routing); PDFs have NO Studio project type (`openAsProject`
-    bails, FileCard hides the button). pdf.js and pdf-lib are lazy `import()`s — never import them
-    statically or the main bundle grows ~1.5 MB. `PDFDocumentProxy` has no `destroy()`: use
+    `extractMeta`, `runConvert`, editor routing, Studio `TYPE_META`/`primaryAsset`/`pseudoItem`).
+    PDFs are a Studio type (`pdfAssetId`; inline PdfEditor writes back via `replaceAssetBlob` like
+    GIF, split-to-ZIP is hidden inline). pdf.js, pdf-lib and qpdf-wasm are lazy `import()`s — never
+    import them statically or the main bundle grows ~3 MB. `PDFDocumentProxy` has no `destroy()`: use
     `closePdf(doc)` (the loading task owns teardown). PDF→raster of a multi-page doc yields a ZIP
     (`outName` swaps to `.zip`). Image→PDF and all PDF jobs go through the app semaphore, not the
     instant image path. PdfEditor renders the nested ImageEditor OUTSIDE its overlay div — both
     portal to body and React bubbles portal clicks to the React parent (the backdrop's onClose).
+    **Encryption**: pdf.js reads encrypted files given `password`; pdf-lib cannot — export goes
+    through `getPlainBytes` (qpdf-wasm decrypt, plan A) and falls back to `rasterizePdf` (plan B).
+    Passwords live on `Item.pdfPassword` / PdfEditor `SrcDoc` only — NEVER in localStorage/IndexedDB.
+    `runConvert` catching `PdfPasswordError` resets the item and opens the prompt (`pwFor`).
+    **Coordinate spaces**: notes/overlays are stored in page USER space (unrotated media box) so
+    later rotate/flip keeps them glued to content; display ↔ user via `userToDisplay`/
+    `displayToUserCanvas` with `totalRot = intrinsic + rotate` and flips applied in display space.
+    Draw-on-page diffs the ImageEditor result against the UNDECORATED render (`decorate:false`);
+    a size change (crop/resize) is the one case that still rasterizes the page.
 26. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
 
 ## Design language ("Cyberdeck")

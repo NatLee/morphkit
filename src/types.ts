@@ -32,8 +32,10 @@ export interface Item {
   meta?: FileMeta;
   /** pending audio/video edit, applied on convert */
   edit?: MediaEdit;
-  /** true when the source file was replaced by an editor (image / GIF) */
+  /** true when the source file was replaced by an editor (image / GIF / PDF) */
   edited?: boolean;
+  /** encrypted PDF: the user password that opened it — memory only, never persisted */
+  pdfPassword?: string;
   outUrl?: string;
   outName?: string;
   outSize?: number;

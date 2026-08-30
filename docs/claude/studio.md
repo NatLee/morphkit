@@ -8,7 +8,10 @@
 ## Studio.tsx (1110) — projects shell + persistence broker
 
 Two mutually exclusive trees in one component: **launcher** (early return when `!entered`, ~line 688)
-and **workspace** (~line 821). Only component touching IndexedDB.
+and **workspace** (~line 821). Only component touching IndexedDB. Five project types: audio→Mixer,
+image→inline ImageEditor, gif→inline GifEditor, video→VideoWorkspace, **pdf→inline PdfEditor** (`pdfAssetId`
+primary; save = `replaceAssetBlob` like GIF; `pdfImport` state feeds `importFiles`; `canImportToEditor` accepts
+pdf+image assets; launcher thumb = `extractMeta(...,'pdf').preview`; `metaRows` adds pages/page size/encrypted).
 Mobile focus mode: `focus` state + `.st-focus-btn` in the workspace `.st-bar` (visible ≤760 only)
 toggles `.studio.st-focus` — CSS hides the asset panel and app chrome so the workspace owns the
 screen; `leaveWorkspace` resets it. Phone asset panel: `assetsOpen` state (default FALSE —

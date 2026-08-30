@@ -26,7 +26,10 @@ shown when `mergeable` > 1) · `convertAll` · `revokePreview(it)` · `remove`/`
 `openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
 `<Studio enterProjectId>` jumps into the workspace) ·
 `saveMediaEdit`/`saveEditedImage`/`saveEditedGif`/`saveEditedPdf` (gif + pdf saves mark the item done immediately —
-the edited file IS the deliverable). `openAsProject` bails for pdf (no Studio type).
+the edited file IS the deliverable; pdf save also clears `pdfPassword`). `unlockPdf(id, pw)` verifies with
+pdf.js then patches `pdfPassword` + re-probes meta; `pwFor` state renders `<PdfPasswordModal>` (opened by
+FileCard `onUnlock`, by `schedule` on a locked pdf, by `mergeAll` hitting a locked item, or by `runConvert`
+catching `PdfPasswordError`). PDF→PDF falls back to `rasterizePdf` when qpdf can't decrypt.
 Effects: window `paste` (skipped while editor/drawer open), `keydown` Escape closes drawer.
 
 **JSX shell**:
@@ -44,6 +47,7 @@ div.app (+ .studio-mode)
                     + div.bb-actions (convertAll btn-accent · downloadAll · clearAll)
       div.file-list > <FileCard/>×n
   {editingItem && (<GifEditor>|<ImageEditor>|<PdfEditor>|<MediaEditor>)}   ← portaled to body
+  {pwFor && <PdfPasswordModal/>}
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
   <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
   nav.m-tabbar > button×3 convert/studio/settings (phone-only bottom tabs, hidden >640 via CSS;
@@ -63,7 +67,8 @@ tabConvert tabSettings (tab bar) · installTitle installBody installBtn installL
 
 `KIND_ICONS` has 4 kinds (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
 kindImage/kindAudio/kindVideo/kindPdf. PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
-`pdfPages`/`pdfPageSize`/`tagTitle`/`pdfAuthor`; quality slider also for pdf→jpeg/webp; the open-as-project button is hidden for pdf.
+`pdfPages`/`pdfPageSize`/`tagTitle`/`pdfAuthor`; quality slider also for pdf→jpeg/webp. `locked` (encrypted &&
+no `pdfPassword`) swaps convert for a 🔒 `pdfUnlock` button and routes edit to `onUnlock`; `.fc-lock(.open)` chip.
 
 State: `showDetails`, `copied` (1.5s). `copyResult()` fetches outUrl → canvas → ClipboardItem PNG.
 Props: `{item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject}`.

@@ -85,6 +85,7 @@ export async function createProjectWithAsset(
     ...(type === 'image' ? { imageDoc: { baseAssetId: aid, objects: [] } } : {}),
     ...(type === 'gif' ? { gifAssetId: aid } : {}),
     ...(type === 'video' ? { videoDoc: { ...emptyVideoDoc(), videoAssetId: aid } } : {}),
+    ...(type === 'pdf' ? { pdfAssetId: aid } : {}),
   };
   await putProject(p);
   return p;

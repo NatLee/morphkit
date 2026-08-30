@@ -130,39 +130,67 @@ App: onSave=saveEditedGif. Studio inline: key={id+blob.size} (remount on blob ch
 saving rewrites the asset blob via replaceAssetBlob). lib: decodeAnim, writeGifFrame, extOf, GIFEncoder,
 UPNG. Output `${base}_edited.gif|apng`. Nothing persists between sessions (captions discarded on unmount).
 
-## PdfEditor.tsx (~430) — page-list editor (modal only)
+## PdfEditor.tsx (~800) — page-list editor (modal AND Studio inline)
 
-**Model**: `PPage = {id, src: PageSrc, rotate: Rot, w, h, thumb?}` — `src` is a tagged union
-`{kind:'pdf', doc, index}` (doc = key into `docsRef: Map<string, SrcDoc{bytes, proxy}>`) |
-`{kind:'image', blob}` | `{kind:'blank'}`. `w/h` are points BEFORE the extra `rotate`; thumbs are
-rendered WITH rotate applied (rotateSel clears `thumb` so the lazy effect re-renders). Nothing is
-baked until `save()` maps pages → `PageSpec[]` for `buildPdf` (lib/pdf). Module counters
-`pageUid`/`docUid`. `THUMB_W = 168`, `EDIT_MAX = 2200` (raster edit cap).
+**Model**: `PPage = {id, src: PageSrc, intrinsic, rotate, flipH, flipV, w, h, overlay?, notes, watermark, thumb?}` —
+`src` is a tagged union `{kind:'pdf', doc, index}` (doc = key into `docsRef: Map<string, SrcDoc{file, proxy,
+password?, encrypted}>`) | `{kind:'image', blob}` | `{kind:'blank'}`. `intrinsic` = the source page's own /Rotate;
+`w/h` = display size at rotate 0. Decorations are NON-DESTRUCTIVE and anchored in page USER space:
+`overlay` (transparent PNG), `notes: PdfNote[]` (ux/uy fractions), `watermark` flag (doc-level `wm: Watermark`
+state). `noteDisplay`/`noteFromDisplay` map user ↔ display (rotation + flips). Thumbs render the page AS IT
+EXPORTS (`renderDisplay(p, {width|maxDim, decorate})`) and are cleared (`thumb: undefined`) whenever a page
+changes; a lazy effect renders one at a time. Nothing is baked until `save()` → `toSpecs` → `buildPdf`.
+Module counters `pageUid`/`docUid`; `THUMB_W 168`, `EDIT_MAX 2200`, `PREVIEW_MAX 1600`, `HIST_CAP 40`,
+`DEFAULT_WM`.
 
-**State**: pages (+`pagesRef`) · sel (Set<id>) · anchor (shift-range origin) · loaded/error/busy/prog ·
-dragIdx/overIdx (mouse reorder) · editing `{pageId, file, w, h}` (nested ImageEditor session) · addAt
-(insert index for the per-page `+` button, null = after selection).
+**History**: `commit(next)` is THE mutation funnel (snapshots `pagesRef` into `histRef`, clears `redoRef`);
+`undo`/`redo`; `histVer` forces re-render. Thumb refreshes and note typing (`patchPage(..., false)`) bypass
+history; a note textarea blur commits.
 
-**Functions**: `loadPdfPages` (openPdf → pageInfo per page) · `imagePages` · lazy thumb effect (one
-`renderThumb` at a time via `thumbBusy`) · selection `clickPage` (shift range / ctrl toggle / single),
-`togglePage` (check button — the touch multi-select) · ops `rotateSel deleteSel duplicateSel moveSel
-addBlank pickFiles onFiles` · `editPage` → `renderFull` (rotation baked) → pseudo-Item (useMemo,
-invariant 15) → ImageEditor; `onPageEdited` turns the page into an upright image page ·
-`onThumbDown` (mouse-only drag reorder via elementFromPoint on `[data-idx]`; touch keeps the grid
-scrollable and uses the move buttons) · `save` (`_edited.pdf`). Keys: Delete/Backspace, Ctrl+A, Esc.
-Helpers: `blankCanvas blankThumb drawImageTo rotateCanvas renderThumb renderFull`.
+**State**: pages (+`pagesRef`) · sel · anchor · loaded/error/busy/prog/note (flash) · dragIdx/overIdx ·
+editing `{pageId, file, base}` (nested ImageEditor; `base` = undecorated render for the diff) · addAt ·
+previewOpen · preview `{id, url, w, h}` (of `focusPage` = last selected) · noteMode · activeNote ·
+wm/wmOpen · exportOpen · xo `ExportOpts {scope, split, title, author, encrypt, userPw, ownerPw}` ·
+pwAsk `{file, resolve}` (promise-backed password prompt).
 
-**DOM** (portal to body; the nested `<ImageEditor>` is a SIBLING of the overlay inside the portal —
-never a child, or its bubbled clicks close the PDF editor):
+**Functions**: `askPassword`/`openWithPrompt` (retry loop over `PdfPasswordError`) · `loadPdfPages(file,
+password?)` (pageInfo + readNotes per page; null = user cancelled) · `imagePages` · `wmArt` (memo canvas/bitmap)
+· `renderDisplay` · selection `clickPage togglePage` · ops `rotateSel flipSel deleteSel duplicateSel moveSel
+reverseAll addBlank pickFiles onFiles` (also fed by the `importFiles` prop) · notes `addNoteAt setNoteText
+deleteNote onPreviewClick` · `applyWm(on, scope)` · `editPage` (render undecorated base + shown-with-overlay
+file → ImageEditor) → `onPageEdited` (same size ⇒ pixel diff → `displayToUserCanvas` → `overlay`; size changed
+⇒ raster image page + `pdfRasterized` flash) · `onThumbDown` (mouse-only drag reorder) · `toSpecs`
+(`getPlainBytes` per doc; failure ⇒ plan-B raster spec with notes/overlay re-anchored into display space) ·
+`save` (scope/split→ZIP/encrypt; inline saves under the asset's own name). Keys: Del, Ctrl+A/Z/Shift+Z/Y,
+←/→ page nav, Esc (note mode first).
+
+**DOM** (portal to body when modal; `inline` renders in place like GifEditor; nested ImageEditor / export
+Overlay / PdfPasswordModal are SIBLINGS of the overlay inside the portal — never children):
 ```
-.editor-overlay > .editor.editor-wide.pdf-editor
-  .ed-head (.ed-title + close)
-  .ed-toolbar.pdf-tools: add pages · blank · sep · rotL rotR moveL moveR dup · draw-on-page · .pdf-del · spacer · select all/none
-  .pdf-grid[role=listbox] > .pdf-status | .pdf-page[data-idx](.sel .dragging .over-before/.over-after)
-      .pdf-thumb (aspect-ratio inline) > img | .spinner · .pdf-badge(image/blank) · .pdf-badge.rot
-      .pdf-page-foot > .pdf-check(.on) + .pdf-num + .pdf-ins
-  .fc-progress-row.pdf-progress (export)
-  .ed-foot > .ed-hint (pdfSummary + .kbd-hints drag hint) + .ed-foot-main (cancel · pdfSave)
-  input[type=file hidden accept=pdf,image/*]
+{.editor-overlay | .ie-inline-wrap} > .editor.editor-wide.pdf-editor[.ie-inline]
+  .ed-head (!inline): .ed-title (.pdf-lock 🔓 when any source was encrypted) + close
+  .ed-toolbar.pdf-tools: add pages · blank · | undo redo | rotL rotR flipH flipV moveL moveR dup reverse |
+      draw-on-page · note(.active) · watermark(.active) · .pdf-del · spacer · .pdf-preview-toggle · select all/none
+  [wmOpen] .pdf-wm > .pdf-wm-field×n (.pdf-wm-text input · opacity/angle/size ranges · .ed-seg center|tile ·
+      .pdf-wm-btns image pick/replace/clear · .pdf-wm-color <ColorPicker>) + .pdf-wm-apply (sel/all/remove)
+  .pdf-body[.with-preview] (grid 1fr | 38%; stacks ≤760)
+    .pdf-grid[role=listbox] > .pdf-status | .pdf-page[data-idx](.sel .dragging .over-before/.over-after)
+        .pdf-thumb > img | .spinner · .pdf-badge(image/blank) · .pdf-badge.rot (90° ↔ ↕) · .pdf-badge.deco (💬 ✎ ◈)
+        .pdf-page-foot > .pdf-check(.on) + .pdf-num + .pdf-ins
+    aside.pdf-preview > .pdf-preview-bar (prev · n/total · next · .pdf-dims) + .pdf-preview-stage[.noting]
+        > .pdf-preview-page{aspect-ratio} > img + button.pdf-note-pin×n(.active) + [.pdf-notes > .pdf-note-row
+        (.pdf-note-idx + textarea + delete)]
+  .fc-progress-row.pdf-progress (export) · .ed-foot (.ed-hint summary|flash + cancel(!inline) · pdfSave|pdfSaveAsset)
+  input[file pdf+images] · input[file image] (watermark)
+Overlay .editor.mini-modal.pdf-export: .pdf-x-row scope .ed-seg · split check (!inline) · title/author ·
+  encrypt check → .pdf-x-pw (user/owner password) · pdfDecryptNote · foot
 ```
-i18n: the pdf* key family (+ mergePdf/mergePdfTip in the App batch bar, kindPdf/mxEditPdf in FileCard/FormatMatrix).
+i18n: the pdf* key family (+ mergePdf/mergePdfTip in the App batch bar, kindPdf/mxEditPdf in
+FileCard/FormatMatrix, typePdf/typePdfDesc/pickPdf in Studio).
+
+## PdfPasswordModal.tsx (~80)
+
+Props `{fileName, onSubmit(pw) → Promise<boolean>, onCancel}`. Owns pw/show/busy/wrong; the CALLER verifies
+(pdf.js open) and returns false to keep the modal open (`.pw-modal.shake` + `.pw-err`). Autofocus, Enter submits,
+Esc cancels. DOM: Overlay > .editor.mini-modal.pw-modal > .mx-label + .pw-file + .pw-row (.pw-input + eye
+toggle) + .pw-err|.ed-hint + .ed-foot.

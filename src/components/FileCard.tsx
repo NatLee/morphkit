@@ -28,6 +28,8 @@ interface Props {
   onEdit: (id: string) => void;
   /** send this file to Studio as a new typed project */
   onToProject: (id: string) => void;
+  /** encrypted PDF: ask for its password */
+  onUnlock: (id: string) => void;
 }
 
 const EDIT_ICONS = {
@@ -37,7 +39,7 @@ const EDIT_ICONS = {
   pdf: 'M5 4h6v6H5zM13 4h6v6h-6zM5 14h6v6H5zM13 14h6v6h-6z',
 };
 
-export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject }: Props) {
+export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock }: Props) {
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -69,6 +71,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
   const huge = item.file.size > HUGE_FILE_BYTES;
   const large = !huge && item.file.size > LARGE_FILE_BYTES && item.kind !== 'image';
   const isGif = item.kind === 'image' && (extOf(item.file.name) === 'gif' || item.file.type === 'image/gif');
+  const locked = item.kind === 'pdf' && !!item.meta?.encrypted && !item.pdfPassword;
   const editIcon = isGif ? EDIT_ICONS.gif : item.kind === 'image' ? EDIT_ICONS.image : item.kind === 'pdf' ? EDIT_ICONS.pdf : EDIT_ICONS.media;
   const kindKey = item.kind === 'image' ? 'kindImage' : item.kind === 'audio' ? 'kindAudio' : item.kind === 'pdf' ? 'kindPdf' : 'kindVideo';
 
@@ -146,6 +149,9 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
               <span className="fc-size">{m.width}×{m.height}</span>
             )}
             {m?.duration != null && <span className="fc-size">{fmtDuration(m.duration)}</span>}
+            {item.kind === 'pdf' && item.meta?.encrypted && (
+              <span className={`fc-edited fc-lock${locked ? '' : ' open'}`}>{locked ? '🔒 ' : '🔓 '}{t(locked ? 'pdfEncrypted' : 'pdfUnlockedChip')}</span>
+            )}
             {(editSummary.length > 0 || item.edited) && (
               <span className="fc-edited">
                 {editSummary.length ? editSummary.join(' · ') : t('edited')}
@@ -158,12 +164,11 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
           <button
             className="btn btn-ghost btn-sm fc-edit"
             disabled={busy}
-            onClick={() => onEdit(item.id)}
+            onClick={() => (locked ? onUnlock(item.id) : onEdit(item.id))}
           >
             <svg viewBox="0 0 24 24" width="14" height="14"><path d={editIcon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {t('edit')}
           </button>
-          {item.kind !== 'pdf' && (
           <button
             className="btn btn-ghost btn-sm fc-to-studio"
             disabled={busy}
@@ -173,7 +178,6 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             <svg viewBox="0 0 24 24" width="14" height="14"><path d="M8 8h12v12H8zM4 16V4h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
             {t('openAsProject')}
           </button>
-          )}
           {hasDetails && (
             <button
               className={`btn btn-ghost fc-detail-btn${showDetails ? ' active' : ''}`}
@@ -219,6 +223,10 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
               {t('download')}
               {item.outSize != null && <span className="btn-sub">{formatBytes(item.outSize)}</span>}
             </a>
+          ) : locked ? (
+            <button className="btn btn-accent" disabled={busy} onClick={() => onUnlock(item.id)}>
+              🔒 {t('pdfUnlock')}
+            </button>
           ) : (
             <button
               className="btn btn-accent"

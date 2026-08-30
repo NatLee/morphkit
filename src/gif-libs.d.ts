@@ -51,3 +51,9 @@ declare module 'gifenc' {
     format?: string
   ): Uint8Array;
 }
+
+declare module '@jspawn/qpdf-wasm/qpdf.js' {
+  /** Emscripten MODULARIZE factory (qpdf CLI). */
+  const createQpdf: (opts?: Record<string, unknown>) => Promise<unknown>;
+  export default createQpdf;
+}

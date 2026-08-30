@@ -11,13 +11,14 @@ import { Studio } from './components/Studio';
 import { ImageEditor } from './components/ImageEditor';
 import { GifEditor } from './components/GifEditor';
 import { PdfEditor } from './components/PdfEditor';
+import { PdfPasswordModal } from './components/PdfPasswordModal';
 import { LANGS, useI18n } from './i18n';
 import { defaultTarget, detectKind, extOf, formatBytes, outputFileName } from './lib/formats';
 import { convertImage } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
-import { imageToPdf, mergeToPdf, pdfToImages, pdfToText } from './lib/pdf';
+import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { createProjectWithAsset } from './lib/idb';
 import type { ProjectType } from './lib/studioTypes';
@@ -95,6 +96,8 @@ export default function App() {
   const [mode, setMode] = useState<'convert' | 'studio'>('convert');
   // set by "open as project" so Studio skips its launcher and opens the new project
   const [studioEnterId, setStudioEnterId] = useState<string | null>(null);
+  // encrypted PDF awaiting its password (item id)
+  const [pwFor, setPwFor] = useState<string | null>(null);
 
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -172,10 +175,18 @@ export default function App() {
       if (item.kind === 'pdf') {
         // pdf.js render / text extraction / pdf-lib re-save — no ffmpeg involved
         const onP = (p: number) => patch(id, { progress: p });
-        if (item.target === 'txt') blob = await pdfToText(item.file, onP);
-        else if (item.target === 'pdf') blob = await mergeToPdf([item.file], onP);
-        else {
-          const r = await pdfToImages(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality, settingsRef.current.imageMaxDim, onP);
+        const pw = item.pdfPassword;
+        const enc = !!item.meta?.encrypted;
+        if (item.target === 'txt') blob = await pdfToText(item.file, onP, pw);
+        else if (item.target === 'pdf') {
+          try {
+            blob = await mergeToPdf([{ file: item.file, password: pw, encrypted: enc }], onP);
+          } catch (e) {
+            if (e instanceof PdfPasswordError) throw e;
+            blob = await rasterizePdf(item.file, pw, onP); // plan B: qpdf couldn't decrypt
+          }
+        } else {
+          const r = await pdfToImages(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality, settingsRef.current.imageMaxDim, onP, pw);
           blob = r.blob;
           if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip'); // one file per page
         }
@@ -218,7 +229,13 @@ export default function App() {
         outName,
         outSize: blob.size,
       });
-    } catch {
+    } catch (e) {
+      if (e instanceof PdfPasswordError) {
+        // password missing/stale — back to ready and ask
+        patch(id, { status: 'ready', progress: 0, pdfPassword: undefined });
+        setPwFor(id);
+        return;
+      }
       patch(id, { status: 'error' });
     }
   };
@@ -226,6 +243,7 @@ export default function App() {
   const schedule = (id: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
     if (!item || item.status === 'converting' || item.status === 'queued') return;
+    if (item.kind === 'pdf' && item.meta?.encrypted && !item.pdfPassword) { setPwFor(id); return; }
     if (item.kind === 'image' && item.target !== 'pdf') {
       // images are near-instant — run immediately, no queue (PDF work goes through the semaphore)
       void runConvert(id);
@@ -271,8 +289,11 @@ export default function App() {
   /** Every PDF + image in list order → one PDF download (images become full-bleed pages). */
   const [merging, setMerging] = useState(false);
   const mergeAll = async () => {
-    const src = itemsRef.current.filter((i) => i.kind === 'pdf' || i.kind === 'image').map((i) => i.file);
-    if (src.length < 2) return;
+    const items = itemsRef.current.filter((i) => i.kind === 'pdf' || i.kind === 'image');
+    if (items.length < 2) return;
+    const locked = items.find((i) => i.kind === 'pdf' && i.meta?.encrypted && !i.pdfPassword);
+    if (locked) { setPwFor(locked.id); return; } // unlock first, then merge again
+    const src = items.map((i) => ({ file: i.file, password: i.pdfPassword, encrypted: !!i.meta?.encrypted }));
     setMerging(true);
     try {
       const blob = await mergeToPdf(src);
@@ -348,7 +369,7 @@ export default function App() {
   /** Send a queued file into Studio as a fresh typed project and jump there. */
   const openAsProject = async (id: string) => {
     const it = itemsRef.current.find((i) => i.id === id);
-    if (!it || it.kind === 'pdf') return; // Studio has no PDF project type
+    if (!it) return;
     const type: ProjectType = isGifItem(it) ? 'gif' : (it.kind as ProjectType);
     const p = await createProjectWithAsset(it.file.name, it.kind, it.file, type);
     try { localStorage.setItem('morphkit-project', p.id); } catch { /* ignore */ }
@@ -386,8 +407,26 @@ export default function App() {
       outName: file.name,
       outSize: file.size,
     });
+    // the export is plain (or freshly encrypted with a NEW password) — the old password is void
+    patch(id, { pdfPassword: undefined });
     extractMeta(file, 'pdf').then((meta) => patch(id, { meta }));
     setEditingId(null);
+  };
+
+  /** Verify the password with pdf.js, then remember it on the item and re-probe metadata. */
+  const unlockPdf = async (id: string, pw: string): Promise<boolean> => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (!it) return false;
+    try {
+      const doc = await openPdf(await it.file.arrayBuffer(), pw);
+      await closePdf(doc);
+    } catch (e) {
+      if (e instanceof PdfPasswordError) return false;
+      throw e;
+    }
+    patch(id, { pdfPassword: pw });
+    extractMeta(it.file, 'pdf', pw).then((meta) => patch(id, { meta: { ...meta, encrypted: true } }));
+    return true;
   };
 
   const saveEditedGif = (id: string, file: File) => {
@@ -573,6 +612,7 @@ export default function App() {
                     onRemove={remove}
                     onEdit={setEditingId}
                     onToProject={(id) => void openAsProject(id)}
+                    onUnlock={setPwFor}
                   />
                 ))}
               </div>
@@ -595,6 +635,17 @@ export default function App() {
           <MediaEditor item={editingItem} onSave={saveMediaEdit} onClose={() => setEditingId(null)} />
         )
       )}
+
+      {pwFor && (() => {
+        const it = items.find((i) => i.id === pwFor);
+        return it ? (
+          <PdfPasswordModal
+            fileName={it.file.name}
+            onSubmit={async (pw) => { const ok = await unlockPdf(it.id, pw); if (ok) setPwFor(null); return ok; }}
+            onCancel={() => setPwFor(null)}
+          />
+        ) : null;
+      })()}
 
       {showSettings && (
         <div className="drawer-overlay" onClick={() => setShowSettings(false)}>

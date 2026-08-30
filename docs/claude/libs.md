@@ -123,16 +123,33 @@ Key families: `tool_*`, `warn*`, `sec*`, `audio*/video*/gif*`, `tag*`, `type*(+D
 progressSummary{done,total} gifTooLong{n} dedupeDone{n} trackName{n} filesCount{n} tooBigGif{n} objectsCount{n}.
 `t`/`setLang` are recreated every render (context identity changes each provider render).
 
-## lib/pdf.ts (~330)
+## lib/pdf.ts (~560)
 
 pdf.js + pdf-lib are BOTH lazy `import()`s (`pdfjs()` memo resets on failure; worker via
-`pdf.worker.min.mjs?url`). Exports: `openPdf(bytes)` (copies the buffer — pdf.js transfers it) ·
-`closePdf(doc)` (the `PDFDocumentProxy` has no destroy; a WeakMap maps doc → loading task) ·
-`pageInfo(doc, i)` (points after /Rotate) · `renderPage(doc, i, {width|scale, maxDim, rotate, white})`
-→ canvas (white ground by default) · `pdfInfo` (pages/size/Title/Author) · `pdfToImages(file, target,
-quality, maxDim, onProgress)` → `{blob, multi}` (scale 2 = 144 dpi; multi-page → ZIP level 0) ·
-`pdfToText` (getTextContent, `hasEOL` → newline) · `PageSpec` union (pdf bytes+index | image blob+size |
-blank) · `imageForPdf` (JPEG passthrough, else re-encode PNG) · `buildPdf(specs, onProgress)` (one
-`PDFDocument.load` per distinct source buffer, one bulk `copyPages` per source, repeats copy singly;
-rotate → `setRotation`) · `A4` · `imagePageSize(w,h)` (px × 0.75 → points) · `isPdfFile` ·
-`mergeToPdf(files)` (PDFs + images in order) · `imageToPdf`.
+`pdf.worker.min.mjs?url`). **Read side** (pdf.js): `openPdf(bytes, password?)` (copies the buffer — pdf.js
+transfers it; `onPassword` is intercepted and surfaced as `PdfPasswordError('need'|'wrong')`, never a prompt) ·
+`closePdf(doc)` (the `PDFDocumentProxy` has no destroy; a WeakMap maps doc → loading task) · `sniffEncrypted`
+(/Encrypt in the last 64 KiB) · `pageInfo(doc, i)` → {width, height (display pts), rotate (intrinsic)} ·
+`readNotes` (/Text annots → user-space fractions) · `renderPage(doc, i, {width|scale, maxDim, rotate, white})` ·
+`pdfInfo` · `pdfToImages(file, target, quality, maxDim, onProgress, password?)` → `{blob, multi}` (144 dpi;
+multi-page → ZIP level 0) · `pdfToText` · `rasterizePdf` (plan B: every page → JPEG image page).
+**Decrypt bridge**: `getPlainBytes(file, password, encrypted)` — WeakMap-cached qpdf decrypt; throws
+`PdfPasswordError('wrong')` when qpdf's log mentions the password.
+**Write side** (pdf-lib): `PageSpec` union (pdf bytes+index | image blob+size | blank) × `PageCommon {rotate,
+flipH, flipV, notes, overlay, watermark}` · `buildPdf(specs, BuildOpts {title, author, watermark, encrypt,
+onProgress})`: one `PDFDocument.load` per distinct PLAIN buffer, one bulk `copyPages` per source (repeats copy
+singly), `stripTextAnnots` then `addNotes` (UTF-16 /Contents so CJK survives), `flipPage` (embedPage redrawn
+with negative scale — drops links/forms), overlay + watermark drawn as user-space PNGs over the media box,
+`setRotation`, then optional qpdf `encryptPdf`. Watermark helpers shared with the editor preview:
+`watermarkCanvas(wm)` (canvas text → CJK without fonts), `drawWatermarkPreview(ctx, W, H, wm, art)` (center |
+tile rhythm). Coordinate helpers: `userToDisplay`/`displayToUser` (fractions), `userToDisplayCanvas`/
+`displayToUserCanvas` (rotate + flips). `A4`, `imagePageSize` (px × 0.75), `isPdfFile`, `MergeInput`,
+`mergeToPdf(inputs)` (PDFs w/ passwords + images), `imageToPdf`.
+
+## lib/qpdf.ts (~60)
+
+`@jspawn/qpdf-wasm` (Emscripten CLI, MODULARIZE) — lazy: `qpdf.mjs` + `qpdf.wasm?url` (1.3 MB, first use
+only). `run(args, input)` spins a FRESH module per call (`noInitialRun`, `locateFile` → wasm URL), writes
+`/in.pdf`, `callMain([...args, '/in.pdf', '/out.pdf'])`, exit 0/3 ok else `QpdfError(log, code)`.
+`decryptPdf(bytes, pw)` = `--password=… --decrypt`; `encryptPdf(bytes, user, owner)` = `--encrypt user owner
+256 --` (owner falls back to user). Types via `declare module` in gif-libs.d.ts.

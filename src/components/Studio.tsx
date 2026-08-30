@@ -40,12 +40,15 @@ import {
   type VideoDoc,
 } from '../lib/studioTypes';
 import type { Item } from '../types';
+import { PDF_ICON } from './FormatMatrix';
+import { PdfEditor } from './PdfEditor';
 
 const KIND_GLYPH: Record<string, string> = {
   image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6z',
   audio: 'M9 18a3 3 0 1 1-2-2.83V6l11-2v10a3 3 0 1 1-2-2.83V7.4l-7 1.27V18z',
   video: 'M4 6h11a1 1 0 0 1 1 1v2.5l4-2.5a.6.6 0 0 1 1 .5v9a.6.6 0 0 1-1 .5l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
   gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
+  pdf: PDF_ICON,
 };
 
 const TYPE_META: Record<ProjectType, { labelKey: string; descKey: string; glyph: string }> = {
@@ -53,6 +56,7 @@ const TYPE_META: Record<ProjectType, { labelKey: string; descKey: string; glyph:
   image: { labelKey: 'typeImage', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image },
   gif: { labelKey: 'typeGif', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif },
   video: { labelKey: 'typeVideo', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video },
+  pdf: { labelKey: 'typePdf', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf },
 };
 
 /** Common canvas sizes offered when starting a blank image project. */
@@ -105,11 +109,11 @@ const isGifAsset = (a: AssetRec) =>
   ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
 
 const projectTypeFor = (a: AssetRec): ProjectType =>
-  isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : 'audio';
+  isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : a.kind === 'pdf' ? 'pdf' : 'audio';
 
 /** The asset a project is "about": its wired-in primary, else the first visual one. */
 const primaryAsset = (p: ProjectRec, list: AssetRec[]): AssetRec | null => {
-  const id = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? null;
+  const id = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? p.pdfAssetId ?? null;
   return (
     list.find((a) => a.id === id) ??
     list.find((a) => a.kind === 'image') ??
@@ -254,6 +258,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       ...(type === 'image' ? { imageDoc: emptyImageDoc() } : {}),
       ...(type === 'video' ? { videoDoc: emptyVideoDoc() } : {}),
       ...(type === 'gif' ? { gifAssetId: null } : {}),
+      ...(type === 'pdf' ? { pdfAssetId: null } : {}),
     };
     // ephemeral until the user actually does something (savePatch persists)
     setProjects((prev) => [p, ...prev]);
@@ -307,6 +312,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       ...(c.videoDoc ? { videoDoc: { ...c.videoDoc, mixer: stripMix(c.videoDoc.mixer), videoAssetId: c.videoDoc.videoAssetId === a.id ? null : c.videoDoc.videoAssetId } } : {}),
       ...(c.imageDoc?.baseAssetId === a.id ? { imageDoc: { ...c.imageDoc, baseAssetId: null } } : {}),
       ...(c.gifAssetId === a.id ? { gifAssetId: null } : {}),
+      ...(c.pdfAssetId === a.id ? { pdfAssetId: null } : {}),
     });
   };
 
@@ -404,7 +410,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     setMetaFacts(null);
     const prim = primaryAsset(p, await listAssets(p.id));
     if (!prim) return;
-    const kind = prim.kind === 'video' ? 'video' : prim.kind === 'audio' ? 'audio' : 'image';
+    const kind = prim.kind === 'video' ? 'video' : prim.kind === 'audio' ? 'audio' : prim.kind === 'pdf' ? 'pdf' : 'image';
     const meta = await extractMeta(new File([prim.blob], prim.name, { type: prim.blob.type }), kind);
     // we only want the numbers — drop the thumbnail URL (invariant 2)
     if (meta.preview?.startsWith('blob:')) URL.revokeObjectURL(meta.preview);
@@ -451,6 +457,11 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       rows.push([t('bgLayer'), p.imageDoc?.bg ?? t('transparentBg')]);
     }
     if (ty === 'gif' && dims) rows.push([t('dimensionsLabel'), dims]);
+    if (ty === 'pdf' && facts) {
+      if (facts.meta.pages != null) rows.push([t('pdfPages'), String(facts.meta.pages)]);
+      if (dims) rows.push([t('pdfPageSize'), `${dims} pt`]);
+      if (facts.meta.encrypted) rows.push([t('pdfEncrypted'), '✓']);
+    }
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metaPj, metaFacts, pjStats, t]);
@@ -480,6 +491,14 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
               continue;
             }
           } catch { /* fall through to the raw asset */ }
+        }
+
+        if (prim && prim.kind === 'pdf') {
+          try {
+            const m = await extractMeta(new File([prim.blob], prim.name, { type: prim.blob.type }), 'pdf');
+            if (m.preview) { th[p.id] = { url: m.preview, video: false }; continue; }
+          } catch { /* locked or corrupt — glyph fallback */ }
+          continue;
         }
 
         if (prim) {
@@ -553,7 +572,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     const entries: Record<string, Uint8Array> = {
       'project.json': strToU8(JSON.stringify({
         name: p.name, type: p.type ?? 'audio', mixer: p.mixer,
-        imageDoc: p.imageDoc ?? null, videoDoc: p.videoDoc ?? null, gifAssetId: p.gifAssetId ?? null,
+        imageDoc: p.imageDoc ?? null, videoDoc: p.videoDoc ?? null, gifAssetId: p.gifAssetId ?? null, pdfAssetId: p.pdfAssetId ?? null,
         assets: list.map((a) => ({ id: a.id, name: a.name, kind: a.kind, addedAt: a.addedAt, type: a.blob.type })),
       })),
     };
@@ -573,7 +592,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       const meta = JSON.parse(strFromU8(unzipped['project.json'])) as {
         name: string; type?: ProjectType; mixer: MixerDoc;
         imageDoc?: { baseAssetId: string | null; objects: unknown[] } | null;
-        videoDoc?: VideoDoc | null; gifAssetId?: string | null;
+        videoDoc?: VideoDoc | null; gifAssetId?: string | null; pdfAssetId?: string | null;
         assets: { id: string; name: string; kind: string; addedAt: number; type?: string }[];
       };
       const pid = uid();
@@ -596,6 +615,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
         ...(meta.imageDoc ? { imageDoc: { baseAssetId: meta.imageDoc.baseAssetId ? idMap[meta.imageDoc.baseAssetId] ?? null : null, objects: meta.imageDoc.objects ?? [] } } : {}),
         ...(meta.videoDoc ? { videoDoc: { videoAssetId: meta.videoDoc.videoAssetId ? idMap[meta.videoDoc.videoAssetId] ?? null : null, trimStart: meta.videoDoc.trimStart, trimEnd: meta.videoDoc.trimEnd, mixer: remapMixer(meta.videoDoc.mixer ?? emptyMixer(), idMap) } } : {}),
         ...(meta.gifAssetId !== undefined ? { gifAssetId: meta.gifAssetId ? idMap[meta.gifAssetId] ?? null : null } : {}),
+        ...(meta.pdfAssetId !== undefined ? { pdfAssetId: meta.pdfAssetId ? idMap[meta.pdfAssetId] ?? null : null } : {}),
       };
       await putProject(p);
       setProjects((prev) => [p, ...prev]);
@@ -632,6 +652,11 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
 
   /** Route an asset into the active editor, converting across types as needed. */
   const importAssetToEditor = async (a: AssetRec) => {
+    if (ptype === 'pdf') {
+      // PDFs and images append as pages (PdfEditor prompts for passwords itself)
+      setPdfImport([new File([a.blob], a.name, { type: a.blob.type })]);
+      return;
+    }
     if (ptype === 'image') {
       if (a.kind === 'video') { setFramePick({ blob: a.blob, mode: 'single' }); return; }
       setImgImport(a.blob); // images & GIFs (first frame) become movable layers
@@ -715,6 +740,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     if (ptype === 'image') return !!imgBaseId && (a.kind === 'image' || a.kind === 'video');
     if (ptype === 'gif') return !!cur?.gifAssetId && (a.kind === 'image' || a.kind === 'video');
     if (ptype === 'video') return isGifAsset(a);
+    if (ptype === 'pdf') return !!cur?.pdfAssetId && a.id !== cur.pdfAssetId && (a.kind === 'pdf' || a.kind === 'image');
     return false;
   };
   const imgBaseId = cur?.imageDoc?.baseAssetId ?? null;
@@ -723,7 +749,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const pseudoItem = (a: AssetRec): Item => ({
     id: a.id,
     file: new File([a.blob], a.name, { type: a.blob.type }),
-    kind: 'image',
+    kind: a.kind === 'pdf' ? 'pdf' : 'image',
     target: 'png',
     quality: 0.9,
     status: 'ready',
@@ -733,6 +759,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const imgBase = ptype === 'image' ? assets.find((a) => a.id === cur?.imageDoc?.baseAssetId) ?? null : null;
   const gifAsset = ptype === 'gif' ? assets.find((a) => a.id === cur?.gifAssetId) ?? null : null;
   const videoAsset = ptype === 'video' ? assets.find((a) => a.id === cur?.videoDoc?.videoAssetId) ?? null : null;
+  const pdfAsset = ptype === 'pdf' ? assets.find((a) => a.id === cur?.pdfAssetId) ?? null : null;
+  const [pdfImport, setPdfImport] = useState<File[] | null>(null);
 
   const imgItem = useMemo(
     () => (imgBase ? pseudoItem(imgBase) : null),
@@ -741,6 +769,10 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const gifItem = useMemo(
     () => (gifAsset ? pseudoItem(gifAsset) : null),
     [gifAsset?.id, gifAsset?.blob]  // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const pdfItem = useMemo(
+    () => (pdfAsset ? pseudoItem(pdfAsset) : null),
+    [pdfAsset?.id, pdfAsset?.blob]  // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   /** Raster edits from the canvas are written back to the base asset (debounced). */
@@ -1017,6 +1049,9 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
                 {ptype === 'video' && a.kind === 'video' && (
                   <button onClick={() => patchVideoDoc((d) => ({ ...d, videoAssetId: a.id }))} title={t('pickVideo')}>◎</button>
                 )}
+                {ptype === 'pdf' && a.kind === 'pdf' && (
+                  <button onClick={() => savePatch({ pdfAssetId: a.id })} title={t('pickPdf')}>◎</button>
+                )}
                 {canImportToEditor(a) && (
                   <button onClick={() => void importAssetToEditor(a)} title={t('importToEditor')}>
                     {/* arrow pointing INTO a frame — distinct from the download glyph */}
@@ -1155,6 +1190,31 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
                   onSave={(id, file) => void replaceAssetBlob(id, file)}
                   importFrames={gifImportFrames}
                   onImportDone={() => setGifImportFrames(null)}
+                />
+              )
+            )}
+
+            {ptype === 'pdf' && (
+              !pdfAsset || !pdfItem ? (
+                <div className="picker-panel">
+                  <p className="mx-label">{t('pickPdf')}</p>
+                  <div className="picker-list">
+                    {assets.filter((a) => a.kind === 'pdf').map((a) => (
+                      <button key={a.id} className="btn btn-ghost" onClick={() => savePatch({ pdfAssetId: a.id })}>
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="st-empty">{t('noneOfKind')}</p>
+                </div>
+              ) : (
+                <PdfEditor
+                  inline
+                  key={`${pdfAsset.id}-${pdfAsset.blob.size}`}
+                  item={pdfItem}
+                  onSave={(id, file) => void replaceAssetBlob(id, file)}
+                  importFiles={pdfImport}
+                  onImportDone={() => setPdfImport(null)}
                 />
               )
             )}
