@@ -143,15 +143,21 @@ export function ImageEditor({
   const basePromotedRef = useRef(false);
   /** transparent stand-in base at the current dims, kept ready for promoteBase */
   const blankBaseRef = useRef<{ blob: Blob; bmp: ImageBitmap } | null>(null);
+  /** Move tool's per-layer TRUE content + offset, so pixels dragged past the
+      canvas edge survive later moves (the layer canvas is just the clipped
+      view — composite/copy/export stay canvas-bound). Session-only; any other
+      edit to the layer (or undo/geometry) bakes the visible state and drops it. */
+  const moveStoreRef = useRef<Map<string, { canvas: HTMLCanvasElement; ox: number; oy: number }>>(new Map());
 
   const dragRef = useRef<
     // layerId pins the stroke to a layer created mid-gesture (eraser base promotion),
     // whose id has not reached React state yet
     | { mode: 'paint'; last: Pt; layerId?: string }
     | { mode: 'shape'; a: Pt }
-    // move re-renders from the gesture-start snapshot at an INTEGER offset —
-    // per-event fractional self-redraws resample (and blur) the layer
-    | { mode: 'movepx'; start: Pt; snap: HTMLCanvasElement }
+    // move re-renders from the layer's move store at an INTEGER offset —
+    // per-event fractional self-redraws resample (and blur) the layer.
+    // ox0/oy0 = the store offset when the gesture started.
+    | { mode: 'movepx'; start: Pt; store: { canvas: HTMLCanvasElement; ox: number; oy: number }; ox0: number; oy0: number }
     | { mode: 'crop'; a: Pt }
     | { mode: 'rectsel'; a: Pt }
     | { mode: 'lasso' }
@@ -237,10 +243,13 @@ export function ImageEditor({
     return layerCanvas(activeLayer.id).getContext('2d');
   };
 
-  /** Persist the active layer's pixels back into state (debounced by caller). */
-  const commitPixels = (id: string) => {
+  /** Persist the active layer's pixels back into state (debounced by caller).
+      Every commit except the move tool's own invalidates the layer's move
+      store — the visible pixels became the truth. */
+  const commitPixels = (id: string, fromMove = false) => {
     const c = pixRef.current.get(id);
     if (!c) return;
+    if (!fromMove) moveStoreRef.current.delete(id);
     const src = c.toDataURL('image/png');
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, src } : l)));
     setPixVer((v) => v + 1);
@@ -547,6 +556,7 @@ export function ImageEditor({
   };
 
   const applyHist = async (e: HistEntry) => {
+    moveStoreRef.current.clear(); // restored pixels are the truth again
     if (baseRef.current && e.baseBlob !== baseRef.current.blob) {
       const bmp = await createImageBitmap(e.baseBlob);
       baseRef.current.bmp.close();
@@ -971,6 +981,7 @@ export function ImageEditor({
 
   /** Apply a canvas transform to every layer's pixels. */
   const transformLayers = (nw: number, nh: number, draw: (ctx: CanvasRenderingContext2D, src: HTMLCanvasElement) => void) => {
+    moveStoreRef.current.clear(); // geometry re-bakes every layer
     for (const l of layersRef.current) {
       const src = pixRef.current.get(l.id);
       if (!src) continue;
@@ -1083,6 +1094,7 @@ export function ImageEditor({
   const deleteLayer = (id: string) => {
     pushHist();
     pixRef.current.delete(id);
+    moveStoreRef.current.delete(id);
     setLayers((prev) => {
       const next = prev.filter((l) => l.id !== id);
       if (!next.some((l) => l.id === activeId)) {
@@ -1137,6 +1149,8 @@ export function ImageEditor({
     }
     g.restore();
     pixRef.current.delete(upper.id);
+    moveStoreRef.current.delete(upper.id);
+    moveStoreRef.current.delete(lower.id); // merged pixels are the new truth
     setLayers((prev) => prev
       .filter((l) => l.id !== upper.id)
       .map((l) => (l.id === lower.id ? { ...l, src: lc.toDataURL('image/png') } : l)));
@@ -1234,11 +1248,16 @@ export function ImageEditor({
     if (tool === 'move') {
       if (activeLayer && !activeLayer.locked) {
         pushHist();
-        const snap = document.createElement('canvas');
-        snap.width = W();
-        snap.height = H();
-        snap.getContext('2d')!.drawImage(layerCanvas(activeLayer.id), 0, 0);
-        dragRef.current = { mode: 'movepx', start: p, snap };
+        let store = moveStoreRef.current.get(activeLayer.id);
+        if (!store) {
+          const c = document.createElement('canvas');
+          c.width = W();
+          c.height = H();
+          c.getContext('2d')!.drawImage(layerCanvas(activeLayer.id), 0, 0);
+          store = { canvas: c, ox: 0, oy: 0 };
+          moveStoreRef.current.set(activeLayer.id, store);
+        }
+        dragRef.current = { mode: 'movepx', start: p, store, ox0: store.ox, oy0: store.oy };
       }
       return;
     }
@@ -1317,9 +1336,11 @@ export function ImageEditor({
     if (d.mode === 'movepx') {
       const src = activeLayer && pixRef.current.get(activeLayer.id);
       if (!src) return;
+      d.store.ox = d.ox0 + Math.round(p.x - d.start.x);
+      d.store.oy = d.oy0 + Math.round(p.y - d.start.y);
       const g = src.getContext('2d')!;
       g.clearRect(0, 0, src.width, src.height);
-      g.drawImage(d.snap, Math.round(p.x - d.start.x), Math.round(p.y - d.start.y));
+      g.drawImage(d.store.canvas, d.store.ox, d.store.oy);
       setPixVer((v) => v + 1);
     }
   };
@@ -1357,7 +1378,7 @@ export function ImageEditor({
       commitPixels(activeLayer.id);
       return;
     }
-    if (d.mode === 'movepx') commitPixels(activeLayer.id);
+    if (d.mode === 'movepx') commitPixels(activeLayer.id, true); // keep the move store
   };
 
   const commitText = () => {

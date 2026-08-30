@@ -32,7 +32,11 @@ bottom-sheet; ≤720px only — desktop CSS ignores it)** · **panelW (desktop l
 compositing) · previewRef (live shape preview) · pixRef · dragRef (gesture tagged union; paint mode
 carries an optional `layerId` pinning the stroke to a layer created mid-gesture) · layersRef ·
 maskRef/tintRef/maskBBoxRef · antsRef (marching-ants phase) · firstBaseRef · basePromotedRef ·
-blankBaseRef (transparent same-size base kept ready by an effect on [ready, baseVer]).
+blankBaseRef (transparent same-size base kept ready by an effect on [ready, baseVer]) ·
+moveStoreRef (move tool's per-layer TRUE content + integer offset — pixels dragged past the
+canvas edge survive later moves; the layer canvas is the clipped view so composite/copy/export
+stay canvas-bound. Session-only: invalidated by any non-move commitPixels, applyHist,
+transformLayers, deleteLayer, mergeDown).
 
 **Functions**: pixels/layers `W H layerCanvas activeCtx commitPixels patchLayer applyBg` · render
 `paintLayers render composite preview clearPreview` (paintLayers: per-layer scratch → mask

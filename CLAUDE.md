@@ -112,6 +112,10 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     (a layer with pixels erases its own pixels, like any raster editor). The selection
     「clear」 path (`applyToSelection`) MUST do the same promotion — the wand usually selects
     base pixels, and destination-out into a blank layer silently deletes nothing.
+    **Move tool** keeps a session-only per-layer store (`moveStoreRef`: true content + integer
+    offset) so pixels dragged off-canvas survive later moves; the layer canvas stays the
+    canvas-clipped view (export/copy unchanged). Every OTHER pixel edit, undo, or geometry op
+    must invalidate that store or moves resurrect stale pixels.
 19. **Metadata**: tags need `-map_metadata 0`; MP3 additionally needs `-id3v2_version 3` (v2.4 breaks Windows/older players) + `-write_id3v1 1`. Cover art is a single-frame video stream — it requires an explicit `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic` and must NOT be attempted for WAV/OGG (unplayable output) or when trimming (stream desync). `convertMedia` retries once without art if the mapped run fails.
 20. **Audio bitrate mode**: `rateOpts` owns the CBR/VBR split. `-q:a` scales are
     encoder-specific and point opposite ways — libmp3lame 0(best)…9, libvorbis
