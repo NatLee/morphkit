@@ -4035,6 +4035,39 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .st-assets { max-height: 30vh; }
   .editor.ie-inline .ie-viewport { height: 42vh; }
   .editor.ie-inline .layers-panel { max-height: 32vh; overflow-y: auto; }
+
+  /* inline image editor gets the same app-style left tool rail as the phone
+     modal (gif inline has no .ie-layout and keeps its own flow) */
+  .editor.ie-inline:has(.ie-layout) {
+    display: grid;
+    grid-template-columns: 50px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'rail canvas'
+      'rail options'
+      'foot foot';
+  }
+  .editor.ie-inline:has(.ie-layout) .ed-toolbar {
+    grid-area: rail;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    margin: 0;
+    padding: 8px 0;
+    border-right: 1px solid var(--line);
+    /* the rail must NOT size its grid row — cap it to the canvas row
+       (42vh viewport + the options strip) and let it scroll instead */
+    max-height: calc(42vh + 58px);
+  }
+  .editor.ie-inline:has(.ie-layout) .tb-sep { width: 22px; height: 1px; margin: 2px 0; }
+  .editor.ie-inline:has(.ie-layout) .ie-layout { grid-area: canvas; min-height: 0; }
+  .editor.ie-inline:has(.ie-layout) .ed-options { grid-area: options; margin: 0; }
+  .editor.ie-inline:has(.ie-layout) .ed-foot { grid-area: foot; margin-top: 8px; }
+  .editor.ie-inline:has(.ie-layout) .kbd-hints { display: none; }
 }
 
 /* ---- mobile image editor: bottom-sheet layers panel (≤720, where the
@@ -4076,42 +4109,77 @@ body:has(.drawer-overlay) { overflow: hidden; }
 
   /* with the panel off-flow the inline canvas can breathe */
   .editor.ie-inline .ie-viewport { height: 56vh; }
+  /* keep the rail cap in sync with the taller viewport */
+  .editor.ie-inline:has(.ie-layout) .ed-toolbar { max-height: calc(56vh + 58px); }
 }
 
-/* full-height editing column on phones: head → canvas (fills) → options →
-   toolbar → footer, so tools sit at thumb reach and nothing scrolls away */
+/* app-style drawing layout on phones (mobile paint-app reference): the
+   canvas owns the screen — tools live on a slim LEFT RAIL, options in a thin
+   bottom strip, so chrome never buries the drawing */
 @media (max-width: 640px) {
   .editor-overlay > .editor:has(.ie-layout) {
     height: 100vh;
     height: 100dvh;
-    display: flex;
-    flex-direction: column;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 50px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'head head'
+      'rail canvas'
+      'rail options'
+      'foot foot';
     overflow: hidden;
   }
 
-  .editor-overlay > .editor:has(.ie-layout) > * { flex-shrink: 0; }
-  .editor-overlay > .editor:has(.ie-layout) .ed-head { order: 0; }
+  .editor-overlay > .editor:has(.ie-layout) .ed-head {
+    grid-area: head;
+    margin: 0;
+    padding: max(10px, env(safe-area-inset-top, 0px)) 14px 8px;
+  }
+
+  /* vertical tool rail — scrolls when taller than the screen */
+  .editor-overlay > .editor:has(.ie-layout) .ed-toolbar {
+    grid-area: rail;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    margin: 0;
+    padding: 8px 0;
+    border-right: 1px solid var(--line);
+  }
+  .editor-overlay > .editor:has(.ie-layout) .tb-sep { width: 22px; height: 1px; margin: 2px 0; }
+
   .editor-overlay > .editor:has(.ie-layout) .ie-layout {
-    order: 1;
-    flex: 1 1 auto;
+    grid-area: canvas;
     min-height: 0;
     display: flex;
     /* base rule says align-items:start — here the viewport must stretch */
     align-items: stretch;
   }
-  .editor-overlay > .editor:has(.ie-layout) .ed-options { order: 2; margin-bottom: 8px; }
-  .editor-overlay > .editor:has(.ie-layout) .ed-toolbar {
-    order: 3;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin-bottom: 0;
+  .editor-overlay > .editor:has(.ie-layout) .ed-options {
+    grid-area: options;
+    margin: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
-  .editor-overlay > .editor:has(.ie-layout) .ed-foot { order: 4; margin-top: 10px; padding-top: 10px; }
+  .editor-overlay > .editor:has(.ie-layout) .ed-foot {
+    grid-area: foot;
+    margin: 0;
+    padding: 8px 14px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
 
   .editor-overlay > .editor:has(.ie-layout) .ie-vpwrap { flex: 1; min-width: 0; min-height: 0; }
   .editor-overlay > .editor:has(.ie-layout) .ie-viewport { height: 100%; max-height: none; display: flex; }
   /* margin:auto centers the canvas, and degrades to scrollable when zoomed past the viewport */
   .editor-overlay > .editor:has(.ie-layout) .ie-inner { margin: auto; }
+  /* this layout is touch-first — keyboard hints just eat footer rows */
+  .editor-overlay > .editor:has(.ie-layout) .kbd-hints { display: none; }
 }
 
 /* ---- touch ergonomics ---- */
