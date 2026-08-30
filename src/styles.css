@@ -2020,8 +2020,11 @@ kbd {
   align-items: start;
 }
 
-@media (max-width: 720px) {
-  .ie-layout { grid-template-columns: 1fr; gap: 12px; }
+/* same condition as the layers bottom sheet — whenever the panel is a sheet,
+   its column must collapse too (landscape phones matched only the sheet rule
+   and kept a dead 262px column) */
+@media (max-width: 720px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
+  .ie-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }
 
 /* splitters — drag to resize a neighbouring panel, dblclick resets.
@@ -2073,12 +2076,12 @@ kbd {
   height: 2px;
 }
 
-@media (max-width: 720px) {
-  /* panel is a bottom sheet on mobile — no splitter */
+@media (max-width: 720px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
+  /* panel is a bottom sheet here — no splitter */
   .ie-gutter { display: none; }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   /* stacked layouts — fixed panel sizes stop applying, so no splitters */
   .split-gutter { display: none; }
 }
@@ -3144,7 +3147,7 @@ kbd {
 .editor.ie-inline .pdf-body { flex: 1 1 auto; min-height: 0; }
 .editor.ie-inline .pdf-grid, .editor.ie-inline .pdf-preview { max-height: none; height: 100%; }
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   .pdf-body, .pdf-body.with-preview { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .pdf-gutter { display: none; }
   .pdf-preview { width: auto; max-height: 52vh; transition: none; }
@@ -3246,7 +3249,7 @@ kbd {
 .doc-prose img { max-width: 100%; height: auto; }
 .doc-prose hr { border: 0; border-top: 1px solid #ddd; margin: 1.2em 0; }
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   .doc-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr 1fr; height: auto; flex: 1 1 auto; min-height: 0; }
   .doc-editor.view-source .doc-body, .doc-editor.view-preview .doc-body { grid-template-rows: 1fr; }
 }
@@ -3452,8 +3455,10 @@ kbd {
   min-height: 0; /* required so children can scroll instead of growing */
 }
 
-@media (max-width: 760px) {
-  .st-body { grid-template-columns: 1fr; }
+@media (max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
+  /* :has(.st-assets.collapsed) outranks a bare .st-body — repeat it here or the
+     desktop max-content collapse template wins and st-main blows past the screen */
+  .st-body, .st-body:has(.st-assets.collapsed) { grid-template-columns: minmax(0, 1fr); }
 }
 
 .st-assets {
@@ -4064,8 +4069,8 @@ kbd {
   flex-shrink: 0;
 }
 
-@media (max-width: 760px) {
-  .vw-top { grid-template-columns: 1fr; }
+@media (max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
+  .vw-top { grid-template-columns: minmax(0, 1fr); }
 }
 
 .vw-preview {
@@ -4636,9 +4641,11 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .lang-switch button { padding: 5px 7px; }
 }
 
-/* stacked studio (≤760 = where .st-body/.vw-top collapse): let the page grow
-   and scroll like a normal mobile page instead of the fixed desktop workspace */
-@media (max-width: 760px) {
+/* stacked studio — the app-mode condition (matches APP_MQ in Studio.tsx AND the
+   editors' app-style blocks): phones, short/landscape viewports, touch tablets.
+   The page grows and scrolls like a normal mobile page instead of the fixed
+   desktop workspace */
+@media (max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   .studio { height: auto; min-height: calc(100vh - 96px); min-height: calc(100dvh - 96px); }
   .st-assets { max-height: 30vh; }
   .editor.ie-inline .ie-viewport { height: 42vh; }
@@ -4672,7 +4679,9 @@ body:has(.drawer-overlay) { overflow: hidden; }
     max-height: calc(42vh + 58px);
   }
   .editor.ie-inline:has(.ie-layout) .tb-sep { width: 22px; height: 1px; margin: 2px 0; }
-  .editor.ie-inline:has(.ie-layout) .ie-layout { grid-area: canvas; min-height: 0; }
+  .editor.ie-inline:has(.ie-layout) .ie-layout { grid-area: canvas; min-height: 0; height: 100%; }
+  .editor.ie-inline:has(.ie-layout) .ie-vpwrap { height: 100%; min-height: 0; }
+  .editor.ie-inline:has(.ie-layout) .ie-viewport { height: 100%; }
   .editor.ie-inline:has(.ie-layout) .ed-options { grid-area: options; margin: 0; }
   .editor.ie-inline:has(.ie-layout) .ed-foot { grid-area: foot; margin-top: 8px; }
   .editor.ie-inline:has(.ie-layout) .kbd-hints { display: none; }
@@ -4697,6 +4706,10 @@ body:has(.drawer-overlay) { overflow: hidden; }
      asset panel and app chrome step aside until toggled back */
   .st-focus-btn { display: inline-flex; }
   .st-focus-btn.active { color: var(--accent); border-color: var(--accent); }
+  /* chrome is hidden — reclaim its height, and reserve a bottom strip so the
+     FAB / save pill never cover the last controls */
+  .studio.st-focus { min-height: calc(100vh - 24px); min-height: calc(100dvh - 24px); }
+  .studio.st-focus .st-main { padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
   .studio.st-focus .split-gutter { display: none; }
   .studio.st-focus .type-badge,
   .studio.st-focus .st-export,

@@ -44,6 +44,10 @@ import { PDF_ICON } from './FormatMatrix';
 import { PdfEditor } from './PdfEditor';
 import { DocEditor } from './DocEditor';
 
+/* the app-mode breakpoint — MUST mirror the stacked-studio media block in
+   styles.css: phones, short/landscape viewports, touch tablets */
+const APP_MQ = '(max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px)';
+
 const KIND_GLYPH: Record<string, string> = {
   image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6z',
   audio: 'M9 18a3 3 0 1 1-2-2.83V6l11-2v10a3 3 0 1 1-2-2.83V7.4l-7 1.27V18z',
@@ -170,7 +174,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const [focus, setFocus] = useState(false);
   // phone asset panel starts collapsed (immersive editing); desktop ignores it
   // open by default on desktop; phones start collapsed (and use the FAB sheet in focus mode)
-  const [assetsOpen, setAssetsOpen] = useState(() => window.matchMedia('(min-width: 761px)').matches);
+  const [assetsOpen, setAssetsOpen] = useState(() => !window.matchMedia(APP_MQ).matches);
   // draggable asset-panel width (desktop; ≤760 stacks and hides the gutter)
   const assetsSplit = useSplitter('morphkit-stw', 252, 180, 460);
   const [pickType, setPickType] = useState(false);
@@ -217,7 +221,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
 
   // phones enter a workspace in FOCUS mode (chrome hidden, assets behind the FAB sheet)
   useEffect(() => {
-    if (entered && window.matchMedia('(max-width: 760px)').matches) {
+    if (entered && window.matchMedia(APP_MQ).matches) {
       setFocus(true);
       setAssetsOpen(false);
     }

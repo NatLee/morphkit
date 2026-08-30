@@ -13,14 +13,16 @@ image→inline ImageEditor, gif→inline GifEditor, video→VideoWorkspace, **te
 assets; save = `replaceAssetBlob`) · **pdf→inline PdfEditor** (`pdfAssetId`
 primary; save = `replaceAssetBlob` like GIF; `pdfImport` state feeds `importFiles`; `canImportToEditor` accepts
 pdf+image assets; launcher thumb = `extractMeta(...,'pdf').preview`; `metaRows` adds pages/page size/encrypted).
-Mobile focus mode: AUTO-ENABLED on ≤760 when `entered` flips true (effect also closes `assetsOpen`);
+Mobile focus mode: AUTO-ENABLED when `entered` flips true and `APP_MQ` matches (module const —
+phones ≤760 / short ≤540 viewports / coarse-pointer ≤920; MUST mirror the stacked-studio media
+block in styles.css; the effect also closes `assetsOpen`, whose default is `!APP_MQ`);
 focus hides topbar/tabbar/footer + the bar's `.type-badge`/`.st-export`/`.st-del` (back + name remain),
 the assets panel becomes a fixed bottom sheet toggled by the `.st-fab` (count badge, `.st-scrim` closes),
 and inline editors' `.ed-foot` floats as a fixed save pill. `focus` state + `.st-focus-btn` in the workspace `.st-bar` (visible ≤760 only)
 toggles `.studio.st-focus` — CSS hides the asset panel and app chrome so the workspace owns the
 screen; `leaveWorkspace` resets it. Asset panel: `assetsOpen` (desktop default TRUE, phones FALSE; the chevron collapse now works at ALL
 widths — collapsed desktop shrinks the grid column via `:has`, hides stats + gutter) + `.st-assets-toggle` chevron in `.st-assets-head`;
-`.st-assets.collapsed` hides everything but the head row (≤760 only, desktop always expanded).
+`.st-assets.collapsed` hides everything but the head row (app-mode widths; desktop shrinks the column).
 Init MERGES the async idb project list into state and never overwrites a non-null `curId` (see
 CLAUDE.md invariant 14 — clobbering loses projects created during the load). Prop `enterProjectId?` (from App's "open as project"): init effect jumps straight into that
 workspace, skipping the launcher; App clears it on manual studio-toggle.

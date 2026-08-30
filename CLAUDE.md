@@ -147,6 +147,15 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     (a sideways pan on mobile triggers the browser's back-swipe); viewport-wide decorations get
     clipped by their container (`.hero` overflow:hidden). Breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
 23. **Mobile image editor** (≤720, **≤540px tall**, or coarse-pointer ≤920 — landscape phones, squat PWA windows and touch tablets get the same treatment; the OR-condition media queries are self-sufficient: they reset overlay padding + editor max-width/radius because the generic ≤640 rules do not apply at 844×390): layers panel becomes a fixed bottom sheet (`.layers-panel.open`, `panelOpen` state + `.lp-fab` toggle + `.lp-scrim` in ImageEditor.tsx). ≤640 the modal editor with `.ie-layout` is a **100dvh paint-app GRID** — canvas owns the screen, `.ed-toolbar` becomes a 50px vertical scrolling left rail, `.ed-options` a thin bottom strip, foot last (`.kbd-hints` hidden). The inline editor gets the same rail grid ≤760, where the rail MUST keep its `max-height` cap (42vh/56vh + strip) or its content sizes the grid row and the page grows huge. The base `.ie-layout` is `align-items:start` — the modal override needs `stretch` or the viewport collapses.
+24. **App-mode media condition**: the stacked studio, focus mode, and the editor app layouts share
+    ONE breakpoint family — `(max-width:760px), (max-height:540px), (pointer:coarse) and (max-width:920px)`
+    (`APP_MQ` in Studio.tsx MUST mirror the styles.css stacked-studio block; it drives auto-focus +
+    the assets-panel default). Single-column workspace tracks are `minmax(0,1fr)`, never bare `1fr` —
+    a wide workspace's min-content (mixer lanes, pdf toolbar) blows a bare `1fr` track past the screen
+    edge — and the `.st-body` single-column rule must repeat `.st-body:has(.st-assets.collapsed)`
+    (that selector outranks a bare class, so the desktop max-content collapse template would win on
+    phones, where assets start collapsed). In focus mode `.studio` reclaims the hidden chrome's height
+    and `.st-main` reserves a 52px bottom strip so the FAB/save pill never cover the last controls.
 25. **PDF**: `Kind` includes `'pdf'` — every `kind` switch needs a pdf arm (FileCard icons/labels,
     `extractMeta`, `runConvert`, editor routing, Studio `TYPE_META`/`primaryAsset`/`pseudoItem`).
     PDFs are a Studio type (`pdfAssetId`; inline PdfEditor writes back via `replaceAssetBlob` like

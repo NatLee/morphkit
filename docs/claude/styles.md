@@ -53,7 +53,7 @@
     .ie-textinput · `image editor v2`: .ie-layout(1fr | 8px .ie-gutter | min(--ie-panel-w,42vw)
     resizable 3-col; 1fr ≤720) .ie-gutter(col-resize splitter, touch-action:none, hidden ≤720) ·
     .split-gutter(generic splitter, same look as .ie-gutter; .h variant = row-resize 8px tall;
-    hidden ≤760 — all driven by lib/useSplitter)
+    hidden ≤760 — all driven by lib/useSplitter; .ie-layout column collapses to minmax(0,1fr) under the SAME condition as the layers sheet — width-only left landscape phones a dead 262px column)
     .ie-vpwrap .zoom-float
     .ie-viewport(max-h 54vh) .ie-inner .ie-canvas2(**touch-action:none**, checkerboard bg) .zoom-ctrl
     .zoom-val · .layers-panel(max-h 54vh) .layer-* .lp-head .lp-ops(labeled layer-ops grid ×4)
@@ -126,13 +126,13 @@
 | Query | What |
 |---|---|
 | `≤900px` | .ie-layout side panel 262→220px |
-| `≤760px` | .st-body + .vw-top collapse to 1 column; .split-gutter hidden; **.studio → height:auto (page scrolls like a normal mobile page)**; .st-assets max-height 30vh; inline .ie-viewport 42vh + inline .layers-panel 32vh |
+| app-mode: `≤760px, OR ≤540px tall, OR coarse+≤920px` (= APP_MQ in Studio.tsx) | .st-body + .vw-top collapse to `minmax(0,1fr)` — NEVER bare `1fr`: min-content of wide workspaces (mixer/pdf) blows the track past the screen, and the rule must repeat `.st-body:has(.st-assets.collapsed)` or the desktop max-content collapse template outranks it; .split-gutter hidden; pdf-body + doc-body stack; **.studio → height:auto (page scrolls like a normal mobile page)**; .st-assets max-height 30vh; inline .layers-panel 32vh |
 | `≤720px` OR `≤540px tall` OR coarse-pointer ≤920 (image editor) | **.layers-panel → fixed bottom sheet** (translateY 105% ↔ .open, z130, 62dvh) + .lp-scrim (z129) + .lp-fab shown (toggle lives in ImageEditor.tsx panelOpen state); inline .ie-viewport bumps to 56vh |
 | `≤640px` OR `≤540px tall` OR coarse-pointer ≤920 (image editor) | `.editor-overlay > .editor:has(.ie-layout)` → **100dvh GRID, paint-app style** (short-viewport variant also resets overlay padding, editor max-width/height/radius, hides .ie-gutter): areas 'head head'/'rail canvas'/'rail options'/'foot foot', 50px left column; `.ed-toolbar` = vertical scrolling tool RAIL, `.ed-options` thin bottom strip, `.kbd-hints` hidden; .ie-viewport flex + .ie-inner margin:auto centers the canvas |
-| `≤760px` (inline image editor) | `.editor.ie-inline:has(.ie-layout)` → same rail grid (no head row); rail `max-height: calc(42vh + 58px)` so it scrolls instead of sizing its grid row (56vh + 58px ≤720) |
+| app-mode (inline image editor) | `.editor.ie-inline:has(.ie-layout)` → same rail grid (no head row); rail `max-height: calc(42vh + 58px)` so it scrolls instead of sizing its grid row (56vh + 58px ≤720); `.ie-layout`/`.ie-vpwrap`/`.ie-viewport` height:100% — the viewport fills its 1fr row (fixed vh left a dead band above the options strip) |
 | `≤640px` OR `≤540px tall` OR coarse-pointer ≤920 (gif/video modals) | `.editor:has(.gif-preview)` / `:has(.mp-video)` → 100dvh flex column: preview flexes to own the screen, transport + film strip / trim stay pinned, `.ed-controls` scrolls in place (26vh gif / 44vh video cap); audio keeps the plain sheet |
-| `≤760px` (studio focus) | `.st-focus-btn` shows (hidden on desktop); `.studio.st-focus` hides `.st-assets`+`.split-gutter`, `body:has(.studio.st-focus)` hides `.topbar`/`.m-tabbar`/`.footer` — workspace owns the screen |
-| `≤760px` (studio assets) | `.st-assets-toggle` chevron shows; `.st-assets.collapsed` keeps only the head row (phones start collapsed); `.editor.ie-inline .ed-foot .btn` compacted (export button) |
+| app-mode (studio focus) | `.st-focus-btn` shows (hidden on desktop); `.studio.st-focus` hides `.st-assets`+`.split-gutter`, `body:has(.studio.st-focus)` hides `.topbar`/`.m-tabbar`/`.footer` — workspace owns the screen; `.studio.st-focus` min-height 100dvh−24 (reclaims hidden chrome) + `.st-main` padding-bottom 52px reserves the FAB / save-pill strip |
+| app-mode (studio assets) | `.st-assets-toggle` chevron shows; `.st-assets.collapsed` keeps only the head row (phones start collapsed); `.editor.ie-inline .ed-foot .btn` compacted (export button) |
 | `≤720px` (layers sheet) | **`.layers-panel.open` selector must ALSO match `.editor.ie-inline .layers-panel.open`** — the inline base selector is (0,3,0) and otherwise wins, leaving the sheet stuck off-screen; the open sheet is flex column with `.lp-colour`/`.lp-hist` ordered last so layer rows come first |
 | `≤720px` | .ie-layout → 1 column (layers panel stacks below canvas) |
 | `≤640px` (phone) | .app gutter 16px; .topbar wraps; hero compact; dropzone compact; .bb-actions full-width grow; file-card controls grow + .fc-details 1col; .fc-target hidden →
