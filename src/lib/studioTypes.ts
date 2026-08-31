@@ -86,3 +86,8 @@ export const emptyVideoDoc = (): VideoDoc => ({
 
 export const uid = (): string =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+/** Window event Studio's top-bar save button dispatches; every inline-capable
+ *  editor (Image/Gif/Pdf/Doc) listens while mounted inline and runs its own
+ *  save — same effect as pressing the editor's (hidden-in-focus) foot button. */
+export const INLINE_SAVE_EVT = 'morphkit-inline-save';

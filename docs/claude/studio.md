@@ -16,9 +16,12 @@ pdf+image assets; launcher thumb = `extractMeta(...,'pdf').preview`; `metaRows` 
 Mobile focus mode: AUTO-ENABLED when `entered` flips true and `APP_MQ` matches (module const —
 phones ≤760 / short ≤540 viewports / coarse-pointer ≤920; MUST mirror the stacked-studio media
 block in styles.css; the effect also closes `assetsOpen`, whose default is `!APP_MQ`);
-focus hides topbar/tabbar/footer + the bar's `.type-badge`/`.st-export`/`.st-del` (back + name remain),
-the assets panel becomes a fixed bottom sheet toggled by the `.st-fab` (count badge, `.st-scrim` closes),
-and inline editors' `.ed-foot` floats as a fixed save pill. `focus` state + `.st-focus-btn` in the workspace `.st-bar` (visible ≤760 only)
+focus hides topbar/tabbar/footer + the bar's `.type-badge`/`.st-export`/`.st-del` (back + name remain;
+back text wrapped in `.st-back-txt`, hidden in focus → icon-only). The bottom is CLEAR in focus: the
+assets toggle `.st-fab` (count badge) and the `.st-save` proxy button live IN the `.st-bar` — `.st-save`
+dispatches `INLINE_SAVE_EVT` (lib/studioTypes), which every inline editor listens for; the editors' own
+`.ed-foot` is display:none in focus but stays in the DOM so CSS `:has()` mirrors its mounted/disabled
+state onto `.st-save`. The assets panel is still a fixed bottom sheet (`.st-scrim` closes). `focus` state + `.st-focus-btn` in the workspace `.st-bar` (visible ≤760 only)
 toggles `.studio.st-focus` — CSS hides the asset panel and app chrome so the workspace owns the
 screen; `leaveWorkspace` resets it. Asset panel: `assetsOpen` (desktop default TRUE, phones FALSE; the chevron collapse now works at ALL
 widths — collapsed desktop shrinks the grid column via `:has`, hides stats + gutter) + `.st-assets-toggle` chevron in `.st-assets-head`;

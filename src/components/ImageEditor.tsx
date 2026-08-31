@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Poin
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { useSplitter } from '../lib/useSplitter';
+import { INLINE_SAVE_EVT } from '../lib/studioTypes';
 import { Overlay } from './Overlay';
 import { ColorPicker } from './ColorPicker';
 import type { Item } from '../types';
@@ -1515,6 +1516,17 @@ export function ImageEditor({
       }
     }, 'image/png');
   };
+
+  // Studio's top-bar save button (focus mode) triggers inline saves via a
+  // window event — same guard as the (hidden) foot button
+  const inlineSaveRef = useRef<() => void>(() => {});
+  inlineSaveRef.current = () => { if (ready) save(); };
+  useEffect(() => {
+    if (!inline) return;
+    const h = () => inlineSaveRef.current();
+    window.addEventListener(INLINE_SAVE_EVT, h);
+    return () => window.removeEventListener(INLINE_SAVE_EVT, h);
+  }, [inline]);
 
   const cssScale = () => {
     const c = canvasRef.current;

@@ -6,6 +6,7 @@ import { ImageEditor } from './ImageEditor';
 import { Overlay } from './Overlay';
 import { PdfPasswordModal } from './PdfPasswordModal';
 import { useSplitter } from '../lib/useSplitter';
+import { INLINE_SAVE_EVT } from '../lib/studioTypes';
 import { ColorPicker } from './ColorPicker';
 import {
   A4,
@@ -649,6 +650,17 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
     }
     return specs;
   };
+
+  // Studio's top-bar save button (focus mode): open the export dialog, exactly
+  // like the (hidden-in-focus) foot button — same guard
+  const inlineSaveRef = useRef<() => void>(() => {});
+  inlineSaveRef.current = () => { if (!busy && loaded && pages.length) setExportOpen(true); };
+  useEffect(() => {
+    if (!inline) return;
+    const h = () => inlineSaveRef.current();
+    window.addEventListener(INLINE_SAVE_EVT, h);
+    return () => window.removeEventListener(INLINE_SAVE_EVT, h);
+  }, [inline]);
 
   const save = async () => {
     const list = xo.scope === 'selected' && sel.size ? pages.filter((p) => sel.has(p.id)) : pages;

@@ -3,6 +3,9 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. Update when structure changes.
 > Both render `inline ? body : createPortal(body, document.body)`; all CSS in styles.css.
+> Every inline-capable editor (Image/Gif/Pdf/Doc) listens for `INLINE_SAVE_EVT` (lib/studioTypes)
+> while inline — Studio's focus-mode top-bar save button dispatches it; each listener re-applies
+> the same guard as its own (hidden-in-focus) foot save button via an `inlineSaveRef`.
 
 ## ImageEditor.tsx (1685) — raster layer editor
 

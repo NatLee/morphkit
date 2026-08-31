@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { docEditSource, docSave, previewHtml, type EditMode } from '../lib/docs';
+import { INLINE_SAVE_EVT } from '../lib/studioTypes';
 import { docTypeOf } from '../lib/formats';
 import type { Item } from '../types';
 
@@ -64,6 +65,16 @@ export function DocEditor({ item, onSave, onClose, inline }: Props) {
     }, 250);
     return () => window.clearTimeout(h);
   }, [text, mode, loaded]);
+
+  // Studio's top-bar save button (focus mode) triggers inline saves via a window event
+  const inlineSaveRef = useRef<() => void>(() => {});
+  inlineSaveRef.current = () => { if (!busy && loaded && !error) void save(); };
+  useEffect(() => {
+    if (!inline) return;
+    const h = () => inlineSaveRef.current();
+    window.addEventListener(INLINE_SAVE_EVT, h);
+    return () => window.removeEventListener(INLINE_SAVE_EVT, h);
+  }, [inline]);
 
   const save = async () => {
     setBusy(true);

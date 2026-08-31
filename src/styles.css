@@ -3423,6 +3423,8 @@ kbd {
 
 /* mobile focus mode toggle — desktop has room, so the button only shows ≤760 */
 .st-focus-btn { display: none; }
+/* top-bar save proxy: only shown in focus mode when an inline editor is mounted */
+.st-save { display: none; }
 /* desktop: the assets panel collapses to its head row and the grid gives the space back */
 .st-body:has(.st-assets.collapsed) { grid-template-columns: max-content 0 1fr; }
 .st-body:has(.st-assets.collapsed) .split-gutter { display: none; }
@@ -4725,7 +4727,8 @@ body:has(.drawer-overlay) { overflow: hidden; }
      bar itself in installed/standalone mode */
   .studio.st-focus { min-height: calc(100vh - 24px); min-height: calc(100dvh - 24px); }
   .studio.st-focus { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
-  .studio.st-focus .st-main { padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
+  /* nothing floats over the bottom anymore (assets + save live in the bar) */
+  .studio.st-focus .st-main { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
   .studio.st-focus .split-gutter { display: none; }
   .studio.st-focus .type-badge,
   .studio.st-focus .st-export,
@@ -4745,8 +4748,7 @@ body:has(.drawer-overlay) { overflow: hidden; }
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
     transform: translateY(105%);
     transition: transform 0.25s ease;
-    /* clearance so the FAB (bottom-left) never covers the last asset rows */
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
   .studio.st-focus .st-assets:not(.collapsed) { transform: none; }
   .studio.st-focus .st-assets.collapsed > :not(.st-assets-head) { display: revert; }
@@ -4759,20 +4761,19 @@ body:has(.drawer-overlay) { overflow: hidden; }
     background: rgba(4, 6, 14, 0.55);
     backdrop-filter: blur(2px);
   }
+  /* assets toggle lives in the top bar (was a floating bottom-left FAB) */
   .studio.st-focus .st-fab {
     display: grid;
     place-items: center;
-    position: fixed;
-    left: 14px;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    z-index: 131;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    position: relative; /* anchors the count badge */
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: var(--radius);
     border: 1px solid var(--line-strong);
     background: var(--bg-raised);
     color: var(--ink);
-    box-shadow: var(--shadow);
+    cursor: pointer;
   }
   .studio.st-focus .st-fab.on { border-color: var(--accent); color: var(--accent); box-shadow: var(--glow); }
   .st-fab-n {
@@ -4789,19 +4790,24 @@ body:has(.drawer-overlay) { overflow: hidden; }
     line-height: 18px;
     text-align: center;
   }
-  /* the inline editor's footer floats as a compact save pill (hint hidden) */
-  .studio.st-focus .editor.ie-inline .ed-foot {
-    position: fixed;
-    right: 12px;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    z-index: 96;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
+  /* the inline editor's own footer is hidden — the top-bar .st-save proxy
+     (kept in DOM so :has() below can mirror its mounted/disabled state)
+     dispatches INLINE_SAVE_EVT, which every inline editor listens for */
+  .studio.st-focus .editor.ie-inline .ed-foot { display: none; }
+  .studio.st-focus:has(.editor.ie-inline .ed-foot) .st-save { display: inline-flex; }
+  .studio.st-focus:has(.editor.ie-inline .ed-foot .btn-accent:disabled) .st-save {
+    opacity: 0.45;
+    pointer-events: none;
   }
-  .studio.st-focus .editor.ie-inline .ed-foot .ed-hint { display: none; }
-  .studio.st-focus .editor.ie-inline .ed-foot .btn { box-shadow: var(--shadow), var(--glow); }
+  /* the bar hosts back/name/assets/save/focus on one phone row — icon-only back,
+     the name yields, and the spacer goes (flex handles the middle) */
+  .studio.st-focus .st-back-txt { display: none; }
+  .studio.st-focus .st-bar .opt-spacer { display: none; }
+  .studio.st-focus .st-name {
+    flex: 1 1 60px;
+    min-width: 60px;
+    max-width: none;
+  }
   /* full-bleed image editing: in focus the image editor sheds ALL its card
      chrome — app gutter, editor border/padding, viewport frame — so the canvas
      reaches the screen edges (other project types keep their cards for now) */
@@ -4816,6 +4822,10 @@ body:has(.drawer-overlay) { overflow: hidden; }
   }
   /* the bar keeps its own gutter now that the studio has none */
   .studio.st-focus:has(.editor.ie-inline .ie-layout) .st-bar { padding: 0 12px; }
+  /* the options strip can sit right on the home-indicator inset */
+  .studio.st-focus:has(.editor.ie-inline .ie-layout) .st-main {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
   .studio.st-focus .editor.ie-inline:has(.ie-layout) {
     border: 0;
     border-radius: 0;

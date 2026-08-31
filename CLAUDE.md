@@ -154,8 +154,11 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     a wide workspace's min-content (mixer lanes, pdf toolbar) blows a bare `1fr` track past the screen
     edge — and the `.st-body` single-column rule must repeat `.st-body:has(.st-assets.collapsed)`
     (that selector outranks a bare class, so the desktop max-content collapse template would win on
-    phones, where assets start collapsed). In focus mode `.studio` reclaims the hidden chrome's height
-    and `.st-main` reserves a 52px bottom strip so the FAB/save pill never cover the last controls.
+    phones, where assets start collapsed). In focus mode `.studio` reclaims the hidden chrome's height;
+    the assets toggle (`.st-fab` + badge) and the `.st-save` proxy live in the TOP `.st-bar` (nothing
+    floats over the bottom) — `.st-save` dispatches `INLINE_SAVE_EVT` (lib/studioTypes) and every
+    inline editor (Image/Gif/Pdf/Doc) listens while inline; the editors' `.ed-foot` is hidden in
+    focus but stays in the DOM so `:has()` mirrors mounted/disabled state onto `.st-save`.
 25. **PDF**: `Kind` includes `'pdf'` — every `kind` switch needs a pdf arm (FileCard icons/labels,
     `extractMeta`, `runConvert`, editor routing, Studio `TYPE_META`/`primaryAsset`/`pseudoItem`).
     PDFs are a Studio type (`pdfAssetId`; inline PdfEditor writes back via `replaceAssetBlob` like

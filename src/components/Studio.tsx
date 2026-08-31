@@ -31,6 +31,7 @@ import {
   emptyImageDoc,
   emptyMixer,
   emptyVideoDoc,
+  INLINE_SAVE_EVT,
   uid,
   type AssetRec,
   type Clip,
@@ -1036,13 +1037,28 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     <div className={`studio${focus ? ' st-focus' : ''}`}>
       <div className="st-bar">
         <button className="btn btn-ghost btn-sm" onClick={leaveWorkspace}>
-          ← {t('backToProjects')}
+          ← <span className="st-back-txt">{t('backToProjects')}</span>
         </button>
         <span className={`type-badge tb-${ptype}`}>{t(TYPE_META[ptype].labelKey)}</span>
         {cur && (
           <input className="st-name" value={cur.name} onChange={(e) => renameProject(e.target.value)} />
         )}
         <span className="opt-spacer" />
+        {/* focus mode only (CSS): assets-sheet toggle + save proxy live in the bar */}
+        <button
+          className={`st-fab${assetsOpen ? ' on' : ''}`}
+          onClick={() => setAssetsOpen((v) => !v)}
+          aria-label={t('assetsLabel')}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
+          <span className="st-fab-n">{assets.length}</span>
+        </button>
+        <button
+          className="btn btn-accent btn-sm st-save"
+          onClick={() => window.dispatchEvent(new Event(INLINE_SAVE_EVT))}
+        >
+          {t('save')}
+        </button>
         <button
           className={`btn btn-ghost btn-sm st-focus-btn${focus ? ' active' : ''}`}
           onClick={() => setFocus((v) => !v)}
@@ -1352,14 +1368,6 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       </div>
 
       {assetsOpen && focus && <div className="st-scrim" onClick={() => setAssetsOpen(false)} />}
-      <button
-        className={`st-fab${assetsOpen ? ' on' : ''}`}
-        onClick={() => setAssetsOpen((v) => !v)}
-        aria-label={t('assetsLabel')}
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
-        <span className="st-fab-n">{assets.length}</span>
-      </button>
 
       {note && createPortal(<div className="banner info st-note">{note}</div>, document.body)}
 

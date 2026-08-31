@@ -5,6 +5,7 @@ import UPNG from 'upng-js';
 import { decodeAnim, writeGifFrame } from '../lib/animImage';
 import { extOf } from '../lib/formats';
 import { useSplitter } from '../lib/useSplitter';
+import { INLINE_SAVE_EVT } from '../lib/studioTypes';
 import { useI18n } from '../i18n';
 import { DualRange } from './DualRange';
 import type { Item } from '../types';
@@ -374,6 +375,16 @@ export function GifEditor({ item, onSave, onClose, inline, importFrames, onImpor
   const removeCap = (id: number) => setCaps((prev) => prev.filter((c) => c.id !== id));
 
   // ---- encode ----
+  // Studio's top-bar save button (focus mode) triggers inline saves via a window event
+  const inlineSaveRef = useRef<() => void>(() => {});
+  inlineSaveRef.current = () => { void save(); };
+  useEffect(() => {
+    if (!inline) return;
+    const h = () => inlineSaveRef.current();
+    window.addEventListener(INLINE_SAVE_EVT, h);
+    return () => window.removeEventListener(INLINE_SAVE_EVT, h);
+  }, [inline]);
+
   const save = async () => {
     if (busy || !loaded) return;
     setBusy(true);
