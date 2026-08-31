@@ -4802,6 +4802,37 @@ body:has(.drawer-overlay) { overflow: hidden; }
   }
   .studio.st-focus .editor.ie-inline .ed-foot .ed-hint { display: none; }
   .studio.st-focus .editor.ie-inline .ed-foot .btn { box-shadow: var(--shadow), var(--glow); }
+  /* full-bleed image editing: in focus the image editor sheds ALL its card
+     chrome — app gutter, editor border/padding, viewport frame — so the canvas
+     reaches the screen edges (other project types keep their cards for now) */
+  body:has(.studio.st-focus .editor.ie-inline .ie-layout) .app.studio-mode {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .studio.st-focus:has(.editor.ie-inline .ie-layout) {
+    padding-left: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+  }
+  /* the bar keeps its own gutter now that the studio has none */
+  .studio.st-focus:has(.editor.ie-inline .ie-layout) .st-bar { padding: 0 12px; }
+  .studio.st-focus .editor.ie-inline:has(.ie-layout) {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  .studio.st-focus .editor.ie-inline:has(.ie-layout) .ie-viewport {
+    border: 0;
+    border-radius: 0;
+    padding: 10px;
+  }
+  .studio.st-focus .editor.ie-inline:has(.ie-layout) .ed-options {
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 0;
+  }
   body:has(.studio.st-focus) .install-card { display: none; }
   body:has(.studio.st-focus) .topbar,
   body:has(.studio.st-focus) .m-tabbar,
