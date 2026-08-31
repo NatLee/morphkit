@@ -1731,8 +1731,11 @@ export function ImageEditor({
             </button>
             <span className="zoom-float">
               {w}×{h}px
-              <span className="zf-sep">·</span>
-              {cursor ? `${cursor.x}, ${cursor.y}` : '–, –'}
+              {/* coords only exist for a hovering pointer — hidden on touch via CSS */}
+              <span className="zf-xy">
+                <span className="zf-sep">·</span>
+                {cursor ? `${cursor.x}, ${cursor.y}` : '–, –'}
+              </span>
               <span className="zf-sep">·</span>
               {Math.round(zoom * 100)}%
             </span>

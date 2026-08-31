@@ -63,7 +63,8 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
     · .opt-spacer · .zoom-ctrl(−/val/+/fit)
   .ie-layout (grid 1fr|262px; 220px ≤900; 1fr ≤720)
     .ie-vpwrap > .ie-viewport(ref, scroll) > .ie-inner{width:w*zoom} > canvas.ie-canvas2 + input.ie-textinput
-              + button.lp-fab (mobile-only layers toggle, .on when open) + span.zoom-float (readout)
+              + button.lp-fab (mobile-only layers toggle, .on when open) + span.zoom-float (readout;
+                cursor coords wrapped in span.zf-xy — hidden via @media (hover:none))
     div.ie-gutter (desktop col-resize splitter: pointer-captured drag → panelW; hidden ≤720)
     [panelOpen && div.lp-scrim (tap closes sheet)]
     aside.layers-panel[.open ⇒ mobile sheet slides up]

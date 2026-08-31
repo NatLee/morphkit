@@ -4661,6 +4661,8 @@ body:has(.drawer-overlay) { overflow: hidden; }
       'rail canvas'
       'rail options'
       'foot foot';
+    /* containing block for the absolutely-positioned rail below */
+    position: relative;
   }
   .editor.ie-inline:has(.ie-layout) .ed-toolbar {
     grid-area: rail;
@@ -4672,16 +4674,27 @@ body:has(.drawer-overlay) { overflow: hidden; }
     overscroll-behavior: contain;
     scrollbar-width: none;
     margin: 0;
-    padding: 8px 0;
+    padding: 8px 0 26px;
     border-right: 1px solid var(--line);
-    /* the rail must NOT size its grid row — cap it to the canvas row
-       (42vh viewport + the options strip) and let it scroll instead */
-    max-height: calc(42vh + 58px);
+    /* the rail must NOT size its grid row (its content is ~900px tall and the
+       height:auto studio chain would grow the page to fit — the old vh cap
+       left the rail border ending mid-air instead). Absolutely positioning it
+       into its own grid area removes it from track sizing entirely while
+       keeping it exactly as tall as the canvas+options rows. */
+    position: absolute;
+    inset: 0;
+    /* fade the clipped edge so a half-cut tool reads as "scroll for more"
+       (the extra bottom padding keeps the last tool clear of the fade) */
+    -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 22px), rgba(0, 0, 0, 0.1));
+    mask-image: linear-gradient(180deg, #000 calc(100% - 22px), rgba(0, 0, 0, 0.1));
   }
   .editor.ie-inline:has(.ie-layout) .tb-sep { width: 22px; height: 1px; margin: 2px 0; }
   .editor.ie-inline:has(.ie-layout) .ie-layout { grid-area: canvas; min-height: 0; height: 100%; }
   .editor.ie-inline:has(.ie-layout) .ie-vpwrap { height: 100%; min-height: 0; }
-  .editor.ie-inline:has(.ie-layout) .ie-viewport { height: 100%; }
+  /* flex + margin:auto centers the canvas in the tall viewport (same trick as
+     the phone modal) and degrades to scrollable when zoomed past the viewport */
+  .editor.ie-inline:has(.ie-layout) .ie-viewport { height: 100%; display: flex; }
+  .editor.ie-inline:has(.ie-layout) .ie-inner { margin: auto; }
   .editor.ie-inline:has(.ie-layout) .ed-options { grid-area: options; margin: 0; }
   .editor.ie-inline:has(.ie-layout) .ed-foot { grid-area: foot; margin-top: 8px; }
   .editor.ie-inline:has(.ie-layout) .kbd-hints { display: none; }
@@ -4707,8 +4720,11 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .st-focus-btn { display: inline-flex; }
   .st-focus-btn.active { color: var(--accent); border-color: var(--accent); }
   /* chrome is hidden — reclaim its height, and reserve a bottom strip so the
-     FAB / save pill never cover the last controls */
+     FAB / save pill never cover the last controls. The topbar (which normally
+     carries the notch padding) is hidden too, so the bar must clear the status
+     bar itself in installed/standalone mode */
   .studio.st-focus { min-height: calc(100vh - 24px); min-height: calc(100dvh - 24px); }
+  .studio.st-focus { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
   .studio.st-focus .st-main { padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
   .studio.st-focus .split-gutter { display: none; }
   .studio.st-focus .type-badge,
@@ -4842,10 +4858,9 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .layers-panel.open .lp-colour { order: 8; }
   .layers-panel.open .lp-hist { order: 9; }
 
-  /* with the panel off-flow the inline canvas can breathe */
+  /* with the panel off-flow the inline canvas can breathe (the app-mode grid's
+     abspos rail tracks the canvas row automatically — no cap to sync anymore) */
   .editor.ie-inline .ie-viewport { height: 56vh; }
-  /* keep the rail cap in sync with the taller viewport */
-  .editor.ie-inline:has(.ie-layout) .ed-toolbar { max-height: calc(56vh + 58px); }
 }
 
 /* app-style drawing layout on phones AND short (landscape) viewports: the
@@ -4890,8 +4905,11 @@ body:has(.drawer-overlay) { overflow: hidden; }
     overscroll-behavior: contain;
     scrollbar-width: none;
     margin: 0;
-    padding: 8px 0;
+    padding: 8px 0 26px;
     border-right: 1px solid var(--line);
+    /* same scroll-hint fade as the inline rail */
+    -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 22px), rgba(0, 0, 0, 0.1));
+    mask-image: linear-gradient(180deg, #000 calc(100% - 22px), rgba(0, 0, 0, 0.1));
   }
   .editor-overlay > .editor:has(.ie-layout) .tb-sep { width: 22px; height: 1px; margin: 2px 0; }
 
@@ -4991,6 +5009,8 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .clip-edge { background: var(--accent-soft); }
   /* keyboard shortcut hints are noise without a keyboard */
   .kbd-hints, .dz-kbd { display: none; }
+  /* the cursor-coordinate readout never has a value without a hovering pointer */
+  .zf-xy { display: none; }
 }
 
 @media (pointer: coarse) {
@@ -5012,6 +5032,10 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .tl-scroll, .ie-viewport, .strip, .layers-panel, .editor { overscroll-behavior: contain; }
   /* horizontal strips: reaching their end must not chain into a page swipe */
   .ed-options, .ed-toolbar, .gif-transport { overscroll-behavior-x: contain; }
+  /* touch scrolls by swiping — a scrollbar squeezed into the thin options
+     strip just overlaps the swatches and reads as a glitch */
+  .ed-options { scrollbar-width: none; }
+  .ed-options::-webkit-scrollbar { display: none; }
 }
 
 /* ============ micro-interactions (project-wide) ============ */
