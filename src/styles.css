@@ -4721,22 +4721,25 @@ body:has(.drawer-overlay) { overflow: hidden; }
      asset panel and app chrome step aside until toggled back */
   .st-focus-btn { display: inline-flex; }
   .st-focus-btn.active { color: var(--accent); border-color: var(--accent); }
-  /* chrome is hidden — reclaim its height. Focus is an immersive fixed-height
-     workspace like the desktop studio, so it gets a REAL height, not just a
-     min-height: WebKit (iOS Safari) does not stretch flex children from a
-     min-height alone, which left a dead band under the editor on iPhones
-     (Chrome distributes min-height free space, hiding the bug in emulation).
-     The topbar (which normally carries the notch padding) is hidden too, so
-     the bar must clear the status bar itself in installed/standalone mode */
+  /* chrome is hidden — every focus workspace is FULL-BLEED: exactly 100dvh
+     tall (a REAL height, not just min-height — WebKit/iOS Safari does not
+     stretch flex children from a min-height alone, which left a dead band
+     under the editor on iPhones while Chrome hid the bug by distributing the
+     min-height free space), zero side gutters, and the bottom-most surface
+     extends into the home-indicator inset. The topbar (which normally carries
+     the notch padding) is hidden, so the studio clears the status bar itself */
   .studio.st-focus {
-    height: calc(100vh - 24px);
-    height: calc(100dvh - 24px);
-    min-height: calc(100vh - 24px);
-    min-height: calc(100dvh - 24px);
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 0 0;
   }
-  .studio.st-focus { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
-  /* nothing floats over the bottom anymore (assets + save live in the bar) */
-  .studio.st-focus .st-main { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  /* the bar keeps its own gutter now that the studio has none */
+  .studio.st-focus .st-bar { padding: 0 12px; }
+  /* nothing floats over the bottom — each workspace carries its own
+     safe-area-aware bottom padding instead */
+  .studio.st-focus .st-main { padding-bottom: 0; }
   .studio.st-focus .split-gutter { display: none; }
   .studio.st-focus .type-badge,
   .studio.st-focus .st-export,
@@ -4816,37 +4819,20 @@ body:has(.drawer-overlay) { overflow: hidden; }
     min-width: 60px;
     max-width: none;
   }
-  /* full-bleed image editing: in focus the image editor sheds ALL its card
-     chrome — app gutter, editor border/padding, viewport frame — so the canvas
-     reaches the screen edges (other project types keep their cards for now) */
-  body:has(.studio.st-focus .editor.ie-inline .ie-layout) .app.studio-mode {
-    padding-left: 0;
-    padding-right: 0;
-    padding-bottom: 0;
-  }
-  .studio.st-focus:has(.editor.ie-inline .ie-layout) {
-    padding-left: 0;
-    padding-right: 0;
-    padding-bottom: 0;
-    /* no app gutter left to subtract — the editor runs to the true bottom
-       (min-height must follow or it would override the shorter height) */
-    height: 100vh;
-    height: 100dvh;
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-  /* the bar keeps its own gutter now that the studio has none */
-  .studio.st-focus:has(.editor.ie-inline .ie-layout) .st-bar { padding: 0 12px; }
-  /* the options strip can sit right on the home-indicator inset */
-  .studio.st-focus:has(.editor.ie-inline .ie-layout) .st-main {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  .studio.st-focus .editor.ie-inline:has(.ie-layout) {
+  /* every inline editor sheds its card chrome in focus (border/radius/shadow);
+     the non-grid editors (gif / pdf / doc — no .ie-layout) keep a slim gutter,
+     own the bottom inset, and scroll internally since the studio height is
+     fixed now */
+  .studio.st-focus .editor.ie-inline {
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    padding: 0;
+    padding: 4px 10px calc(10px + env(safe-area-inset-bottom, 0px));
   }
+  .studio.st-focus .editor.ie-inline:not(:has(.ie-layout)) { overflow-y: auto; }
+  /* the image editor's app grid manages its own spacing — the options strip
+     runs edge to edge and its background fills the home-indicator inset */
+  .studio.st-focus .editor.ie-inline:has(.ie-layout) { padding: 0; }
   .studio.st-focus .editor.ie-inline:has(.ie-layout) .ie-viewport {
     border: 0;
     border-radius: 0;
@@ -4857,13 +4843,21 @@ body:has(.drawer-overlay) { overflow: hidden; }
     border-right: 0;
     border-bottom: 0;
     border-radius: 0;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
   }
+  /* audio / video workspaces have no card wrapper — same gutter + bottom inset */
+  .studio.st-focus .mixer,
+  .studio.st-focus .vw { padding: 0 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
   body:has(.studio.st-focus) .install-card { display: none; }
   body:has(.studio.st-focus) .topbar,
   body:has(.studio.st-focus) .m-tabbar,
   body:has(.studio.st-focus) .footer { display: none; }
   body:has(.studio.st-focus) .app,
-  body:has(.studio.st-focus) .app.studio-mode { padding-bottom: 12px; }
+  body:has(.studio.st-focus) .app.studio-mode {
+    padding-left: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+  }
 }
 
 /* ---- mobile image editor: bottom-sheet layers panel (≤720 AND short viewports —
