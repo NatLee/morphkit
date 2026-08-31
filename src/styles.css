@@ -4721,11 +4721,19 @@ body:has(.drawer-overlay) { overflow: hidden; }
      asset panel and app chrome step aside until toggled back */
   .st-focus-btn { display: inline-flex; }
   .st-focus-btn.active { color: var(--accent); border-color: var(--accent); }
-  /* chrome is hidden — reclaim its height, and reserve a bottom strip so the
-     FAB / save pill never cover the last controls. The topbar (which normally
-     carries the notch padding) is hidden too, so the bar must clear the status
-     bar itself in installed/standalone mode */
-  .studio.st-focus { min-height: calc(100vh - 24px); min-height: calc(100dvh - 24px); }
+  /* chrome is hidden — reclaim its height. Focus is an immersive fixed-height
+     workspace like the desktop studio, so it gets a REAL height, not just a
+     min-height: WebKit (iOS Safari) does not stretch flex children from a
+     min-height alone, which left a dead band under the editor on iPhones
+     (Chrome distributes min-height free space, hiding the bug in emulation).
+     The topbar (which normally carries the notch padding) is hidden too, so
+     the bar must clear the status bar itself in installed/standalone mode */
+  .studio.st-focus {
+    height: calc(100vh - 24px);
+    height: calc(100dvh - 24px);
+    min-height: calc(100vh - 24px);
+    min-height: calc(100dvh - 24px);
+  }
   .studio.st-focus { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
   /* nothing floats over the bottom anymore (assets + save live in the bar) */
   .studio.st-focus .st-main { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
@@ -4814,11 +4822,18 @@ body:has(.drawer-overlay) { overflow: hidden; }
   body:has(.studio.st-focus .editor.ie-inline .ie-layout) .app.studio-mode {
     padding-left: 0;
     padding-right: 0;
+    padding-bottom: 0;
   }
   .studio.st-focus:has(.editor.ie-inline .ie-layout) {
     padding-left: 0;
     padding-right: 0;
     padding-bottom: 0;
+    /* no app gutter left to subtract — the editor runs to the true bottom
+       (min-height must follow or it would override the shorter height) */
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
   /* the bar keeps its own gutter now that the studio has none */
   .studio.st-focus:has(.editor.ie-inline .ie-layout) .st-bar { padding: 0 12px; }
