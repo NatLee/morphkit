@@ -1059,6 +1059,14 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
         >
           {t('save')}
         </button>
+        {cur && (
+          <button className="btn btn-ghost btn-sm st-export" onClick={() => void exportProjectZip(cur)}>
+            {t('exportProject')}
+          </button>
+        )}
+        <button className="btn btn-ghost btn-sm st-del" onClick={() => void removeProject()}>
+          {t('deleteProject')}
+        </button>
         <button
           className={`btn btn-ghost btn-sm st-focus-btn${focus ? ' active' : ''}`}
           onClick={() => setFocus((v) => !v)}
@@ -1070,14 +1078,6 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           ) : (
             <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
           )}
-        </button>
-        {cur && (
-          <button className="btn btn-ghost btn-sm st-export" onClick={() => void exportProjectZip(cur)}>
-            {t('exportProject')}
-          </button>
-        )}
-        <button className="btn btn-ghost btn-sm st-del" onClick={() => void removeProject()}>
-          {t('deleteProject')}
         </button>
       </div>
 

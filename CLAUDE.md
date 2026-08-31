@@ -154,7 +154,8 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     a wide workspace's min-content (mixer lanes, pdf toolbar) blows a bare `1fr` track past the screen
     edge — and the `.st-body` single-column rule must repeat `.st-body:has(.st-assets.collapsed)`
     (that selector outranks a bare class, so the desktop max-content collapse template would win on
-    phones, where assets start collapsed). In focus mode `.studio` reclaims the hidden chrome's height;
+    phones, where assets start collapsed) AND pin rows to `auto minmax(0,1fr)` (default auto rows +
+    align-content stretch split the leftover height with the fit-content assets row → dead band). In focus mode `.studio` reclaims the hidden chrome's height;
     the assets toggle (`.st-fab` + badge) and the `.st-save` proxy live in the TOP `.st-bar` (nothing
     floats over the bottom) — `.st-save` dispatches `INLINE_SAVE_EVT` (lib/studioTypes) and every
     inline editor (Image/Gif/Pdf/Doc) listens while inline; the editors' `.ed-foot` is hidden in

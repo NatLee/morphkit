@@ -3459,8 +3459,16 @@ kbd {
 
 @media (max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px) {
   /* :has(.st-assets.collapsed) outranks a bare .st-body — repeat it here or the
-     desktop max-content collapse template wins and st-main blows past the screen */
-  .st-body, .st-body:has(.st-assets.collapsed) { grid-template-columns: minmax(0, 1fr); }
+     desktop max-content collapse template wins and st-main blows past the screen.
+     Rows must be pinned too: with the default auto rows, align-content's stretch
+     hands half the leftover height to the (fit-content) assets row, leaving a
+     dead band between the assets head and the editor */
+  .st-body, .st-body:has(.st-assets.collapsed) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  /* on phones the collapsed assets head has room for the count + size again */
+  .st-assets.collapsed .st-assets-head .asset-size { display: inline; }
 }
 
 .st-assets {
