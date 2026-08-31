@@ -440,6 +440,8 @@ const zh: Dict = {
   qrTitle: 'QR Code 工具',
   qrMake: '產生',
   qrRead: '解讀',
+  qrSecContent: '內容',
+  qrSecStyle: '樣式',
   qrTpl_url: '網址',
   qrTpl_text: '文字',
   qrTpl_wifi: 'Wi-Fi',
@@ -982,6 +984,8 @@ const en: Dict = {
   // ---- QR tool + notes ----
   qrTitle: 'QR Code tool',
   qrMake: 'Make',
+  qrSecContent: 'Content',
+  qrSecStyle: 'Style',
   qrRead: 'Read',
   qrTpl_url: 'URL',
   qrTpl_text: 'Text',
@@ -1525,6 +1529,8 @@ const ja: Dict = {
   // ---- QR tool + notes ----
   qrTitle: 'QR コードツール',
   qrMake: '作成',
+  qrSecContent: '内容',
+  qrSecStyle: 'スタイル',
   qrRead: '読み取り',
   qrTpl_url: 'URL',
   qrTpl_text: 'テキスト',

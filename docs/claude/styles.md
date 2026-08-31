@@ -79,12 +79,14 @@
 19. `sheet editor` — .sheet-editor .sheet-tools .sheet-tabs .sheet-tab(.active .sheet-add .sheet-del)
     .sheet-rename .sheet-grid(58vh scroller; sticky thead th top / tbody th left, .sh-corner z3; td input
     transparent, .num right-blue; .sel outlines; tr.sh-header tint) .sheet-more · ≤640 100dvh sheet, 16px inputs
-20. `qr tool` — .qr-tool .qr-tabs .qr-make(1fr|300px; 1 col ≤760, preview first) .qr-form .qr-tpl .qr-field
-    .qr-text .qr-style .qr-colors .qr-preview .qr-canvas(.checker) .qr-payload .qr-actions · .qr-read .qr-drop
+20. `qr tool` — .qr-tool .qr-tabs .qr-make(1fr|300px; 1 col ≤760, preview first) .qr-form ·
+    **.qr-sec grouped section cards** (content = .qr-tpl+fields wrapped, style = .qr-style.qr-sec;
+    .qr-sec-title mx-label heads each; .qr-preview is its own sunken stage card) · .qr-field
+    .qr-text .qr-style .qr-colors .qr-canvas(.checker) .qr-payload .qr-actions · .qr-read .qr-drop
     (.drop-hot) .qr-video .qr-read-actions .qr-result .qr-decoded .qr-kind(-url) · .fc-qr chip · .dz-note ·
     ≤640: topbar .qr-btn hidden; .qr-overlay z90 (< .m-tabbar z95 → the QR tab stays tappable and toggles
     the sheet); APP-STYLE sheet: 100dvh `overflow:hidden` (never scrolls as a whole) — .qr-make rows
-    `auto minmax(0,1fr)`: preview (order:-1, canvas sized by 22vh cap, .qr-payload hidden) + actions
+    `auto minmax(0,1fr)`: preview (order:-1, canvas 18vh cap, compact .qr-actions, .qr-payload hidden)
     pinned under the tabs, ONLY .qr-form scrolls; .qr-read scrolls likewise; .qr-foot pinned above the bar;
     .m-tabbar = repeat(4,1fr) — the rule lives in the MOBILE LAYER (an earlier-section override loses the cascade)
 21. `doc editor` — .doc-mdbar(2nd toolbar row, position:relative for popovers) .mdb-btn(.mdb-wide) .md-heading
@@ -140,6 +142,8 @@
 | `≤640px` (phone) | .app gutter 16px; .topbar wraps; hero compact; dropzone compact; .bb-actions full-width grow; file-card controls grow + .fc-details 1col; .fc-target hidden →
 .fc-chips target chip row shown (native select popup covered the card); **modal editors become full-width sheets** (.editor-overlay padding 0, .editor 100% wide, radius 0, safe-area padding, 100dvh cap); .media-preview.mp-video 34vh; .ie-viewport/.ie-canvas 44vh + .layers-panel 240px; .ed-toolbar + .gif-transport wrap into rows (.ed-options stays a nowrap scroller on purpose); drawer + studio compact; **text/number inputs + selects → 16px font (iOS focus-zoom guard)**; .fp-preview 180px; .vw-preview 26vh |
 | `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×3 (z95, safe-area padding); `.studio-toggle` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
+| `≤640px` (settings) | drawer → full-screen APP PAGE under the tab bar (z90/91, the 設定 tab toggles it like QR): flex column, head + `.drawer-bottom-close` pinned (close carries the 76px tab-bar clearance), ONLY `.settings-panel` scrolls |
+| app-mode (toolbars) | **mobile-layer block** (must stay after the ≤640 `.ed-toolbar{flex-wrap:wrap}` or it loses the cascade): `.pdf-tools` / `.mixer .gif-transport` / `.doc-tools` / `.doc-mdbar` become nowrap swipeable rows (scrollbar hidden, children flex-shrink 0); `.md-pop` goes `position:fixed` above the tab bar (the strip's overflow would clip an absolute popover) |
 | `@media (display-mode: standalone)` | installed PWA: `.footer` hidden; `.topbar` padding-top honors `env(safe-area-inset-top)` (22px desktop / 14px ≤640) |
 | `≤400px` | gutter 12px, hero-title 34px, lang buttons tighter |
 | `@supports (height:100dvh)` | .studio/.st-launcher/.editor/.type-modal switch to dvh (mobile URL-bar resize) |

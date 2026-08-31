@@ -31,7 +31,10 @@ export function DocEditor({ item, onSave, onClose, inline }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<'split' | 'source' | 'preview'>('split');
+  // phones/app-mode start in full-screen source view (a half-and-half split is
+  // cramped there); the media condition mirrors APP_MQ in Studio.tsx
+  const [view, setView] = useState<'split' | 'source' | 'preview'>(() =>
+    window.matchMedia('(max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px)').matches ? 'source' : 'split');
   const [wrap, setWrap] = useState(true);
   const [pop, setPop] = useState<'table' | 'qr' | null>(null);
   const [tblDim, setTblDim] = useState<{ r: number; c: number }>({ r: 2, c: 3 });
@@ -267,17 +270,33 @@ export function DocEditor({ item, onSave, onClose, inline }: Props) {
             <span className="tb-sep" />
             <MdBtn label="•—" tip={t('mdUl')} onClick={() => linesSel((l) => (l.trim() ? `- ${l.replace(/^(- \[[ x]\]|-|\d+\.)\s+/, '')}` : l))} />
             <MdBtn label="1." tip={t('mdOl')} onClick={() => linesSel((l, i) => (l.trim() ? `${i + 1}. ${l.replace(/^(- \[[ x]\]|-|\d+\.)\s+/, '')}` : l))} />
-            <MdBtn label="☑" tip={t('mdTask')} onClick={() => linesSel((l) => (l.trim() ? `- [ ] ${l.replace(/^(- \[[ x]\]|-|\d+\.)\s+/, '')}` : l))} />
+            <MdBtn
+              label={<svg viewBox="0 0 24 24" width="14" height="14"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M8.5 12.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              tip={t('mdTask')}
+              onClick={() => linesSel((l) => (l.trim() ? `- [ ] ${l.replace(/^(- \[[ x]\]|-|\d+\.)\s+/, '')}` : l))}
+            />
             <MdBtn label="❝" tip={t('mdQuote')} onClick={() => linesSel((l) => `> ${l}`)} />
             <span className="tb-sep" />
-            <MdBtn label="🔗" tip={`${t('mdLink')} (Ctrl+K)`} onClick={insertLink} />
-            <MdBtn label="🖼" tip={t('mdImage')} onClick={() => wrapSel('![', '](https://)', 'alt')} />
+            <MdBtn
+              label={<svg viewBox="0 0 24 24" width="14" height="14"><path d="M10 14a4 4 0 0 0 6 .4l3-3a4 4 0 0 0-5.6-5.6l-1.7 1.7M14 10a4 4 0 0 0-6-.4l-3 3a4 4 0 0 0 5.6 5.6l1.7-1.7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>}
+              tip={`${t('mdLink')} (Ctrl+K)`}
+              onClick={insertLink}
+            />
+            <MdBtn
+              label={<svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M5 17l4.5-4.5 3 3L16 12l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>}
+              tip={t('mdImage')}
+              onClick={() => wrapSel('![', '](https://)', 'alt')}
+            />
             <MdBtn label="▦" tip={t('mdTable')} onClick={() => setPop(pop === 'table' ? null : 'table')} />
             <MdBtn label="{ }" tip={t('mdCodeBlock')} onClick={() => { const { chunk } = sel(); insertBlock('```\n' + (chunk || 'code') + '\n```'); }} wide />
             <MdBtn label="—" tip={t('mdHr')} onClick={() => insertBlock('---')} />
             <span className="tb-sep" />
             <MdBtn label="☰" tip={t('mdToc')} onClick={insertToc} />
-            <MdBtn label="🕒" tip={t('mdDate')} onClick={() => { const { s, e } = sel(); const d = new Date().toLocaleString(); apply(text.slice(0, s) + d + text.slice(e), s + d.length, s + d.length); }} />
+            <MdBtn
+              label={<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>}
+              tip={t('mdDate')}
+              onClick={() => { const { s, e } = sel(); const d = new Date().toLocaleString(); apply(text.slice(0, s) + d + text.slice(e), s + d.length, s + d.length); }}
+            />
             <MdBtn label="⇄▦" tip={t('mdCsv')} onClick={csvToTable} wide />
             <MdBtn
               label={<svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2z" fill="none" stroke="currentColor" strokeWidth="2" /></svg>}

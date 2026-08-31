@@ -193,6 +193,8 @@ export function QrTool({ initialDecoded, onAddImage, onClose }: Props) {
         {tab === 'make' ? (
           <div className="qr-make">
             <div className="qr-form">
+              <div className="qr-sec">
+              <p className="mx-label qr-sec-title">{t('qrSecContent')}</p>
               <div className="ed-seg qr-tpl">
                 {(['url', 'text', 'wifi', 'vcard', 'mail'] as Template[]).map((k) => (
                   <button key={k} className={tpl === k ? 'active' : ''} onClick={() => setTpl(k)}>{t(`qrTpl_${k}`)}</button>
@@ -233,8 +235,10 @@ export function QrTool({ initialDecoded, onAddImage, onClose }: Props) {
                   <label className="qr-field"><span className="sp-label">{t('qrMailBody')}</span><textarea className="ed-input qr-text" rows={3} value={mail.body} onChange={(e) => setMail({ ...mail, body: e.target.value })} /></label>
                 </>
               )}
+              </div>
 
-              <div className="qr-style">
+              <div className="qr-style qr-sec">
+                <p className="mx-label qr-sec-title">{t('qrSecStyle')}</p>
                 <label className="qr-field"><span className="sp-label">{t('qrSize')} <span className="sp-val">{st.size}px</span></span><input type="range" min={128} max={2048} step={64} value={st.size} onChange={(e) => setSt({ ...st, size: Number(e.target.value) })} /></label>
                 <label className="qr-field"><span className="sp-label">{t('qrMargin')} <span className="sp-val">{st.margin}</span></span><input type="range" min={0} max={8} step={1} value={st.margin} onChange={(e) => setSt({ ...st, margin: Number(e.target.value) })} /></label>
                 <div className="qr-field">

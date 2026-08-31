@@ -233,7 +233,10 @@ MorphKit specials — `insertToc` (heading scan → slugged link list, CJK-safe,
 image, survives docx/pptx/pdf export). Popovers via `pop` state ('table'|'qr'), Esc closes pop before modal. On mount `docEditSource(file)` picks the edit `mode`
 (`md` for .md, .txt AND .docx/.pptx, `html`, `csv` (first sheet, `sheetName`), `json`, `text`) and the source text;
 `previewHtml(mode, text)` re-renders 250 ms after typing into `.doc-prose` (already sanitized by lib/docs).
-State: mode · text · orig (dirty check) · sheetName · html · loaded/error/busy · view split|source|preview · wrap.
+State: mode · text · orig (dirty check) · sheetName · html · loaded/error/busy · view split|source|preview
+(initial view = 'source' when the APP_MQ media condition matches — a half-split is cramped on phones) · wrap.
+The md-bar icons are ALL monochrome SVG/text glyphs (link/image/clock/task were color emoji — banned:
+they clash with the Cyberdeck palette and iOS renders them full-color).
 `save()` → `docSave(original, mode, text, sheetName)` regenerates the ORIGINAL format (docx/xlsx rebuilt) →
 App saveEditedDoc (replaces the item file, status ready, like images). Keys: Tab inserts \t, Ctrl+S saves, Esc closes.
 DOM: `.editor-overlay > .editor.editor-wide.doc-editor.view-* > .ed-head + .ed-toolbar.doc-tools (.chip mode ·
