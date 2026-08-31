@@ -3467,6 +3467,13 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
+  /* FOCUS: .st-assets is position:fixed (a bottom sheet) so .st-main is the
+     ONLY in-flow item — with the two-row template above it would land in the
+     auto row and the empty 1fr row would swallow the screen. One row only. */
+  .studio.st-focus .st-body,
+  .studio.st-focus .st-body:has(.st-assets.collapsed) {
+    grid-template-rows: minmax(0, 1fr);
+  }
   /* on phones the collapsed assets head has room for the count + size again */
   .st-assets.collapsed .st-assets-head .asset-size { display: inline; }
 }
