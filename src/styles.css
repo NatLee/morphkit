@@ -3706,7 +3706,9 @@ kbd {
 .trk-head {
   position: sticky;
   left: 0;
-  z-index: 3;
+  /* above the playhead (z4) and clips — scrolled timeline content must never
+     paint over the pinned track heads */
+  z-index: 5;
   width: 172px;
   flex-shrink: 0;
   background: var(--bg-raised);
@@ -3876,11 +3878,13 @@ kbd {
   z-index: 4;
 }
 
-/* focused track (BandLab-style) */
+/* focused track (BandLab-style). The head tint must stay OPAQUE — accent-soft
+   is translucent and the sticky head would see clips/grid/playhead bleed
+   through it when the timeline scrolls */
 .tl-row.active .trk-head {
   border-left: 3px solid var(--accent);
   padding-left: 7px;
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-raised));
 }
 
 .tl-row.active .lane { background-color: var(--accent-soft); }
