@@ -4965,26 +4965,38 @@ body:has(.drawer-overlay) { overflow: hidden; }
   /* video workspace content (preview + trim panel + mixer) can outgrow the
      fixed studio — scroll it in place rather than clipping */
   .studio.st-focus .vw { overflow-y: auto; overscroll-behavior: contain; }
-  /* gif inline goes app-style in focus (mirrors the phone modal): the preview
-     owns the screen, transport + film strip stay pinned, secondary controls
-     scroll in place — no whole-editor scrolling */
+  /* gif inline app-style in focus: the preview YIELDS (fixed 30vh — a flex:1
+     preview buried the settings below the fold with no hint they existed),
+     the transport is one swipeable row, and the settings own the rest of the
+     screen — visible by default, thin scrollbar when they do overflow */
   .studio.st-focus .editor.ie-inline:has(.gif-preview) { overflow: hidden; }
   .studio.st-focus .editor.ie-inline .ed-preview.gif-preview {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    height: 30vh;
     min-height: 120px;
     /* definite row so the canvas max-height:100% binds (see styles.md rule 5) */
     grid-template-rows: 100%;
     overflow: hidden;
   }
   .studio.st-focus .editor.ie-inline .gif-preview canvas { max-height: 100%; }
+  .studio.st-focus .editor.ie-inline:has(.gif-preview) .gif-transport {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .studio.st-focus .editor.ie-inline:has(.gif-preview) .gif-transport::-webkit-scrollbar { display: none; }
+  .studio.st-focus .editor.ie-inline:has(.gif-preview) .gif-transport > * { flex-shrink: 0; }
   .studio.st-focus .editor.ie-inline:has(.gif-preview) .ed-controls {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-height: 0;
-    /* roomier than the first cut (30vh was cramped), and inset from the
-       screen edges so the frame-range handles clear the iOS back-swipe zone */
-    max-height: 40vh;
-    padding: 0 10px 4px;
+    max-height: none;
+    border-top: 1px solid var(--line);
+    /* inset from the screen edges so the frame-range handles clear the iOS
+       back-swipe zone */
+    padding: 8px 10px 4px;
     overflow-y: auto;
+    scrollbar-width: thin;
     overscroll-behavior: contain;
   }
   /* pdf inline: toolbar + footer stay pinned, the page grid + preview scroll */
