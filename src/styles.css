@@ -1199,7 +1199,10 @@ select optgroup {
   gap: 16px 26px;
 }
 
-.sp-check {
+/* .sp-field.sp-check: the compound selector must outrank .sp-field below —
+   a bare .sp-check tied and lost, stacking every checkbox above its label */
+.sp-check,
+.sp-field.sp-check {
   flex-direction: row;
   align-items: center;
   gap: 10px;
@@ -3422,10 +3425,15 @@ kbd {
     overscroll-behavior: contain;
     padding-bottom: 8px;
   }
+  /* the style card packs two columns (the 160/220px floors collapsed it to
+     one full-width field per row — the settings needed scrolling to see) */
+  .qr-sec { padding: 10px 12px; gap: 8px; }
+  .qr-style { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+  .qr-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
   /* compact pinned preview: the square derives from a vh cap, not the sheet
      width, and the action buttons shrink so everything fits one card row */
   .qr-preview { padding: 10px; gap: 8px; }
-  .qr-canvas { width: auto; height: 18vh; max-height: 180px; aspect-ratio: 1; max-width: none; }
+  .qr-canvas { width: auto; height: 14vh; max-height: 150px; aspect-ratio: 1; max-width: none; }
   .qr-tool .qr-actions .btn { min-height: 34px; padding: 5px 12px; font-size: 13px; }
   .qr-payload { display: none; } /* the form below holds the same content — save the rows */
   .qr-read {
@@ -4972,7 +4980,7 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .studio.st-focus .editor.ie-inline:has(.gif-preview) { overflow: hidden; }
   .studio.st-focus .editor.ie-inline .ed-preview.gif-preview {
     flex: 0 0 auto;
-    height: 30vh;
+    height: 25vh;
     min-height: 120px;
     /* definite row so the canvas max-height:100% binds (see styles.md rule 5) */
     grid-template-rows: 100%;
@@ -5230,6 +5238,10 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .mixer .gif-transport > *,
   .doc-tools > *,
   .doc-mdbar > * { flex-shrink: 0; }
+  /* settings must fit the screen: the 170px column floor collapsed .ed-grid
+     to ONE full-width field per row on phones, making the settings taller
+     than the viewport — a 130px floor packs two columns */
+  .ed-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 12px; }
   /* the md-bar's popovers (table picker / QR) would be clipped by the strip's
      overflow — float them over the editor instead, bottom-sheet style */
   .md-pop {
