@@ -81,7 +81,9 @@
     transparent, .num right-blue; .sel outlines; tr.sh-header tint) .sheet-more · ≤640 100dvh sheet, 16px inputs
 20. `qr tool` — .qr-tool .qr-tabs .qr-make(1fr|300px; 1 col ≤760, preview first) .qr-form ·
     **.qr-sec grouped section cards** (content = .qr-tpl+fields wrapped, style = .qr-style.qr-sec;
-    .qr-sec-title mx-label heads each; .qr-preview is its own sunken stage card) · .qr-field
+    .qr-sec-title mx-label heads each; .qr-preview is its own sunken stage card) · **.qr-color-chip**
+    (tap-to-open colour rows: .qr-chip-dot/.qr-chip-hex/.qr-chip-caret, the ColorPicker renders only
+    while a chip is open — state in QrTool; ≤640 the .qr-foot close row is hidden, the ✕/QR-tab close) · .qr-field
     .qr-text .qr-style .qr-colors .qr-canvas(.checker) .qr-payload .qr-actions · .qr-read .qr-drop
     (.drop-hot) .qr-video .qr-read-actions .qr-result .qr-decoded .qr-kind(-url) · .fc-qr chip · .dz-note ·
     ≤640: topbar .qr-btn hidden; .qr-overlay z90 (< .m-tabbar z95 → the QR tab stays tappable and toggles
@@ -143,7 +145,7 @@
 .fc-chips target chip row shown (native select popup covered the card); **modal editors become full-width sheets** (.editor-overlay padding 0, .editor 100% wide, radius 0, safe-area padding, 100dvh cap); .media-preview.mp-video 34vh; .ie-viewport/.ie-canvas 44vh + .layers-panel 240px; .ed-toolbar + .gif-transport wrap into rows (.ed-options stays a nowrap scroller on purpose); drawer + studio compact; **text/number inputs + selects → 16px font (iOS focus-zoom guard)**; .fp-preview 180px; .vw-preview 26vh |
 | `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×3 (z95, safe-area padding); `.studio-toggle` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
 | `≤640px` (settings) | drawer → full-screen APP PAGE under the tab bar (z90/91, the 設定 tab toggles it like QR): flex column, head + `.drawer-bottom-close` pinned (close carries the 76px tab-bar clearance), ONLY `.settings-panel` scrolls |
-| app-mode (toolbars) | **mobile-layer block** (must stay after the ≤640 `.ed-toolbar{flex-wrap:wrap}` or it loses the cascade): `.pdf-tools` / `.mixer .gif-transport` / `.doc-tools` / `.doc-mdbar` become nowrap swipeable rows (scrollbar hidden, children flex-shrink 0); `.md-pop` goes `position:fixed` above the tab bar (the strip's overflow would clip an absolute popover) |
+| app-mode (toolbars) | **mobile-layer block** (must stay after the ≤640 `.ed-toolbar{flex-wrap:wrap}` or it loses the cascade): `.pdf-tools` / `.mixer .gif-transport` / `.doc-tools` / `.doc-mdbar` become nowrap swipeable rows (scrollbar hidden, children flex-shrink 0); `.md-pop` goes `position:fixed` above the tab bar (the strip's overflow would clip an absolute popover); `.vw-tabs` shows (video/audio pane switch, `.vw.vw-pane-*` hides the other pane); `.trk-head:not(.tl-corner)` is FORCED to 72px (= LANE_H) w/ compact name/buttons/gain — the coarse bumps grew it to ~90px and rows misaligned with their lanes |
 | `@media (display-mode: standalone)` | installed PWA: `.footer` hidden; `.topbar` padding-top honors `env(safe-area-inset-top)` (22px desktop / 14px ≤640) |
 | `≤400px` | gutter 12px, hero-title 34px, lang buttons tighter |
 | `@supports (height:100dvh)` | .studio/.st-launcher/.editor/.type-modal switch to dvh (mobile URL-bar resize) |

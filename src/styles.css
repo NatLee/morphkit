@@ -3331,6 +3331,30 @@ kbd {
 .qr-style .qr-sec-title { grid-column: 1 / -1; align-self: start; }
 .qr-colors { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .qr-colors .cp { max-width: 240px; }
+/* colour rows are tap-to-open chips — two always-on pickers dwarfed the card */
+.qr-color-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--ink);
+  font: 600 12px var(--font-mono);
+  cursor: pointer;
+}
+.qr-color-chip.open { border-color: var(--accent); box-shadow: var(--glow); }
+.qr-chip-dot {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+}
+.qr-chip-dot.checker { background: repeating-conic-gradient(#ccd 0 25%, #fff 0 50%) 0 0 / 8px 8px; }
+.qr-chip-hex { flex: 1; text-align: left; }
+.qr-chip-caret { color: var(--ink-faint); font-size: 10px; }
 .qr-preview {
   display: flex;
   flex-direction: column;
@@ -3380,8 +3404,11 @@ kbd {
     height: 100dvh;
     overflow: hidden;
     padding-top: max(14px, env(safe-area-inset-top));
-    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    /* just enough to clear the tab bar — the wider gap read as dead space */
+    padding-bottom: calc(58px + env(safe-area-inset-bottom));
   }
+  /* an app page needs no bottom close row: the head ✕ and the QR tab close it */
+  .qr-tool .qr-foot { display: none; }
   .qr-make {
     flex: 1 1 auto;
     min-height: 0;
@@ -4120,6 +4147,9 @@ kbd {
   flex: 1;
   min-height: 0;
 }
+
+/* phone-only video/audio pane switch — desktop shows both panes at once */
+.vw-tabs { display: none; align-self: flex-start; }
 
 .vw-top {
   display: grid;
@@ -4927,7 +4957,7 @@ body:has(.drawer-overlay) { overflow: hidden; }
   }
   /* audio / video workspaces have no card wrapper — same gutter + bottom inset */
   .studio.st-focus .mixer,
-  .studio.st-focus .vw { padding: 0 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .studio.st-focus .vw { padding: 0 10px calc(4px + env(safe-area-inset-bottom, 0px)); }
   /* video workspace content (preview + trim panel + mixer) can outgrow the
      fixed studio — scroll it in place rather than clipping */
   .studio.st-focus .vw { overflow-y: auto; overscroll-behavior: contain; }
@@ -4946,7 +4976,10 @@ body:has(.drawer-overlay) { overflow: hidden; }
   .studio.st-focus .editor.ie-inline:has(.gif-preview) .ed-controls {
     flex: 0 1 auto;
     min-height: 0;
-    max-height: 30vh;
+    /* roomier than the first cut (30vh was cramped), and inset from the
+       screen edges so the frame-range handles clear the iOS back-swipe zone */
+    max-height: 40vh;
+    padding: 0 10px 4px;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -5190,6 +5223,25 @@ body:has(.drawer-overlay) { overflow: hidden; }
     z-index: 140;
   }
   .md-pop-qr { width: auto; }
+  /* video workspace: one pane at a time — the stacked preview+trim+mixer was
+     cramped; the 影片/音軌 tabs switch between them (state in VideoWorkspace,
+     both stay mounted so playback / mixer state survives the toggle) */
+  .vw-tabs { display: inline-flex; }
+  .vw.vw-pane-video .mixer,
+  .vw.vw-pane-video .split-gutter.h { display: none; }
+  .vw.vw-pane-audio .vw-top { display: none; }
+  /* track heads must fit LANE_H (72px, mirrored in Mixer.tsx) — the coarse
+     button/input bumps grew them to ~90px and every row misaligned with its
+     72px lane (broken grid lines, off-by-a-row clip drags) */
+  .mixer .trk-head:not(.tl-corner) {
+    height: 72px;
+    overflow: hidden;
+    padding: 5px 8px;
+    gap: 2px;
+  }
+  .mixer .trk-name { padding: 0 4px; }
+  .mixer .trk-btns button { width: 26px; height: 18px; }
+  .mixer .trk-gain { height: 16px; margin: 0; }
 }
 
 /* ---- touch ergonomics ---- */

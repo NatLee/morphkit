@@ -43,6 +43,8 @@ export function VideoWorkspace({
   const [busy, setBusy] = useState(false);
   const [prog, setProg] = useState(0);
   const [note, setNote] = useState('');
+  // phone pane switch (video ↔ audio tracks) — desktop shows both, tabs hidden via CSS
+  const [pane, setPane] = useState<'video' | 'audio'>('video');
   // draggable layout: side-panel width + preview height (desktop only, CSS hides gutters ≤760)
   const sideSplit = useSplitter('morphkit-vwsw', 250, 200, 460, { invert: true });
   const prevSplit = useSplitter('morphkit-vwph', Math.round(window.innerHeight * 0.34), 140, 600, { axis: 'y' });
@@ -119,7 +121,18 @@ export function VideoWorkspace({
   // blank-start friendly: the workspace always renders; the preview slot
   // doubles as an inline video picker until one is chosen
   return (
-    <div className="vw">
+    <div className={`vw vw-pane-${pane}`}>
+      {/* phones (CSS-gated): the cramped stacked layout splits into two panes —
+          video (preview + trim + export) and the audio-track timeline */}
+      <div className="ed-seg vw-tabs">
+        <button className={pane === 'video' ? 'active' : ''} onClick={() => setPane('video')}>{t('vwTabVideo')}</button>
+        <button
+          className={pane === 'audio' ? 'active' : ''}
+          onClick={() => { videoRef.current?.pause(); setPane('audio'); }}
+        >
+          {t('vwTabAudio')}
+        </button>
+      </div>
       <div
         className="vw-top"
         style={{ '--vw-side-w': `${sideSplit.size}px`, '--vw-ph': `${prevSplit.size}px` } as CSSProperties}

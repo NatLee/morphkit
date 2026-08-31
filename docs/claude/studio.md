@@ -110,11 +110,13 @@ input.trk-gain) + .lane > .clip[.sel]{left:start*zoom, width:duration*zoom} (can
 have NO touch-action — touch-drag there must keep scrolling the timeline; ruler seek is tap-only.
 `.clip-edge` widened to 14px + visible tint on touch via media queries.
 
-## VideoWorkspace.tsx (~185)
+## VideoWorkspace.tsx (~200)
 
 Props: videoAsset|null, candidates, doc: VideoDoc, onDoc(fn) (functional patch), onRecorded,
 onAudioExtracted(wav, srcName), bufVer, names, activeTrackId, onActiveTrack, projectName.
 State: duration (loadedmetadata; back-fills trimEnd once) · busy · prog · note (extract failure, 4s) ·
+pane 'video'|'audio' (`.vw-tabs` seg — PHONE pane switch, CSS-gated: desktop shows both panes and hides
+the tabs; `.vw.vw-pane-*` hides the other pane, both stay mounted; switching to audio pauses the video) ·
 `sideSplit`/`prevSplit` = useSplitter('morphkit-vwsw' 200–460 / 'morphkit-vwph' 140–600 axis y) →
 `--vw-side-w`/`--vw-ph` vars on .vw-top + two .split-gutter elements (side width, preview height).
 Memo `url` objectURL (revoked). `onTrim(s,e)` scrubs `video.currentTime` to the moved handle (never

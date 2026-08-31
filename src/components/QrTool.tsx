@@ -31,6 +31,8 @@ export function QrTool({ initialDecoded, onAddImage, onClose }: Props) {
   const [card, setCard] = useState({ name: '', org: '', tel: '', email: '', url: '' });
   const [mail, setMail] = useState({ to: '', subject: '', body: '' });
   const [st, setSt] = useState<QrStyle>(DEFAULT_QR);
+  // colour pickers open on demand (two always-on pickers dwarfed the style card)
+  const [cpOpen, setCpOpen] = useState<null | 'fg' | 'bg'>(null);
   const [pngUrl, setPngUrl] = useState('');
   const [err, setErr] = useState('');
   const [copied, setCopied] = useState(false);
@@ -253,10 +255,23 @@ export function QrTool({ initialDecoded, onAddImage, onClose }: Props) {
                   </div>
                 </div>
                 <div className="qr-colors">
-                  <div className="qr-field"><span className="sp-label">{t('qrFg')}</span><ColorPicker value={st.fg} onChange={(c) => setSt({ ...st, fg: c })} /></div>
+                  <div className="qr-field">
+                    <span className="sp-label">{t('qrFg')}</span>
+                    <button type="button" className={`qr-color-chip${cpOpen === 'fg' ? ' open' : ''}`} onClick={() => setCpOpen(cpOpen === 'fg' ? null : 'fg')}>
+                      <span className="qr-chip-dot" style={{ background: st.fg }} />
+                      <span className="qr-chip-hex">{st.fg}</span>
+                      <span className="qr-chip-caret">▾</span>
+                    </button>
+                    {cpOpen === 'fg' && <ColorPicker value={st.fg} onChange={(c) => setSt({ ...st, fg: c })} />}
+                  </div>
                   <div className="qr-field">
                     <span className="sp-label">{t('qrBg')}</span>
-                    <ColorPicker value={st.bg || '#ffffff'} onChange={(c) => setSt({ ...st, bg: c })} />
+                    <button type="button" className={`qr-color-chip${cpOpen === 'bg' ? ' open' : ''}`} onClick={() => setCpOpen(cpOpen === 'bg' ? null : 'bg')}>
+                      <span className={`qr-chip-dot${st.bg ? '' : ' checker'}`} style={st.bg ? { background: st.bg } : undefined} />
+                      <span className="qr-chip-hex">{st.bg || t('qrTransparent')}</span>
+                      <span className="qr-chip-caret">▾</span>
+                    </button>
+                    {cpOpen === 'bg' && <ColorPicker value={st.bg || '#ffffff'} onChange={(c) => setSt({ ...st, bg: c })} />}
                     <label className="sp-field sp-check"><input type="checkbox" checked={!st.bg} onChange={(e) => setSt({ ...st, bg: e.target.checked ? '' : '#ffffff' })} /><span>{t('qrTransparent')}</span></label>
                   </div>
                 </div>
