@@ -3154,6 +3154,16 @@ kbd {
   .pdf-body:not(.with-preview) .pdf-preview { display: none; }
   .editor.ie-inline .pdf-grid { max-height: 40vh; height: auto; }
   .editor.ie-inline .pdf-preview { max-height: 46vh; height: auto; }
+  /* app-style: the many-button toolbar becomes ONE swipeable row instead of a
+     tall wrapped block — every tool reachable without burying the pages */
+  .pdf-tools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .pdf-tools::-webkit-scrollbar { display: none; }
+  .pdf-tools > * { flex-shrink: 0; }
 }
 @media (max-width: 640px) {
   .pdf-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; padding: 8px; max-height: none; flex: 1; }
@@ -3349,22 +3359,39 @@ kbd {
 @media (max-width: 640px) {
   .topbar .qr-btn { display: none; } /* the tab bar owns it on phones (4-col rule lives in the mobile layer) */
   /* the QR sheet lives UNDER the tab bar (z90 < z95): the QR tab toggles it closed, and the
-     sheet keeps clearance so its own footer close button is never hidden behind the bar */
+     sheet keeps clearance so its own footer close button is never hidden behind the bar.
+     APP-STYLE: the sheet itself never scrolls — the preview + actions stay pinned under
+     the tabs and only the FORM scrolls in place */
   .qr-overlay { z-index: 90; }
   .editor-overlay.qr-overlay > .editor.qr-tool {
     height: 100dvh;
-    overflow-y: auto;
+    overflow: hidden;
     padding-top: max(14px, env(safe-area-inset-top));
     padding-bottom: calc(76px + env(safe-area-inset-bottom));
   }
-  .qr-tool .ed-head {
-    position: sticky;
-    top: calc(-1 * max(14px, env(safe-area-inset-top)));
-    z-index: 5;
-    margin: -6px -2px 0;
-    padding: 6px 2px;
-    background: var(--bg-raised, var(--bg));
+  .qr-make {
+    flex: 1 1 auto;
+    min-height: 0;
+    /* preview (order:-1) pinned in the auto row, form scrolls in the 1fr row */
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
   }
+  .qr-form {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 8px;
+  }
+  /* compact pinned preview: the square derives from a vh cap, not the sheet width */
+  .qr-canvas { width: auto; height: 22vh; max-height: 220px; aspect-ratio: 1; max-width: none; }
+  .qr-payload { display: none; } /* the form below holds the same content — save the rows */
+  .qr-read {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .qr-foot { flex-shrink: 0; }
 }
 
 /* ============ studio ============ */
@@ -4863,6 +4890,35 @@ body:has(.drawer-overlay) { overflow: hidden; }
   /* audio / video workspaces have no card wrapper — same gutter + bottom inset */
   .studio.st-focus .mixer,
   .studio.st-focus .vw { padding: 0 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  /* video workspace content (preview + trim panel + mixer) can outgrow the
+     fixed studio — scroll it in place rather than clipping */
+  .studio.st-focus .vw { overflow-y: auto; overscroll-behavior: contain; }
+  /* gif inline goes app-style in focus (mirrors the phone modal): the preview
+     owns the screen, transport + film strip stay pinned, secondary controls
+     scroll in place — no whole-editor scrolling */
+  .studio.st-focus .editor.ie-inline:has(.gif-preview) { overflow: hidden; }
+  .studio.st-focus .editor.ie-inline .ed-preview.gif-preview {
+    flex: 1 1 auto;
+    min-height: 120px;
+    /* definite row so the canvas max-height:100% binds (see styles.md rule 5) */
+    grid-template-rows: 100%;
+    overflow: hidden;
+  }
+  .studio.st-focus .editor.ie-inline .gif-preview canvas { max-height: 100%; }
+  .studio.st-focus .editor.ie-inline:has(.gif-preview) .ed-controls {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 30vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* pdf inline: toolbar + footer stay pinned, the page grid + preview scroll */
+  .studio.st-focus .editor.ie-inline.pdf-editor { overflow: hidden; }
+  .studio.st-focus .editor.ie-inline .pdf-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .studio.st-focus .editor.ie-inline .pdf-grid { max-height: none; }
   body:has(.studio.st-focus) .install-card { display: none; }
   body:has(.studio.st-focus) .topbar,
   body:has(.studio.st-focus) .m-tabbar,
