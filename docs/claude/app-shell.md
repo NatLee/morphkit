@@ -56,7 +56,10 @@ div.app (+ .studio-mode)
   nav.m-tabbar > button×4 convert/studio/QR/settings (phone-only bottom tabs, hidden >640 via CSS;
     mirrors studio-toggle + settings drawer — topbar .studio-toggle hides ≤640;
     PORTALED to <body>: .app is a stacking context (z-index:1), so the bar's z95 was trapped
-    under body-portaled overlays like the QR sheet — z comparisons must happen at body level)
+    under body-portaled overlays like the QR sheet — z comparisons must happen at body level.
+    TABS ARE MUTUALLY EXCLUSIVE: every tab closes the other surfaces (setQrOpen(null) +
+    setShowSettings(false)) — the QR sheet is an overlay, not a route, and body-portaled QR
+    would cover the .app-trapped settings drawer if left open)
   footer.footer   (hidden in display-mode: standalone)
 ```
 

@@ -741,28 +741,32 @@ export default function App() {
       {createPortal(
       <nav className="m-tabbar" aria-label="MorphKit">
         <button
-          className={mode === 'convert' && !showSettings ? 'active' : ''}
-          onClick={() => { setMode('convert'); setShowSettings(false); }}
+          className={mode === 'convert' && !showSettings && qrOpen == null ? 'active' : ''}
+          onClick={() => { setMode('convert'); setShowSettings(false); setQrOpen(null); }}
         >
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h11m0 0-3-3m3 3-3 3M20 17H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span>{t('tabConvert')}</span>
         </button>
         <button
-          className={mode === 'studio' && !showSettings ? 'active' : ''}
+          className={mode === 'studio' && !showSettings && qrOpen == null ? 'active' : ''}
           onClick={() => {
             setMode('studio');
             setStudioEnterId(null);
             setShowSettings(false);
+            setQrOpen(null);
           }}
         >
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span>Studio</span>
         </button>
-        <button className={qrOpen != null ? 'active' : ''} onClick={() => setQrOpen((v) => (v == null ? '' : null))}>
+        <button className={qrOpen != null ? 'active' : ''} onClick={() => { setShowSettings(false); setQrOpen((v) => (v == null ? '' : null)); }}>
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2zM14 20h1M20 18v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
           <span>QR</span>
         </button>
-        <button className={showSettings ? 'active' : ''} onClick={() => setShowSettings((v) => !v)}>
+        {/* tabs are mutually exclusive: every tab closes the other surfaces —
+            the QR sheet is body-portaled (z90) and would cover the settings
+            drawer (trapped in .app's stacking context) if left open */}
+        <button className={showSettings ? 'active' : ''} onClick={() => { setQrOpen(null); setShowSettings((v) => !v); }}>
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10.3 3.6a2 2 0 0 1 3.4 0l.6 1a2 2 0 0 0 2.1.9l1.1-.2a2 2 0 0 1 2.3 2.3l-.2 1.1a2 2 0 0 0 .9 2.1l1 .6a2 2 0 0 1 0 3.4l-1 .6a2 2 0 0 0-.9 2.1l.2 1.1a2 2 0 0 1-2.3 2.3l-1.1-.2a2 2 0 0 0-2.1.9l-.6 1a2 2 0 0 1-3.4 0l-.6-1a2 2 0 0 0-2.1-.9l-1.1.2a2 2 0 0 1-2.3-2.3l.2-1.1a2 2 0 0 0-.9-2.1l-1-.6a2 2 0 0 1 0-3.4l1-.6a2 2 0 0 0 .9-2.1l-.2-1.1A2 2 0 0 1 6.5 5.3l1.1.2a2 2 0 0 0 2.1-.9z" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
           <span>{t('tabSettings')}</span>
         </button>

@@ -3402,7 +3402,8 @@ kbd {
      sheet keeps clearance so its own footer close button is never hidden behind the bar.
      APP-STYLE: the sheet itself never scrolls — the preview + actions stay pinned under
      the tabs and only the FORM scrolls in place */
-  .qr-overlay { z-index: 90; }
+  /* opaque page, not a dimmed modal — the QR tool is a TAB on phones */
+  .qr-overlay { z-index: 90; background: var(--bg); backdrop-filter: none; }
   .editor-overlay.qr-overlay > .editor.qr-tool {
     height: 100dvh;
     overflow: hidden;
@@ -5011,6 +5012,14 @@ html:has(.drawer-overlay) { overflow-y: clip; }
     overflow-y: auto;
     scrollbar-width: thin;
     overscroll-behavior: contain;
+    /* scroll SHADOWS: a bottom glow appears only while more settings hide
+       below the fold (local covers over scroll-attached shadows at the ends) */
+    background:
+      linear-gradient(var(--bg) 30%, transparent) top / 100% 26px local,
+      linear-gradient(transparent, var(--bg) 70%) bottom / 100% 26px local,
+      radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--accent) 45%, transparent), transparent) top / 100% 12px scroll,
+      radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--accent) 45%, transparent), transparent) bottom / 100% 12px scroll;
+    background-repeat: no-repeat;
   }
   /* pdf inline: toolbar + footer stay pinned, the page grid + preview scroll */
   .studio.st-focus .editor.ie-inline.pdf-editor { overflow: hidden; }
