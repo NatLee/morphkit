@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { zipSync } from 'fflate';
 import { Hero } from './components/Hero';
 import { DropZone } from './components/DropZone';
@@ -733,7 +734,11 @@ export default function App() {
       <InstallPrompt />
 
       {/* phone-only bottom tab bar (hidden >640px via CSS) — the app-like
-          primary nav; mirrors topbar Studio toggle + settings drawer */}
+          primary nav; mirrors topbar Studio toggle + settings drawer.
+          PORTALED to <body>: .app is a stacking context (z-index:1), so the
+          bar's z95 was trapped under body-portaled overlays like the QR sheet
+          (z90 at body level beats the whole .app) */}
+      {createPortal(
       <nav className="m-tabbar" aria-label="MorphKit">
         <button
           className={mode === 'convert' && !showSettings ? 'active' : ''}
@@ -761,7 +766,8 @@ export default function App() {
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10.3 3.6a2 2 0 0 1 3.4 0l.6 1a2 2 0 0 0 2.1.9l1.1-.2a2 2 0 0 1 2.3 2.3l-.2 1.1a2 2 0 0 0 .9 2.1l1 .6a2 2 0 0 1 0 3.4l-1 .6a2 2 0 0 0-.9 2.1l.2 1.1a2 2 0 0 1-2.3 2.3l-1.1-.2a2 2 0 0 0-2.1.9l-.6 1a2 2 0 0 1-3.4 0l-.6-1a2 2 0 0 0-2.1-.9l-1.1.2a2 2 0 0 1-2.3-2.3l.2-1.1a2 2 0 0 0-.9-2.1l-1-.6a2 2 0 0 1 0-3.4l1-.6a2 2 0 0 0 .9-2.1l-.2-1.1A2 2 0 0 1 6.5 5.3l1.1.2a2 2 0 0 0 2.1-.9z" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
           <span>{t('tabSettings')}</span>
         </button>
-      </nav>
+      </nav>,
+      document.body)}
 
       <footer className="footer">
         <p>

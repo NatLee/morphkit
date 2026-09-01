@@ -4569,9 +4569,14 @@ kbd {
 /* notch / home-indicator clearance (env() = 0 on desktop) */
 .st-note { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 
-/* lock page scroll behind full-screen surfaces (no-op where :has unsupported) */
+/* lock page scroll behind full-screen surfaces (no-op where :has unsupported).
+   The html rule is REQUIRED: html carries overflow-x:clip, which cancels the
+   body→viewport overflow propagation — a body-only lock left the page (and
+   its scrollbar) live behind every modal */
 body:has(.editor-overlay),
 body:has(.drawer-overlay) { overflow: hidden; }
+html:has(.editor-overlay),
+html:has(.drawer-overlay) { overflow-y: clip; }
 
 /* ---- phones ---- */
 

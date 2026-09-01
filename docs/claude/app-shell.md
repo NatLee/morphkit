@@ -54,7 +54,9 @@ div.app (+ .studio-mode)
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
   <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
   nav.m-tabbar > button×4 convert/studio/QR/settings (phone-only bottom tabs, hidden >640 via CSS;
-    mirrors studio-toggle + settings drawer — topbar .studio-toggle hides ≤640)
+    mirrors studio-toggle + settings drawer — topbar .studio-toggle hides ≤640;
+    PORTALED to <body>: .app is a stacking context (z-index:1), so the bar's z95 was trapped
+    under body-portaled overlays like the QR sheet — z comparisons must happen at body level)
   footer.footer   (hidden in display-mode: standalone)
 ```
 
