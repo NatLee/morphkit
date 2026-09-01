@@ -346,7 +346,9 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
   const focusPage = focusIdx >= 0 ? pages[focusIdx] : null;
   const focusKey = focusPage ? `${focusPage.id}:${focusPage.rotate}:${focusPage.flipH}:${focusPage.flipV}:${focusPage.overlay?.size ?? 0}:${focusPage.watermark}` : '';
   useEffect(() => {
-    if (!previewOpen || !focusPage) { setPreview(null); return; }
+    if (!focusPage) { setPreview(null); return; }
+    // closed: keep the last rendered image so the aside can slide shut without popping
+    if (!previewOpen) return;
     let alive = true;
     void (async () => {
       try {
@@ -884,9 +886,9 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
           </div>
 
           <div className="split-gutter pdf-gutter" {...prevSplit.gutterProps} />
+          {/* children stay MOUNTED while closed (CSS visibility hides them) — unmounting
+              mid-transition pops the content out before the width animation runs */}
           <aside className="pdf-preview" aria-hidden={!previewOpen}>
-          {previewOpen && (
-            <>
               <div className="pdf-preview-bar">
                 <button className="btn btn-ghost btn-sm" disabled={focusIdx <= 0} onClick={() => { const p = pages[focusIdx - 1]; setSel(new Set([p.id])); setAnchor(p.id); }} aria-label={t('pdfMoveL')}><Icon d="M15 6l-6 6 6 6" /></button>
                 <span className="pdf-num">{focusIdx >= 0 ? `${focusIdx + 1} / ${pages.length}` : '—'}</span>
@@ -938,8 +940,6 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
                   ))}
                 </div>
               )}
-            </>
-          )}
           </aside>
         </div>
 

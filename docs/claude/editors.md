@@ -153,7 +153,9 @@ history; a note textarea blur commits.
 
 **State**: pages (+`pagesRef`) · sel · anchor · loaded/error/busy/prog/note (flash) · dragIdx/overIdx ·
 editing `{pageId, file, base}` (nested ImageEditor; `base` = undecorated render for the diff) · addAt ·
-previewOpen (aside stays MOUNTED; `.with-preview` animates its width — never unmount it or the toggle pops) ·
+previewOpen (aside AND its children stay MOUNTED — `.with-preview` animates the width, CSS `visibility`
+flips after the slide, the preview effect keeps the last image while closed; the MODAL shell is
+fixed-height `min(920px,100%)` so toggling never resizes/re-centers it — never unmount or the toggle pops) ·
 preview `{id, url, w, h}` (of `focusPage` = last selected) · prevSplit (useSplitter 'morphkit-pdfpw' 280–800 →
 `--pdf-prev-w` on .pdf-body, dragged via .split-gutter.pdf-gutter, hidden ≤760) · zoomed (full-screen
 `.pdf-zoom` lightbox: non-note click on the preview page opens it, Esc/click closes — Esc handler checks

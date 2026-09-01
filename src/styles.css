@@ -2887,6 +2887,8 @@ kbd {
 /* ============ pdf editor ============ */
 /* page-thumb grid; the modal shell (.editor/.ed-head/.ed-toolbar/.ed-foot) is shared */
 .pdf-editor { display: flex; flex-direction: column; }
+/* only .pdf-body absorbs a height squeeze — chrome rows (head/toolbar/wm/foot) never compress */
+.pdf-editor > :not(.pdf-body) { flex-shrink: 0; }
 .pdf-tools { flex-wrap: wrap; row-gap: 6px; }
 .pdf-tools .btn-sm { display: inline-flex; align-items: center; gap: 6px; }
 .pdf-tools .pdf-del:not(:disabled):hover { color: var(--danger); border-color: var(--danger); }
@@ -3001,9 +3003,11 @@ kbd {
 .fc-lock.open { opacity: 0.75; }
 
 /* body = page grid | drag-resizable live preview (--pdf-prev-w via useSplitter; ≤760 stacks).
-   The aside stays MOUNTED and animates its width so toggling never pops. */
-.pdf-body { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 12px; min-height: 0; }
-.pdf-gutter { width: 8px; align-self: stretch; }
+   The aside (and its children — see PdfEditor.tsx) stays MOUNTED and animates its width so
+   toggling never pops; `visibility` flips AFTER the slide so hidden content leaves the tab order. */
+.pdf-body { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 12px; min-height: 0; transition: gap 0.28s ease; }
+.pdf-body:not(.with-preview) { gap: 0; }
+.pdf-gutter { width: 8px; align-self: stretch; transition: width 0.28s ease; }
 .pdf-body:not(.with-preview) .pdf-gutter { width: 0; pointer-events: none; visibility: hidden; }
 .pdf-preview {
   display: flex;
@@ -3017,7 +3021,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: var(--wobble-sm);
   overflow: hidden;
-  transition: width 0.28s ease, opacity 0.22s ease, padding 0.28s ease;
+  transition: width 0.28s ease, opacity 0.22s ease, padding 0.28s ease, visibility 0s linear 0s;
 }
 .pdf-body:not(.with-preview) .pdf-preview {
   width: 0;
@@ -3025,7 +3029,16 @@ kbd {
   border-width: 0;
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
+  transition: width 0.28s ease, opacity 0.22s ease, padding 0.28s ease, visibility 0s linear 0.28s;
 }
+/* the MODAL shell keeps one fixed size — the collapsing aside used to shrink the content
+   height and the centered overlay re-laid the whole editor out every frame (shake, then a
+   smaller window). Inline (Studio) already fills the workspace. ≤640 overrides to 100dvh. */
+.editor-overlay > .editor.pdf-editor { height: min(920px, 100%); }
+.editor-overlay > .editor.pdf-editor .pdf-body { flex: 1 1 auto; min-height: 0; }
+.editor-overlay > .editor.pdf-editor .pdf-grid,
+.editor-overlay > .editor.pdf-editor .pdf-preview { max-height: none; height: 100%; }
 .pdf-preview-bar { display: flex; align-items: center; gap: 6px; }
 .pdf-preview-bar .pdf-num { flex: 0 0 auto; min-width: 64px; }
 .pdf-dims { margin-left: auto; }
@@ -3155,6 +3168,9 @@ kbd {
   .pdf-gutter { display: none; }
   .pdf-preview { width: auto; max-height: 52vh; transition: none; }
   .pdf-body:not(.with-preview) .pdf-preview { display: none; }
+  /* stacked rows: undo the desktop modal's fill-height panels (100% of an auto row is junk) */
+  .editor-overlay > .editor.pdf-editor .pdf-grid { height: auto; max-height: 64vh; }
+  .editor-overlay > .editor.pdf-editor .pdf-preview { height: auto; max-height: 52vh; }
   .editor.ie-inline .pdf-grid { max-height: 40vh; height: auto; }
   .editor.ie-inline .pdf-preview { max-height: 46vh; height: auto; }
 }
@@ -3162,6 +3178,8 @@ kbd {
   .pdf-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; padding: 8px; max-height: none; flex: 1; }
   .editor-overlay > .editor.pdf-editor { height: 100dvh; }
   .editor-overlay > .editor.pdf-editor .pdf-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  /* the body is the scroller here — the grid must grow (beats the stacked-block 64vh cap) */
+  .editor-overlay > .editor.pdf-editor .pdf-grid { max-height: none; }
   .pdf-editor .kbd-hints { display: none; }
   .pdf-wm-text { grid-column: 1 / -1; }
   .pdf-x-row { flex-wrap: wrap; }

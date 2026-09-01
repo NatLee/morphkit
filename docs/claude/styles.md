@@ -68,8 +68,11 @@
     .pdf-grid(auto-fill 150px, max-h 58vh scroller; ≤640 112px + flex:1 inside a 100dvh sheet) .pdf-status
     .pdf-page(.sel glow · .dragging · .over-before/.over-after neon drop bar) .pdf-thumb(aspect-ratio inline)
     .pdf-badge(.rot .deco) .pdf-page-foot .pdf-num .pdf-check(.on) .pdf-ins(28px on coarse pointers) .pdf-progress ·
-    .pdf-body(1fr|auto|auto grid; .with-preview shows the aside — width min(--pdf-prev-w,46vw) animates,
-    closed = width 0 still mounted; 1 col ≤760) .pdf-gutter(splitter; hidden ≤760) .pdf-preview(64vh) .pdf-preview-bar .pdf-dims
+    .pdf-body(1fr|auto|auto grid; .with-preview shows the aside — width min(--pdf-prev-w,46vw) + gap animate,
+    closed = width 0 still mounted, visibility flips after the slide; 1 col ≤760) .pdf-gutter(splitter; hidden ≤760)
+    .pdf-preview(64vh) — modal shell is FIXED height min(920px,100%) w/ grid+preview height:100% (stacked
+    breakpoints reset to auto; ≤640 grid grows again) so the preview toggle never resizes the modal ·
+    .pdf-preview-bar .pdf-dims
     .pdf-preview-stage(.noting crosshair) .pdf-preview-page(.zoomable zoom-in cursor; img pdfPrevIn fade)
     .pdf-zoom(z140 lightbox + .pdf-zoom-close) .pdf-note-pin(.active) .pdf-notes .pdf-note-row(.active)
     .pdf-note-idx · .pdf-wm(auto-fit grid) .pdf-wm-field(.pdf-wm-text .pdf-wm-color) .pdf-wm-btns .pdf-wm-apply ·
