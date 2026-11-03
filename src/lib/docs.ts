@@ -127,7 +127,13 @@ export function htmlToText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const out: string[] = [];
   const walk = (n: Node) => {
-    if (n.nodeType === Node.TEXT_NODE) { out.push((n.textContent ?? '').replace(/\s+/g, ' ')); return; }
+    if (n.nodeType === Node.TEXT_NODE) {
+      let s = (n.textContent ?? '').replace(/\s+/g, ' ');
+      // whitespace between block tags ("</p>\n<p>") must not indent the next line
+      if (!out.length || out[out.length - 1].endsWith('\n')) s = s.replace(/^ /, '');
+      if (s) out.push(s);
+      return;
+    }
     if (n.nodeType !== Node.ELEMENT_NODE) return;
     const el = n as HTMLElement;
     const tag = el.tagName.toLowerCase();
