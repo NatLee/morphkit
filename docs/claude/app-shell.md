@@ -137,7 +137,7 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
 - **DropZone.tsx (80)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden
-  `input[type=file multiple accept=image/*,audio/*,video/*,application/pdf,.pdf,.docx,.pptx,.md,…,.xlsx,.json]`;
+  `input[type=file multiple]` with `accept={ACCEPT}` (built in lib/formats from every extension detectKind knows);
   optional `onNewNote` renders the `.dz-note` blank-Markdown link (stopPropagation).; drag handlers + click + Enter/Space;
   input value reset after pick so same file re-picks. Prop `compact` (App: items exist) swaps the
   hero layout for a slim row (plus glyph + `dropMore` + kbd hint, `.dz-compact` CSS).

@@ -1,5 +1,6 @@
 import { useRef, useState, type DragEvent } from 'react';
 import { useI18n } from '../i18n';
+import { ACCEPT } from '../lib/formats';
 
 /** `compact`: slim add-more strip shown once the file list exists below. */
 export function DropZone({ onFiles, compact = false, onNewNote }: { onFiles: (files: File[]) => void; compact?: boolean; onNewNote?: () => void }) {
@@ -59,7 +60,7 @@ export function DropZone({ onFiles, compact = false, onNewNote }: { onFiles: (fi
         type="file"
         multiple
         hidden
-        accept="image/*,audio/*,video/*,application/pdf,.pdf,.docx,.md,.markdown,.txt,.html,.htm,.csv,.tsv,.xlsx,.xls,.ods,.json,.pptx"
+        accept={ACCEPT}
         onChange={(e) => {
           onFiles(Array.from(e.target.files ?? []));
           e.target.value = '';

@@ -12,7 +12,8 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
 1. `src/lib/formats.ts` — add the extension to `IMAGE_EXT`/`AUDIO_EXT`/`VIDEO_EXT`.
    `detectKind` checks MIME prefix first, then these lists. Decoding is the browser's or
    ffmpeg's job — no other wiring needed unless the browser can't decode it.
-2. If DropZone's `accept="image/*,audio/*,video/*"` wouldn't match the MIME, extend it.
+2. Nothing else to touch for the file pickers: DropZone and Studio use `ACCEPT` from
+   formats.ts, which is built from these lists.
 
 ## New OUTPUT format
 

@@ -11,7 +11,7 @@ import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
 import { Overlay } from './Overlay';
 import { createPortal } from 'react-dom';
-import { detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
+import { ACCEPT, detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
 import { extractMeta, fmtDuration, type FileMeta } from '../lib/metadata';
 import { useSplitter } from '../lib/useSplitter';
@@ -1113,7 +1113,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
             type="file"
             multiple
             hidden
-            accept="image/*,audio/*,video/*,application/pdf,.pdf,.docx,.pptx,.md,.markdown,.txt,.html,.htm,.csv,.tsv,.xlsx,.xls,.ods,.json"
+            accept={ACCEPT}
             onChange={(e) => {
               void importFiles(Array.from(e.target.files ?? []));
               e.target.value = '';

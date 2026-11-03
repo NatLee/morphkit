@@ -49,7 +49,7 @@ audio/video get tracks+clips+timeline, video adds dims/duration/trim, image adds
 gif adds dims; never show track counts on an image project) ·
 `flattenImageProject` (≤320px launcher thumb) · `noteThumb` (doc assets: paints first lines on a 320×200 canvas — an .md blob is NOT an <img> src; the thumbs effect branches doc → noteThumb, pdf → extractMeta preview, before the generic object-URL branch) · `savePatch(patch)` — THE mutation funnel
 (merge curRef → setProjects → debounced putProject) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
-`createProject`/`removeProject`/`renameProject` · `importFiles` (its hidden input accept covers image/audio/video/pdf/document extensions) · `removeAsset` (must strip clips +
+`createProject`/`removeProject`/`renameProject` · `importFiles` (hidden input uses the shared `ACCEPT` from lib/formats) · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
 `withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `onAudioExtracted` (extracted WAV →
 `*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` (delegates to
