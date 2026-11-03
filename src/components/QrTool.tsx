@@ -15,6 +15,18 @@ interface Props {
   onClose: () => void;
 }
 
+/** Labelled text input for the template forms. It lives at module level on purpose: declared
+    inside QrTool it was a new component type on every render, so React remounted the <input>
+    after each keystroke and focus was lost after the first character. */
+function Field({ label, value, onChange, type = 'text', placeholder = '' }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+  return (
+    <label className="qr-field">
+      <span className="sp-label">{label}</span>
+      <input className="ed-input" type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
 /**
  * QR tool — two tabs. MAKE: templates (text / URL / Wi-Fi / vCard / mail) → live preview with
  * colours, size, quiet zone, ECC and an optional centre logo; download PNG/SVG, copy, or send the
@@ -169,13 +181,6 @@ export function QrTool({ initialDecoded, onAddImage, onClose }: Props) {
   }, [onClose]);
 
   const kind = decoded ? classifyPayload(decoded) : 'text';
-  const Field = ({ label, value, onChange, type = 'text', placeholder = '' }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) => (
-    <label className="qr-field">
-      <span className="sp-label">{label}</span>
-      <input className="ed-input" type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-    </label>
-  );
-
   const body = (
     // .qr-overlay: on phones this overlay sits BELOW the tab bar (z90 < z95) so the QR tab
     // itself toggles the tool closed — the top-right X was unreachable under browser chrome

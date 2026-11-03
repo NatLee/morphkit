@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
-import { docEditSource, docSave, previewHtml, type EditMode } from '../lib/docs';
+import { countWords, docEditSource, docSave, previewHtml, type EditMode } from '../lib/docs';
 import { INLINE_SAVE_EVT } from '../lib/studioTypes';
 import { docTypeOf } from '../lib/formats';
 import type { Item } from '../types';
@@ -216,7 +216,7 @@ export function DocEditor({ item, onSave, onClose, inline }: Props) {
     return () => window.removeEventListener('keydown', k);
   }, [onClose, inline, pop]);
 
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const words = countWords(text);
   const lines = text ? text.split('\n').length : 0;
   const dirty = text !== orig;
   const modeLabel = { md: 'Markdown', text: t('docModeText'), html: 'HTML', csv: `CSV${sheetName ? ` · ${sheetName}` : ''}`, json: 'JSON' }[mode];

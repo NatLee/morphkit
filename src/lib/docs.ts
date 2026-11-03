@@ -127,7 +127,13 @@ export function htmlToText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const out: string[] = [];
   const walk = (n: Node) => {
-    if (n.nodeType === Node.TEXT_NODE) { out.push((n.textContent ?? '').replace(/\s+/g, ' ')); return; }
+    if (n.nodeType === Node.TEXT_NODE) {
+      let s = (n.textContent ?? '').replace(/\s+/g, ' ');
+      // whitespace between block tags ("</p>\n<p>") must not indent the next line
+      if (!out.length || out[out.length - 1].endsWith('\n')) s = s.replace(/^ /, '');
+      if (s) out.push(s);
+      return;
+    }
     if (n.nodeType !== Node.ELEMENT_NODE) return;
     const el = n as HTMLElement;
     const tag = el.tagName.toLowerCase();
@@ -140,6 +146,20 @@ export function htmlToText(html: string): string {
   };
   doc.body.childNodes.forEach(walk);
   return out.join('').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+}
+
+/** Han, kana and the long-vowel mark: word processors count each of these as one word. */
+const CJK_CHAR = /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}ー]/gu;
+
+/**
+ * Word count for mixed CJK / Latin text: every CJK character is one word, everything else splits
+ * on whitespace, and tokens without a letter or digit (Markdown "-", "|", "#") are not words.
+ * Shared by the file card (rendered text) and the editor (source text) so both agree.
+ */
+export function countWords(text: string): number {
+  const cjk = text.match(CJK_CHAR)?.length ?? 0;
+  const rest = text.replace(CJK_CHAR, ' ').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+  return cjk + rest;
 }
 
 /**

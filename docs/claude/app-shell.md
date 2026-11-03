@@ -19,7 +19,7 @@ LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme
 **Functions** (greppable): `acquireSlot`/`releaseSlot` · `updateSettings` · `patch(id, partial)` ·
 `addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (doc→`convertDoc` (multi → .zip) / pdf→pdfToImages|pdfToText|pdf→docx/md/html via text→convertDoc|
 mergeToPdf re-save, multi-page raster swaps `outName` to .zip / image→pdf→imageToPdf / image→convertImage /
-apng|gif→convertAnimImage / else convertMedia) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
+apng|gif→convertAnimImage / else convertMedia) · `changeTarget` (no-op when unchanged — re-tapping the active phone chip keeps the result; else revokes `outUrl`) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
 queue through semaphore) · `addNote(text)` (Ctrl+V plain text or the DropZone `.dz-note` link → note-N.md doc item, editor opens) ·
 `qrOpen` state (null closed / '' maker / text reader) renders `<QrTool>` (its .qr-overlay sits at z90 ≤640 so the z95 tab bar stays usable and the QR tab
 toggles it closed; sticky head + .qr-foot close as fallbacks) · topbar `.qr-btn` + 4-tab phone bar + FileCard chip open it ·
