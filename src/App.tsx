@@ -269,6 +269,14 @@ export default function App() {
     }
   };
 
+  /** New output format: the finished file no longer matches, so free it and go back to ready. */
+  const changeTarget = (id: string, target: string) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (!it || it.target === target) return; // re-tapping the active phone chip keeps the result
+    if (it.outUrl) URL.revokeObjectURL(it.outUrl);
+    patch(id, { target, status: 'ready', outUrl: undefined });
+  };
+
   const schedule = (id: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
     if (!item || item.status === 'converting' || item.status === 'queued') return;
@@ -655,7 +663,7 @@ export default function App() {
                   <FileCard
                     key={item.id}
                     item={item}
-                    onTarget={(id, target) => patch(id, { target, status: 'ready', outUrl: undefined })}
+                    onTarget={changeTarget}
                     onQuality={(id, quality) => patch(id, { quality })}
                     onConvert={schedule}
                     onRemove={remove}
