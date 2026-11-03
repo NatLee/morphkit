@@ -11,7 +11,7 @@ import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
 import { Overlay } from './Overlay';
 import { createPortal } from 'react-dom';
-import { detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
+import { ACCEPT, detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
 import { extractMeta, fmtDuration, type FileMeta } from '../lib/metadata';
 import { useSplitter } from '../lib/useSplitter';
@@ -44,6 +44,7 @@ import type { Item } from '../types';
 import { PDF_ICON } from './FormatMatrix';
 import { PdfEditor } from './PdfEditor';
 import { DocEditor } from './DocEditor';
+import { useBlobUrlOwner } from '../lib/useBlobUrlOwner';
 
 /* the app-mode breakpoint — MUST mirror the stacked-studio media block in
    styles.css: phones, short/landscape viewports, touch tablets */
@@ -205,7 +206,6 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const curRef = useRef<ProjectRec | null>(null);
   /** ids that exist in IndexedDB — untouched new projects are discarded on exit */
   const persistedRef = useRef<Set<string>>(new Set());
-  const thumbUrlsRef = useRef<string[]>([]);
 
   const setLayoutP = (v: 'grid' | 'list') => {
     setLayout(v);
@@ -248,9 +248,6 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       // don't steal the selection from a project the user opened while we were loading
       setCurId((prev) => prev ?? (list.some((p) => p.id === saved) ? saved : list[0]?.id ?? null));
     })();
-    return () => {
-      thumbUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    };
   }, []);
 
   // ---- switch project: load assets, warm audio cache ----
@@ -526,17 +523,10 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   }, [metaPj, metaFacts, pjStats, t]);
 
   // ---- launcher stats + thumbnails ----
-  // The previous thumbnails stay alive until the new set is committed: revoking them up front
-  // left the freshly mounted launcher pointing at dead blob: URLs (broken images until the
-  // rebuild finished), and an overlapping rebuild could revoke the URLs a later one displays.
-  useEffect(() => {
-    const live = new Set(Object.values(thumbs).map((th) => th.url));
-    thumbUrlsRef.current = thumbUrlsRef.current.filter((u) => {
-      if (live.has(u)) return true;
-      URL.revokeObjectURL(u);
-      return false;
-    });
-  }, [thumbs]);
+  // Thumbnails are replaced, never revoked up front: the old set stays valid until the new one
+  // is on screen (the owner revokes after commit), and a rebuild overtaken by a newer one drops
+  // only the URLs it created itself.
+  useBlobUrlOwner(Object.values(thumbs).map((th) => th.url));
 
   useEffect(() => {
     if (entered || !projects.length) return;
@@ -583,7 +573,6 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
         }
       }
       if (stale) { created.forEach((u) => URL.revokeObjectURL(u)); return; } // a newer rebuild owns the screen
-      thumbUrlsRef.current.push(...created); // the [thumbs] effect revokes the replaced set after commit
       setPjStats(stats);
       setThumbs(th);
     })();
@@ -1124,7 +1113,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
             type="file"
             multiple
             hidden
-            accept="image/*,audio/*,video/*,application/pdf,.pdf,.docx,.pptx,.md,.markdown,.txt,.html,.htm,.csv,.tsv,.xlsx,.xls,.ods,.json"
+            accept={ACCEPT}
             onChange={(e) => {
               void importFiles(Array.from(e.target.files ?? []));
               e.target.value = '';

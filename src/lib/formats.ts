@@ -53,6 +53,12 @@ export function docOutputs(file: File): readonly string[] {
 const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'apng', 'avif', 'ico', 'svg'];
 const AUDIO_EXT = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'wma', 'aiff', 'amr'];
 const VIDEO_EXT = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', '3gp'];
+const PDF_EXT = ['pdf'];
+
+/** `accept` for every file picker that feeds `detectKind`: the MIME families it trusts plus every
+    extension it recognises, so the picker never hides a file the app could open. */
+export const ACCEPT = ['image/*', 'audio/*', 'video/*', 'application/pdf',
+  ...[...IMAGE_EXT, ...AUDIO_EXT, ...VIDEO_EXT, ...PDF_EXT, ...DOC_EXT].map((e) => `.${e}`)].join(',');
 
 /** Files above this size get a "may fail / be slow" warning (200 MB). */
 export const LARGE_FILE_BYTES = 200 * 1024 * 1024;
@@ -71,7 +77,7 @@ export function detectKind(file: File): Kind | null {
   if (t.startsWith('video/')) return 'video';
   if (t === 'application/pdf') return 'pdf';
   const ext = extOf(file.name);
-  if (ext === 'pdf') return 'pdf';
+  if (PDF_EXT.includes(ext)) return 'pdf';
   // documents: extension first (browsers often report text/plain for .md/.csv), then MIME
   if (DOC_EXT.includes(ext)) return 'doc';
   if (DOC_MIME.has(t) && ext) return 'doc';

@@ -26,6 +26,8 @@ import { convertDoc } from './lib/docs';
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { createProjectWithAsset } from './lib/idb';
+import { ConvertError } from './lib/errors';
+import { useBlobUrlOwner } from './lib/useBlobUrlOwner';
 import type { ProjectType } from './lib/studioTypes';
 import type { Item, MediaEdit } from './types';
 
@@ -108,6 +110,8 @@ export default function App() {
 
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+  // results and thumbnails are blob: URLs; whatever leaves the list is revoked after commit
+  useBlobUrlOwner(items.flatMap((i) => [i.outUrl, i.meta?.preview]));
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
@@ -185,8 +189,7 @@ export default function App() {
   const runConvert = async (id: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
     if (!item) return;
-    if (item.outUrl) URL.revokeObjectURL(item.outUrl);
-    patch(id, { status: 'converting', progress: 0, outUrl: undefined });
+    patch(id, { status: 'converting', progress: 0, outUrl: undefined, error: undefined });
     try {
       let blob: Blob;
       let outName = outputFileName(item.file.name, item.target);
@@ -265,15 +268,14 @@ export default function App() {
         setPwFor(id);
         return;
       }
-      patch(id, { status: 'error' });
+      patch(id, { status: 'error', error: e instanceof ConvertError ? e.key : undefined });
     }
   };
 
-  /** New output format: the finished file no longer matches, so free it and go back to ready. */
+  /** New output format: the finished file no longer matches, so drop it and go back to ready. */
   const changeTarget = (id: string, target: string) => {
     const it = itemsRef.current.find((i) => i.id === id);
     if (!it || it.target === target) return; // re-tapping the active phone chip keeps the result
-    if (it.outUrl) URL.revokeObjectURL(it.outUrl);
     patch(id, { target, status: 'ready', outUrl: undefined });
   };
 
@@ -304,22 +306,11 @@ export default function App() {
     }
   };
 
-  const revokePreview = (it?: Item) => {
-    if (it?.meta?.preview?.startsWith('blob:')) URL.revokeObjectURL(it.meta.preview);
-  };
-
   const remove = (id: string) => {
-    const it = itemsRef.current.find((i) => i.id === id);
-    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
-    revokePreview(it);
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
   const clearAll = () => {
-    for (const it of itemsRef.current) {
-      if (it.outUrl) URL.revokeObjectURL(it.outUrl);
-      revokePreview(it);
-    }
     setItems([]);
   };
 
@@ -423,16 +414,11 @@ export default function App() {
   };
 
   const saveMediaEdit = (id: string, edit: MediaEdit | undefined) => {
-    const it = itemsRef.current.find((i) => i.id === id);
-    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
     patch(id, { edit, status: 'ready', outUrl: undefined, progress: 0 });
     setEditingId(null);
   };
 
   const saveEditedImage = (id: string, file: File) => {
-    const it = itemsRef.current.find((i) => i.id === id);
-    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
-    revokePreview(it);
     patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
     extractMeta(file, 'image').then((meta) => patch(id, { meta }));
     setEditingId(null);
@@ -440,8 +426,6 @@ export default function App() {
 
   /** Edited document replaces the source file (same format), like saveEditedImage. */
   const saveEditedDoc = (id: string, file: File) => {
-    const it = itemsRef.current.find((i) => i.id === id);
-    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
     patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
     extractMeta(file, 'doc').then((meta) => patch(id, { meta }));
     setEditingId(null);
@@ -449,9 +433,6 @@ export default function App() {
 
   /** Edited PDF is itself the deliverable — mirrors saveEditedGif. */
   const saveEditedPdf = (id: string, file: File) => {
-    const it = itemsRef.current.find((i) => i.id === id);
-    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
-    revokePreview(it);
     patch(id, {
       file,
       edited: true,
@@ -484,9 +465,6 @@ export default function App() {
   };
 
   const saveEditedGif = (id: string, file: File) => {
-    const it = itemsRef.current.find((i) => i.id === id);
-    if (it?.outUrl) URL.revokeObjectURL(it.outUrl);
-    revokePreview(it);
     // edited GIF is itself the deliverable — mark done with a ready download
     patch(id, {
       file,

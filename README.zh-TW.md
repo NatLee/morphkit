@@ -2,7 +2,6 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
-[![CI](https://github.com/NatLee/morphkit/actions/workflows/ci.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml)
 [![線上版](https://img.shields.io/badge/live-natlee.github.io%2Fmorphkit-38dfff)](https://natlee.github.io/morphkit/)
 ![Vite + React + TypeScript](https://img.shields.io/badge/Vite%20%2B%20React%2018%20%2B%20TypeScript-0a0e1c)
@@ -58,7 +57,7 @@ MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小�
 
 ## 在本機執行
 
-需要 Node.js 22.13 以上。
+需要 Node.js 22.13 以上（CI 用的主版本寫在 `.nvmrc`）。
 
 ```bash
 git clone https://github.com/NatLee/morphkit.git
@@ -83,7 +82,7 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 
 1. Fork 或把 repo 推到 GitHub。
 2. 到 **Settings → Pages → Build and deployment**，把 **Source** 設成 **GitHub Actions**。
-3. 之後每次推到 `main`，都會跑測試、打包並部署（`.github/workflows/deploy.yml`）。Pull request 只跑測試和打包，不會部署（`.github/workflows/ci.yml`）。
+3. 之後每次推到 `main`，都會跑測試、打包並部署（`.github/workflows/deploy.yml`）。測試寫在 `.github/workflows/ci.yml`，pull request 只跑這一份，不會部署。
 
 ## 哪些東西會連網
 
@@ -98,7 +97,7 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 - 瀏覽器記憶體上限約 1.8–2 GB，更大的檔案會失敗；加入檔案時 App 會先提醒。
 - ffmpeg.wasm 比原生 ffmpeg 慢 5–20 倍，WEBM（VP8）編碼特別慢。
 - 動畫圖片最多解碼 300 格，更長的 GIF 會被截斷。
-- PDF 轉 TXT / DOCX / Markdown / HTML 讀的是文字層，掃描的 PDF 會得到空白結果。
+- PDF 轉 TXT / DOCX / Markdown / HTML 讀的是文字層。掃描的 PDF 沒有文字層，App 會直接說明，並建議改轉 PNG / JPG 或先用 OCR 工具（App 本身沒有內建 OCR）。
 - 舊版 Safari 不支援 Canvas 輸出 WEBP；把結果複製到剪貼簿需要 HTTPS。
 
 ## 參與開發

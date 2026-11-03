@@ -240,24 +240,25 @@ async function docMeta(file: File): Promise<FileMeta> {
   try {
     const { countWords, docToHtml, htmlToText, readSheets } = await import('./docs');
     const { docTypeOf } = await import('./formats');
-    if (docTypeOf(file) === 'pptx') {
-      const { unzipSync } = await import('fflate');
-      const zip = unzipSync(new Uint8Array(await file.arrayBuffer()));
-      meta.pages = Object.keys(zip).filter((k) => /^ppt\/slides\/slide\d+\.xml$/.test(k)).length;
-      const text = htmlToText(await docToHtml(file));
-      meta.chars = text.replace(/\s/g, '').length;
-      meta.words = countWords(text);
-    } else if (docTypeOf(file) === 'sheet') {
+    const type = docTypeOf(file);
+    if (type === 'sheet') {
       const s = await readSheets(file);
       meta.sheets = s.names;
       meta.lines = s.names.reduce((n, k) => n + s.rows[k].length, 0);
+      return meta;
+    }
+    // every other document is read through the same HTML the converters use
+    const html = await docToHtml(file);
+    const text = htmlToText(html);
+    meta.chars = text.replace(/\s/g, '').length;
+    meta.words = countWords(text);
+    if (type === 'pptx') {
+      // the PPTX reader emits one <section data-slide> per slide it read
+      meta.pages = new DOMParser().parseFromString(html, 'text/html').querySelectorAll('section[data-slide]').length;
     } else {
-      const text = htmlToText(await docToHtml(file));
-      meta.chars = text.replace(/\s/g, '').length;
-      meta.words = countWords(text);
       meta.lines = text.trim() ? text.trim().split('\n').length : 0;
       const h = /^(.{1,80})/.exec(text.trim());
-      if (h && docTypeOf(file) !== 'text') meta.title = h[1].trim();
+      if (h && type !== 'text') meta.title = h[1].trim();
     }
   } catch { /* unparsable — counts stay blank */ }
   return meta;

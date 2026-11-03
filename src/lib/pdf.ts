@@ -8,6 +8,7 @@
  */
 import { zipSync } from 'fflate';
 import { extOf } from './formats';
+import { ConvertError } from './errors';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 // ---------- pdf.js loader ----------
@@ -301,7 +302,16 @@ export async function pdfToText(file: File, onProgress?: (p: number) => void, pa
     onProgress?.(i / doc.numPages);
   }
   await closePdf(doc);
-  return new Blob([parts.join('\n\n')], { type: 'text/plain;charset=utf-8' });
+  return new Blob([joinPageText(parts)], { type: 'text/plain;charset=utf-8' });
+}
+
+/**
+ * Page texts → one document. Pages that carry no text at all mean the PDF is pictures of pages
+ * (a scan): an empty export would look like success, so this fails with a message that says so.
+ */
+export function joinPageText(pages: readonly string[]): string {
+  if (!pages.some((p) => /\S/.test(p))) throw new ConvertError('pdfNoText');
+  return pages.join('\n\n');
 }
 
 // ---------- assembly (pdf-lib) ----------

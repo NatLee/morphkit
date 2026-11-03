@@ -101,6 +101,8 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 | `lib/studioTypes.ts` | `Clip`/`Track`/`MixerDoc`/`ProjectRec`/`AssetRec`, `uid()` |
 | `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
 | `lib/useSplitter.ts` | Draggable panel-size hook (localStorage-persisted, dblclick reset) behind every `.split-gutter`/`.ie-gutter` |
+| `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
+| `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
 | `lib/audioEngine.ts` | AudioBuffer decode cache (assetId-keyed), `playMix` live graph (solo/mute logic), `renderMixWav` OfflineAudioContext, `peaks` for waveforms |
 | `lib/wav.ts` | AudioBuffer → 16-bit PCM WAV |
 | `gif-libs.d.ts` | Hand-written types for gifuct-js / gifenc / upng-js |
@@ -108,7 +110,7 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 ## Invariants & gotchas (violating these causes regressions)
 
 1. **i18n**: `t(key)` falls back to en → missing keys render the raw key. Add zh+en+ja together.
-2. **Object URLs**: `Item.outUrl` and `Item.meta.preview` must be revoked on remove/clear/replace (`revokePreview` in App).
+2. **Object URLs**: blob: URLs kept in state (`Item.outUrl`, `Item.meta.preview`, Studio launcher thumbs) are owned by `useBlobUrlOwner` — just drop or replace them in state; the hook revokes whatever is gone after React commits. Never revoke one of these by hand (it may still be on screen). Transient URLs that never reach state (download links, probes) are still revoked by their creator.
 3. **ffmpeg pool**: one job per instance; app-level semaphore caps pool size. Never call `ff.exec` concurrently on one instance.
 4. **GIF transparency**: plain quantize turns alpha into black. Keep alpha ⇒ `rgba4444` format + `transparent: true` + `dispose: 2` (see `writeGifFrame`).
 5. **Text tool focus bug**: canvas `pointerdown` must `preventDefault()` or it blurs the floating text input instantly.

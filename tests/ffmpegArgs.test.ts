@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildArgs } from '../src/lib/ffmpegClient';
+import { buildArgs, fitWithin } from '../src/lib/ffmpegClient';
 import { DEFAULT_SETTINGS, type Settings } from '../src/lib/settings';
 
 const S = (p: Partial<Settings> = {}): Settings => ({ ...DEFAULT_SETTINGS, ...p });
@@ -69,7 +69,8 @@ describe('buildArgs — video', () => {
 
   it('chains rotate, speed and the height cap into one -vf', () => {
     const a = buildArgs('mp4', 'i', 'o.mp4', S({ videoMaxH: 720 }), { rotate: 90, speed: 2 });
-    expect(after(a, '-vf')).toBe('transpose=1,setpts=PTS/2,scale=-2:min(ih\\,720)');
+    expect(after(a, '-vf')).toBe(`transpose=1,setpts=PTS/2,${fitWithin(0, 720)}`);
+    expect(buildArgs('mp4', 'i', 'o.mp4', S())).not.toContain('-vf'); // no cap, no filter
   });
 
   it('mutes when asked, and maps a replacement audio track', () => {
@@ -78,10 +79,30 @@ describe('buildArgs — video', () => {
     expect(a.join(' ')).toContain('-i v.mp4 -i a.wav -map 0:v:0 -map 1:a:0 -shortest');
   });
 
-  it('builds GIFs at the GIF fps and width, looping forever', () => {
+  it('builds GIFs at the GIF fps, capped at the GIF width, looping forever', () => {
     const a = buildArgs('gif', 'i.mp4', 'o.gif', S({ gifFps: 10, gifWidth: 360 }));
-    expect(after(a, '-vf')).toBe('fps=10,scale=360:-2:flags=lanczos');
+    expect(after(a, '-vf')).toBe(`fps=10,${fitWithin(360, 0)}`);
     expect(after(a, '-loop')).toBe('0');
     expect(a).not.toContain('-map_metadata');
+  });
+
+  it('applies the GIF width and the video height cap as one fit, not two scales', () => {
+    const vf = after(buildArgs('gif', 'i.mp4', 'o.gif', S({ gifWidth: 480, videoMaxH: 240 })), '-vf');
+    expect(vf.match(/scale=/g)).toHaveLength(1);
+    expect(vf).toContain(fitWithin(480, 240) as string);
+  });
+});
+
+describe('fitWithin', () => {
+  // Regression: the GIF width was forced (scale=480:-2), so a 320 px clip came out 480 px wide.
+  // Every cap is now min(original, limit), so small inputs keep their size.
+  it('only ever shrinks, on each side that has a limit', () => {
+    expect(fitWithin(480, 0)).toBe('scale=w=min(iw\\,480):h=ih:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos');
+    expect(fitWithin(0, 720)).toBe('scale=w=iw:h=min(ih\\,720):force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos');
+    expect(fitWithin(480, 270)).toContain('w=min(iw\\,480):h=min(ih\\,270)');
+  });
+
+  it('returns no filter when nothing is capped', () => {
+    expect(fitWithin(0, 0)).toBeNull();
   });
 });

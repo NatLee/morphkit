@@ -17,7 +17,7 @@ Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-threa
 `artOpts` (`-vn` unless keep+present+capable, else `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic`) ·
 `rateOpts(codec, s)` — CBR/VBR split: mp3 VBR `-q:a q`; vorbis ALWAYS quality-driven (`-q:a 10-q` VBR, `5` CBR);
 aac/m4a always `-b:a` (native AAC VBR is experimental) · `audioOpts` (`-ar`/`-ac` when >0) ·
-`trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → scale) · `afChain` (volume → atempo) ·
+`trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → one `fitWithin` size cap: GIF width × videoMaxH, downscale-only) · `afChain` (volume → atempo) ·
 `buildArgs(target, input, output, s, e?, input2?, hasArt)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
 `sniffCoverArt` (first 64KiB latin1: APIC | covr | fLaC+image/).
 
@@ -135,7 +135,7 @@ transfers it; `onPassword` is intercepted and surfaced as `PdfPasswordError('nee
 (/Encrypt in the last 64 KiB) · `pageInfo(doc, i)` → {width, height (display pts), rotate (intrinsic)} ·
 `readNotes` (/Text annots → user-space fractions) · `renderPage(doc, i, {width|scale, maxDim, rotate, white})` ·
 `pdfInfo` · `pdfToImages(file, target, quality, maxDim, onProgress, password?)` → `{blob, multi}` (144 dpi;
-multi-page → ZIP level 0) · `pdfToText` · `rasterizePdf` (plan B: every page → JPEG image page).
+multi-page → ZIP level 0) · `pdfToText` (pages joined by `joinPageText`, which throws `ConvertError("pdfNoText")` when no page has text) · `rasterizePdf` (plan B: every page → JPEG image page).
 **Decrypt bridge**: `getPlainBytes(file, password, encrypted)` — WeakMap-cached qpdf decrypt; throws
 `PdfPasswordError('wrong')` when qpdf's log mentions the password.
 **Write side** (pdf-lib): `PageSpec` union (pdf bytes+index | image blob+size | blank) × `PageCommon {rotate,

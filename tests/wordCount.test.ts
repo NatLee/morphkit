@@ -17,6 +17,18 @@ describe('countWords', () => {
     expect(countWords('MorphKit 是一個轉檔工具')).toBe(8);
   });
 
+  // The rule is "a letter whose script is written without spaces", read from Unicode data,
+  // so marks shared between Han and kana count without listing them one by one.
+  it('counts shared CJK letters such as 々 and ー, but not CJK punctuation', () => {
+    expect(countWords('時々')).toBe(2);
+    expect(countWords('〆切')).toBe(2);
+    expect(countWords('。、「」・')).toBe(0);
+  });
+
+  it('counts Korean by spaces, like Latin text', () => {
+    expect(countWords('안녕하세요 세계')).toBe(2);
+  });
+
   it('ignores Markdown punctuation that is not a word', () => {
     expect(countWords('# Title\n\n- one\n- two\n\n| a | b |\n|---|---|')).toBe(5);
   });

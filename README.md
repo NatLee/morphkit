@@ -2,7 +2,6 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
-[![CI](https://github.com/NatLee/morphkit/actions/workflows/ci.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml)
 [![Live site](https://img.shields.io/badge/live-natlee.github.io%2Fmorphkit-38dfff)](https://natlee.github.io/morphkit/)
 ![Vite + React + TypeScript](https://img.shields.io/badge/Vite%20%2B%20React%2018%20%2B%20TypeScript-0a0e1c)
@@ -73,7 +72,7 @@ It is built for phones too — the editors switch to a full-screen, app-style la
 
 ## Run it locally
 
-You need Node.js 22.13 or newer.
+You need Node.js 22.13 or newer (CI uses the major version in `.nvmrc`).
 
 ```bash
 git clone https://github.com/NatLee/morphkit.git
@@ -100,7 +99,7 @@ The site is plain static files built with `base: './'`, so it works under any re
 1. Fork or push the repository to GitHub.
 2. In **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**.
 3. Every push to `main` runs the tests, builds and deploys (`.github/workflows/deploy.yml`).
-   Pull requests run the tests and the build without deploying (`.github/workflows/ci.yml`).
+   The tests live in `.github/workflows/ci.yml`; pull requests run that workflow on its own, without deploying.
 
 ## What stays on your machine
 
@@ -116,7 +115,8 @@ Your files never leave the browser. The app does make a few network requests:
 - Browser memory tops out around 1.8–2 GB; bigger files fail, and the app warns before you try.
 - ffmpeg.wasm is 5–20× slower than native ffmpeg; WEBM (VP8) encoding is especially slow.
 - Animated images are decoded up to 300 frames; longer GIFs are cut off.
-- PDF → TXT / DOCX / Markdown / HTML reads the text layer, so a scanned PDF gives an empty result.
+- PDF → TXT / DOCX / Markdown / HTML reads the text layer. A scanned PDF has none; the app says so
+  and suggests PNG / JPG or an OCR tool instead (there is no OCR built in).
 - Canvas WEBP export does not work in older Safari; copying results to the clipboard needs HTTPS.
 
 ## Contributing

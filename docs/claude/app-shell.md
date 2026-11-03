@@ -19,12 +19,12 @@ LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme
 **Functions** (greppable): `acquireSlot`/`releaseSlot` · `updateSettings` · `patch(id, partial)` ·
 `addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (doc→`convertDoc` (multi → .zip) / pdf→pdfToImages|pdfToText|pdf→docx/md/html via text→convertDoc|
 mergeToPdf re-save, multi-page raster swaps `outName` to .zip / image→pdf→imageToPdf / image→convertImage /
-apng|gif→convertAnimImage / else convertMedia) · `changeTarget` (no-op when unchanged — re-tapping the active phone chip keeps the result; else revokes `outUrl`) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
+apng|gif→convertAnimImage / else convertMedia) · `changeTarget` (no-op when unchanged — re-tapping the active phone chip keeps the result; else drops `outUrl`) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
 queue through semaphore) · `addNote(text)` (Ctrl+V plain text or the DropZone `.dz-note` link → note-N.md doc item, editor opens) ·
 `qrOpen` state (null closed / '' maker / text reader) renders `<QrTool>` (its .qr-overlay sits at z90 ≤640 so the z95 tab bar stays usable and the QR tab
 toggles it closed; sticky head + .qr-foot close as fallbacks) · topbar `.qr-btn` + 4-tab phone bar + FileCard chip open it ·
 `mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
-shown when `mergeable` > 1) · `convertAll` · `revokePreview(it)` · `remove`/`clearAll` (must revoke `outUrl` + `meta.preview`) ·
+shown when `mergeable` > 1) · `convertAll` · `remove`/`clearAll` (only drop items — `useBlobUrlOwner` revokes `outUrl` + `meta.preview` after commit) ·
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
 `openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
 `<Studio enterProjectId>` jumps into the workspace) ·
@@ -93,7 +93,7 @@ article.file-card.kind-*.status-*
   dl.fc-details (grid; 1 col ≤640) > div.fc-detail-row > dt/dd  (+GPS → Google Maps link)
   div.fc-quality (image jpeg|webp) > input[range .4–1]
   div.fc-progress-row (converting media) > .fc-progress>.fc-bar + .fc-pct
-  p.fc-error | p.fc-warn(.danger)
+  p.fc-error (t(item.error ?? 'failed') — ConvertError keys) | p.fc-warn(.danger)
 ```
 
 ## SettingsPanel.tsx (256)
@@ -137,7 +137,7 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
 - **DropZone.tsx (80)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden
-  `input[type=file multiple accept=image/*,audio/*,video/*,application/pdf,.pdf,.docx,.pptx,.md,…,.xlsx,.json]`;
+  `input[type=file multiple]` with `accept={ACCEPT}` (built in lib/formats from every extension detectKind knows);
   optional `onNewNote` renders the `.dz-note` blank-Markdown link (stopPropagation).; drag handlers + click + Enter/Space;
   input value reset after pick so same file re-picks. Prop `compact` (App: items exist) swaps the
   hero layout for a slim row (plus glyph + `dropMore` + kbd hint, `.dz-compact` CSS).

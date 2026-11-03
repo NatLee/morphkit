@@ -336,7 +336,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
         </div>
       )}
 
-      {item.status === 'error' && <p className="fc-error">{t('failed')}</p>}
+      {item.status === 'error' && <p className="fc-error">{t(item.error ?? 'failed')}</p>}
 
       {huge && <p className="fc-warn danger">{t('warnHuge')}</p>}
       {large && <p className="fc-warn">{t('warnLarge', { size: formatBytes(item.file.size) })}</p>}

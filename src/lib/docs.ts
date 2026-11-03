@@ -148,18 +148,25 @@ export function htmlToText(html: string): string {
   return out.join('').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
-/** Han, kana and the long-vowel mark: word processors count each of these as one word. */
-const CJK_CHAR = /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}ー]/gu;
+/** Scripts written without spaces between words (Chinese, Japanese). Korean uses spaces, so Hangul
+    is counted like Latin text. Script_Extensions also covers shared marks such as ー and 々. */
+const UNSPACED_SCRIPT = /[\p{scx=Han}\p{scx=Hiragana}\p{scx=Katakana}]/u;
+const LETTER_CHAR = /\p{L}/u;
+const WORDISH = /[\p{L}\p{N}]/u;
 
 /**
- * Word count for mixed CJK / Latin text: every CJK character is one word, everything else splits
- * on whitespace, and tokens without a letter or digit (Markdown "-", "|", "#") are not words.
+ * Word count for mixed CJK / Latin text, the way word processors count it: every letter of an
+ * unspaced script is one word, everything else splits on whitespace, and tokens without a letter
+ * or digit (Markdown "-", "|", "#", CJK punctuation) are not words.
  * Shared by the file card (rendered text) and the editor (source text) so both agree.
  */
 export function countWords(text: string): number {
-  const cjk = text.match(CJK_CHAR)?.length ?? 0;
-  const rest = text.replace(CJK_CHAR, ' ').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
-  return cjk + rest;
+  let unspaced = 0;
+  let rest = '';
+  for (const ch of text) {
+    if (LETTER_CHAR.test(ch) && UNSPACED_SCRIPT.test(ch)) { unspaced++; rest += ' '; } else rest += ch;
+  }
+  return unspaced + rest.split(/\s+/).filter((w) => WORDISH.test(w)).length;
 }
 
 /**

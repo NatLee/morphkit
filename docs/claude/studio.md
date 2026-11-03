@@ -38,8 +38,9 @@ id so a slow probe can't paint another project's rows) · blankOpen · imgImport
 framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
 `assetsSplit` = useSplitter('morphkit-stw', 252, 180–460) → `--st-assets-w` on .st-body + .split-gutter.
 **Refs**: importRef, pjImportRef, saveTimer (500ms putProject debounce), `curRef` (fresh project across
-rapid patches — invariant 14), persistedRef (untouched new projects dropped on exit), thumbUrlsRef,
-baseSaveTimer (600ms raster-base debounce).
+rapid patches — invariant 14), persistedRef (untouched new projects dropped on exit),
+baseSaveTimer (600ms raster-base debounce). Launcher thumbs are blob: URLs owned by `useBlobUrlOwner`
+(a rebuild overtaken by a newer one revokes only the URLs it created).
 
 **Functions**: `primaryAsset(p, list)` (module: wired-in base/gif/video asset, else first image/video —
 shared by the thumb effect and the info modal) · `openMeta(p)` (probes the primary asset via
@@ -48,7 +49,7 @@ audio/video get tracks+clips+timeline, video adds dims/duration/trim, image adds
 gif adds dims; never show track counts on an image project) ·
 `flattenImageProject` (≤320px launcher thumb) · `noteThumb` (doc assets: paints first lines on a 320×200 canvas — an .md blob is NOT an <img> src; the thumbs effect branches doc → noteThumb, pdf → extractMeta preview, before the generic object-URL branch) · `savePatch(patch)` — THE mutation funnel
 (merge curRef → setProjects → debounced putProject) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
-`createProject`/`removeProject`/`renameProject` · `importFiles` (its hidden input accept covers image/audio/video/pdf/document extensions) · `removeAsset` (must strip clips +
+`createProject`/`removeProject`/`renameProject` · `importFiles` (hidden input uses the shared `ACCEPT` from lib/formats) · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
 `withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `onAudioExtracted` (extracted WAV →
 `*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` (delegates to
