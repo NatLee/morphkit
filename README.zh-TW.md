@@ -2,7 +2,6 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
-[![CI](https://github.com/NatLee/morphkit/actions/workflows/ci.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml)
 [![線上版](https://img.shields.io/badge/live-natlee.github.io%2Fmorphkit-38dfff)](https://natlee.github.io/morphkit/)
 ![Vite + React + TypeScript](https://img.shields.io/badge/Vite%20%2B%20React%2018%20%2B%20TypeScript-0a0e1c)
@@ -58,7 +57,7 @@ MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小�
 
 ## 在本機執行
 
-需要 Node.js 22.13 以上。
+需要 Node.js 22.13 以上（CI 用的主版本寫在 `.nvmrc`）。
 
 ```bash
 git clone https://github.com/NatLee/morphkit.git
@@ -83,7 +82,7 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 
 1. Fork 或把 repo 推到 GitHub。
 2. 到 **Settings → Pages → Build and deployment**，把 **Source** 設成 **GitHub Actions**。
-3. 之後每次推到 `main`，都會跑測試、打包並部署（`.github/workflows/deploy.yml`）。Pull request 只跑測試和打包，不會部署（`.github/workflows/ci.yml`）。
+3. 之後每次推到 `main`，都會跑測試、打包並部署（`.github/workflows/deploy.yml`）。測試寫在 `.github/workflows/ci.yml`，pull request 只跑這一份，不會部署。
 
 ## 哪些東西會連網
 
