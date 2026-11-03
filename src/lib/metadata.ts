@@ -238,7 +238,7 @@ async function pdfMeta(file: File, password?: string): Promise<FileMeta> {
 async function docMeta(file: File): Promise<FileMeta> {
   const meta = commonMeta(file);
   try {
-    const { docToHtml, htmlToText, readSheets } = await import('./docs');
+    const { countWords, docToHtml, htmlToText, readSheets } = await import('./docs');
     const { docTypeOf } = await import('./formats');
     if (docTypeOf(file) === 'pptx') {
       const { unzipSync } = await import('fflate');
@@ -246,7 +246,7 @@ async function docMeta(file: File): Promise<FileMeta> {
       meta.pages = Object.keys(zip).filter((k) => /^ppt\/slides\/slide\d+\.xml$/.test(k)).length;
       const text = htmlToText(await docToHtml(file));
       meta.chars = text.replace(/\s/g, '').length;
-      meta.words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      meta.words = countWords(text);
     } else if (docTypeOf(file) === 'sheet') {
       const s = await readSheets(file);
       meta.sheets = s.names;
@@ -254,7 +254,7 @@ async function docMeta(file: File): Promise<FileMeta> {
     } else {
       const text = htmlToText(await docToHtml(file));
       meta.chars = text.replace(/\s/g, '').length;
-      meta.words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      meta.words = countWords(text);
       meta.lines = text.trim() ? text.trim().split('\n').length : 0;
       const h = /^(.{1,80})/.exec(text.trim());
       if (h && docTypeOf(file) !== 'text') meta.title = h[1].trim();
