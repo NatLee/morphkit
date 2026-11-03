@@ -526,11 +526,24 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   }, [metaPj, metaFacts, pjStats, t]);
 
   // ---- launcher stats + thumbnails ----
+  // The previous thumbnails stay alive until the new set is committed: revoking them up front
+  // left the freshly mounted launcher pointing at dead blob: URLs (broken images until the
+  // rebuild finished), and an overlapping rebuild could revoke the URLs a later one displays.
+  useEffect(() => {
+    const live = new Set(Object.values(thumbs).map((th) => th.url));
+    thumbUrlsRef.current = thumbUrlsRef.current.filter((u) => {
+      if (live.has(u)) return true;
+      URL.revokeObjectURL(u);
+      return false;
+    });
+  }, [thumbs]);
+
   useEffect(() => {
     if (entered || !projects.length) return;
+    let stale = false;
     void (async () => {
-      thumbUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-      thumbUrlsRef.current = [];
+      const created: string[] = [];
+      const track = (u: string) => { created.push(u); return u; };
       const stats: Record<string, { n: number; bytes: number }> = {};
       const th: Record<string, { url: string; video: boolean }> = {};
       for (const p of projects) {
@@ -544,9 +557,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           try {
             const flat = await flattenImageProject(p, prim);
             if (flat) {
-              const u = URL.createObjectURL(flat);
-              thumbUrlsRef.current.push(u);
-              th[p.id] = { url: u, video: false };
+              th[p.id] = { url: track(URL.createObjectURL(flat)), video: false };
               continue;
             }
           } catch { /* fall through to the raw asset */ }
@@ -568,14 +579,15 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
         }
 
         if (prim) {
-          const u = URL.createObjectURL(prim.blob);
-          thumbUrlsRef.current.push(u);
-          th[p.id] = { url: u, video: prim.kind === 'video' };
+          th[p.id] = { url: track(URL.createObjectURL(prim.blob)), video: prim.kind === 'video' };
         }
       }
+      if (stale) { created.forEach((u) => URL.revokeObjectURL(u)); return; } // a newer rebuild owns the screen
+      thumbUrlsRef.current.push(...created); // the [thumbs] effect revokes the replaced set after commit
       setPjStats(stats);
       setThumbs(th);
     })();
+    return () => { stale = true; };
   }, [entered, projects]);
 
   const sortedProjects = useMemo(() => {
