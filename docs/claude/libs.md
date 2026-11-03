@@ -135,7 +135,7 @@ transfers it; `onPassword` is intercepted and surfaced as `PdfPasswordError('nee
 (/Encrypt in the last 64 KiB) · `pageInfo(doc, i)` → {width, height (display pts), rotate (intrinsic)} ·
 `readNotes` (/Text annots → user-space fractions) · `renderPage(doc, i, {width|scale, maxDim, rotate, white})` ·
 `pdfInfo` · `pdfToImages(file, target, quality, maxDim, onProgress, password?)` → `{blob, multi}` (144 dpi;
-multi-page → ZIP level 0) · `pdfToText` · `rasterizePdf` (plan B: every page → JPEG image page).
+multi-page → ZIP level 0) · `pdfToText` (pages joined by `joinPageText`, which throws `ConvertError("pdfNoText")` when no page has text) · `rasterizePdf` (plan B: every page → JPEG image page).
 **Decrypt bridge**: `getPlainBytes(file, password, encrypted)` — WeakMap-cached qpdf decrypt; throws
 `PdfPasswordError('wrong')` when qpdf's log mentions the password.
 **Write side** (pdf-lib): `PageSpec` union (pdf bytes+index | image blob+size | blank) × `PageCommon {rotate,

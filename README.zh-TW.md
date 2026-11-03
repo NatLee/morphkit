@@ -97,7 +97,7 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 - 瀏覽器記憶體上限約 1.8–2 GB，更大的檔案會失敗；加入檔案時 App 會先提醒。
 - ffmpeg.wasm 比原生 ffmpeg 慢 5–20 倍，WEBM（VP8）編碼特別慢。
 - 動畫圖片最多解碼 300 格，更長的 GIF 會被截斷。
-- PDF 轉 TXT / DOCX / Markdown / HTML 讀的是文字層，掃描的 PDF 會得到空白結果。
+- PDF 轉 TXT / DOCX / Markdown / HTML 讀的是文字層。掃描的 PDF 沒有文字層，App 會直接說明，並建議改轉 PNG / JPG 或先用 OCR 工具（App 本身沒有內建 OCR）。
 - 舊版 Safari 不支援 Canvas 輸出 WEBP；把結果複製到剪貼簿需要 HTTPS。
 
 ## 參與開發

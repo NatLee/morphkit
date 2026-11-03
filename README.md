@@ -115,7 +115,8 @@ Your files never leave the browser. The app does make a few network requests:
 - Browser memory tops out around 1.8–2 GB; bigger files fail, and the app warns before you try.
 - ffmpeg.wasm is 5–20× slower than native ffmpeg; WEBM (VP8) encoding is especially slow.
 - Animated images are decoded up to 300 frames; longer GIFs are cut off.
-- PDF → TXT / DOCX / Markdown / HTML reads the text layer, so a scanned PDF gives an empty result.
+- PDF → TXT / DOCX / Markdown / HTML reads the text layer. A scanned PDF has none; the app says so
+  and suggests PNG / JPG or an OCR tool instead (there is no OCR built in).
 - Canvas WEBP export does not work in older Safari; copying results to the clipboard needs HTTPS.
 
 ## Contributing

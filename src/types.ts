@@ -28,6 +28,8 @@ export interface Item {
   target: string;
   quality: number;
   status: Status;
+  /** i18n key of the failure message (from a ConvertError); unset = the generic one */
+  error?: string;
   progress: number;
   meta?: FileMeta;
   /** pending audio/video edit, applied on convert */

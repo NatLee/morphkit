@@ -26,6 +26,7 @@ import { convertDoc } from './lib/docs';
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { createProjectWithAsset } from './lib/idb';
+import { ConvertError } from './lib/errors';
 import { useBlobUrlOwner } from './lib/useBlobUrlOwner';
 import type { ProjectType } from './lib/studioTypes';
 import type { Item, MediaEdit } from './types';
@@ -188,7 +189,7 @@ export default function App() {
   const runConvert = async (id: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
     if (!item) return;
-    patch(id, { status: 'converting', progress: 0, outUrl: undefined });
+    patch(id, { status: 'converting', progress: 0, outUrl: undefined, error: undefined });
     try {
       let blob: Blob;
       let outName = outputFileName(item.file.name, item.target);
@@ -267,7 +268,7 @@ export default function App() {
         setPwFor(id);
         return;
       }
-      patch(id, { status: 'error' });
+      patch(id, { status: 'error', error: e instanceof ConvertError ? e.key : undefined });
     }
   };
 

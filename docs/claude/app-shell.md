@@ -93,7 +93,7 @@ article.file-card.kind-*.status-*
   dl.fc-details (grid; 1 col ≤640) > div.fc-detail-row > dt/dd  (+GPS → Google Maps link)
   div.fc-quality (image jpeg|webp) > input[range .4–1]
   div.fc-progress-row (converting media) > .fc-progress>.fc-bar + .fc-pct
-  p.fc-error | p.fc-warn(.danger)
+  p.fc-error (t(item.error ?? 'failed') — ConvertError keys) | p.fc-warn(.danger)
 ```
 
 ## SettingsPanel.tsx (256)
