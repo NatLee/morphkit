@@ -167,7 +167,8 @@ function trackMap(input2?: string): { inputs: string[]; map: string[] } {
   return { inputs: ['-i', input2], map: ['-map', '0:v:0', '-map', '1:a:0', '-shortest'] };
 }
 
-function buildArgs(
+/** Exported for the unit tests — argument order (trim before -i, maps, codecs) matters. */
+export function buildArgs(
   target: string,
   input: string,
   output: string,
