@@ -133,15 +133,28 @@ function trimOpts(e?: MediaEdit): string[] {
   return a;
 }
 
-/** Video filter chain: rotate + speed + resolution cap. */
-function vfChain(s: Settings, e?: MediaEdit, extra: string[] = []): string[] {
+/**
+ * Size cap as one ffmpeg scale filter: fit the frame inside maxW × maxH (0 = no limit on that
+ * side), keep the aspect ratio, never enlarge, and round to even sizes (yuv420p encoders need them).
+ * The single rule behind every "max" size setting (video height, GIF width); null = no cap.
+ */
+export function fitWithin(maxW: number, maxH: number): string | null {
+  if (!(maxW > 0) && !(maxH > 0)) return null;
+  const w = maxW > 0 ? `min(iw\\,${maxW})` : 'iw';
+  const h = maxH > 0 ? `min(ih\\,${maxH})` : 'ih';
+  return `scale=w=${w}:h=${h}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos`;
+}
+
+/** Video filter chain: rotate + speed + extra filters + size cap (`maxW` from the caller, height from settings). */
+function vfChain(s: Settings, e?: MediaEdit, extra: string[] = [], maxW = 0): string[] {
   const f: string[] = [];
   if (e?.rotate === 90) f.push('transpose=1');
   else if (e?.rotate === 180) f.push('hflip', 'vflip');
   else if (e?.rotate === 270) f.push('transpose=2');
   if (e?.speed && e.speed !== 1) f.push(`setpts=PTS/${e.speed}`);
   f.push(...extra);
-  if (s.videoMaxH > 0) f.push(`scale=-2:min(ih\\,${s.videoMaxH})`);
+  const fit = fitWithin(maxW, s.videoMaxH);
+  if (fit) f.push(fit);
   return f.length ? ['-vf', f.join(',')] : [];
 }
 
@@ -201,7 +214,7 @@ export function buildArgs(
       return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), ...meta, output];
     case 'gif':
       // GIF carries no tags — copying metadata here only risks muxer warnings
-      return [...trim, '-i', input, ...vfChain(s, e, [`fps=${s.gifFps}`, `scale=${s.gifWidth}:-2:flags=lanczos`]), '-loop', '0', output];
+      return [...trim, '-i', input, ...vfChain(s, e, [`fps=${s.gifFps}`], s.gifWidth), '-loop', '0', output];
     default:
       return [...trim, '-i', input, ...meta, output];
   }

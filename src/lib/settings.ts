@@ -25,6 +25,7 @@ export interface Settings {
   /** Video: strip the audio track. */
   videoMute: boolean;
   gifFps: number;
+  /** Video → GIF: max width in px. Smaller videos keep their size (never enlarged). */
   gifWidth: number;
   /** copy title/artist/album… into the output (ffmpeg -map_metadata) */
   keepMetadata: boolean;

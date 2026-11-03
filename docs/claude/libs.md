@@ -17,7 +17,7 @@ Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-threa
 `artOpts` (`-vn` unless keep+present+capable, else `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic`) ·
 `rateOpts(codec, s)` — CBR/VBR split: mp3 VBR `-q:a q`; vorbis ALWAYS quality-driven (`-q:a 10-q` VBR, `5` CBR);
 aac/m4a always `-b:a` (native AAC VBR is experimental) · `audioOpts` (`-ar`/`-ac` when >0) ·
-`trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → scale) · `afChain` (volume → atempo) ·
+`trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → one `fitWithin` size cap: GIF width × videoMaxH, downscale-only) · `afChain` (volume → atempo) ·
 `buildArgs(target, input, output, s, e?, input2?, hasArt)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
 `sniffCoverArt` (first 64KiB latin1: APIC | covr | fLaC+image/).
 
