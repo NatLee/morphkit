@@ -7,16 +7,19 @@ interface Props {
   /** what will be lost — name the thing and what goes with it */
   message: ReactNode;
   confirmLabel: string;
+  /** `danger` for deletes; `accent` for a plain yes (e.g. agreeing to a download) */
+  tone?: 'danger' | 'accent';
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 /**
- * Second step for actions that cannot be undone (deleting a Studio project or asset).
+ * Second step before an action the user should agree to first: deleting a Studio project or asset
+ * (cannot be undone), or downloading the OCR engine.
  * Cancel holds the focus, so Enter or a stray click on the backdrop never deletes;
  * Escape cancels. Keys stop here so editor shortcuts underneath don't fire.
  */
-export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel }: Props) {
+export function ConfirmDialog({ title, message, confirmLabel, tone = 'danger', onConfirm, onCancel }: Props) {
   const { t } = useI18n();
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -39,7 +42,7 @@ export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCance
         <p className="confirm-msg">{message}</p>
         <div className="ed-foot-main">
           <button ref={cancelRef} className="btn btn-ghost" onClick={onCancel}>{t('cancel')}</button>
-          <button className="btn btn-danger" onClick={onConfirm}>{confirmLabel}</button>
+          <button className={`btn btn-${tone}`} onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </Overlay>

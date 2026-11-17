@@ -1,6 +1,7 @@
 import { useI18n } from '../i18n';
 import type { Settings } from '../lib/settings';
 import { MIN_QUALITY } from '../lib/imageConvert';
+import { OCR_LANGS, type OcrLangSetting } from '../lib/ocr';
 
 /** LAME VBR presets and the average bitrate each typically lands on. */
 const VBR_LEVELS: ReadonlyArray<[q: number, kbps: number]> = [
@@ -112,6 +113,20 @@ export function SettingsPanel({ settings, onChange }: Props) {
               ))}
             </select>
             <span className="sp-hint">{t('imageTargetSizeHint', { min: `${Math.round(MIN_QUALITY * 100)}%` })}</span>
+          </label>
+
+          <label className="sp-field">
+            <span className="sp-label">{t('ocrLang')}</span>
+            <select
+              value={settings.ocrLang}
+              onChange={(e) => set('ocrLang', e.target.value as OcrLangSetting)}
+            >
+              <option value="auto">{t('ocrLangAuto')}</option>
+              {(Object.keys(OCR_LANGS) as (keyof typeof OCR_LANGS)[]).map((l) => (
+                <option key={l} value={l}>{OCR_LANGS[l]}</option>
+              ))}
+            </select>
+            <span className="sp-hint">{t('ocrLangHint')}</span>
           </label>
         </div>
       </div>

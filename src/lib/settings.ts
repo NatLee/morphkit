@@ -1,3 +1,5 @@
+import type { OcrLangSetting } from './ocr';
+
 export interface Settings {
   /** Parallel conversion workers (each spawns its own ffmpeg.wasm instance). */
   concurrency: number;
@@ -33,6 +35,8 @@ export interface Settings {
   gifWidth: number;
   /** copy title/artist/album… into the output (ffmpeg -map_metadata) */
   keepMetadata: boolean;
+  /** Text recognition (images → TXT, scanned PDF pages): the language to read, plus English. */
+  ocrLang: OcrLangSetting;
   /** pdf → image render scale (1 = 72 dpi, 2 = 144, 3 = 216) */
   pdfImageScale: 1 | 2 | 3;
   /** document → pdf/png page geometry */
@@ -63,6 +67,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gifFps: 12,
   gifWidth: 480,
   keepMetadata: true,
+  ocrLang: 'auto',
   pdfImageScale: 2,
   docPageSize: 'a4',
   docFontSize: 11,

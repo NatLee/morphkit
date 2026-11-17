@@ -1,7 +1,9 @@
 export type Kind = 'image' | 'audio' | 'video' | 'pdf' | 'doc';
 
-/** `ico` = a multi-size icon (favicon), see `convertToIco`. */
-export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif', 'pdf', 'ico'] as const;
+/** `ico` = a multi-size icon (favicon), see `convertToIco`; `txt` = the text in the picture (OCR, lib/ocr). */
+export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif', 'pdf', 'ico', 'txt'] as const;
+/** Image outputs that take seconds, not milliseconds: they wait for a worker slot like media jobs. */
+export const SLOW_IMAGE_OUTPUTS: ReadonlySet<string> = new Set(['pdf', 'txt']);
 export const AUDIO_OUTPUTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a'] as const;
 /** A video can become any audio format: the sound track goes through the same ffmpeg branches. */
 export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', ...AUDIO_OUTPUTS] as const;
