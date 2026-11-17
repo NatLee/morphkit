@@ -1,13 +1,14 @@
-# Map: ImageEditor, GifEditor, PdfEditor & DocEditor
+# Map: the editors (image, GIF, PDF, document, spreadsheet) and the QR tool
 
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. Update when structure changes.
-> Both render `inline ? body : createPortal(body, document.body)`; all CSS in styles.css.
+> The Studio-capable editors (Image/Gif/Pdf/Doc) render `inline ? body : createPortal(body, document.body)`;
+> SheetEditor, QrTool and PdfPasswordModal are always portaled modals. All CSS lives in styles.css.
 > Every inline-capable editor (Image/Gif/Pdf/Doc) listens for `INLINE_SAVE_EVT` (lib/studioTypes)
 > while inline — Studio's focus-mode top-bar save button dispatches it; each listener re-applies
 > the same guard as its own (hidden-in-focus) foot save button via an `inlineSaveRef`.
 
-## ImageEditor.tsx (1685) — raster layer editor
+## ImageEditor.tsx (2039) — raster layer editor
 
 **Model** (invariant 18): immutable `base` (PNG Blob + ImageBitmap in `baseRef`, load-downscaled to
 `MAX_DIM = 4096`) defines W×H. Ordered `Layer[]` (index 0 = bottom; panel renders reversed). A layer IS
@@ -31,7 +32,7 @@ distance) · wandGlobal (wand matches whole image, not just touched region — `
 brushType (pen|marker|highlight) · zoom (0.05–6) · baseVer/pixVer/selVer/histVer · cropSel
 {a,b} · selDraft · lassoPts · textEdit {pos,value} · ready · copied · panning · cursor · renaming ·
 bgColor/bgOn · resizeOpen · rzMode pct|abs · rzPct · rzW/rzH · **panelOpen (mobile layers
-bottom-sheet; ≤720px only — desktop CSS ignores it)** · **panelW (desktop layers-panel width via
+bottom-sheet; only under the ≤720 | ≤540 tall | coarse ≤920 family — desktop CSS ignores it)** · **panelW (desktop layers-panel width via
 `useSplitter('morphkit-iepw', PANEL_DEF, PANEL_MIN 200, PANEL_MAX 520, {invert})` — dragged via
 .ie-gutter, dblclick resets, applied as `--ie-panel-w` inline on .ie-layout)**.
 **Refs**: canvasRef (.ie-canvas2) · viewportRef · baseRef · histRef/redoRef · scratchRef (mask/blend
@@ -64,7 +65,7 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
     .opt-tool · .swatches>.swatch×10 · .tb-slider(stroke|font) · .tb-select brush|font · bold/outline
     · .tb-slider tolerance · .wand-global toggle · applyCrop btn · clearSel(accent)/fillSel/deselect btns
     · .opt-spacer · .zoom-ctrl(−/val/+/fit)
-  .ie-layout (grid 1fr|262px; 220px ≤900; 1fr ≤720)
+  .ie-layout (grid minmax(0,1fr) | 8px gutter | min(--ie-panel-w 262px, 42vw); one column under ≤720 | ≤540 tall | coarse ≤920)
     .ie-vpwrap > .ie-viewport(ref, scroll) > .ie-inner{width:w*zoom} > canvas.ie-canvas2 + input.ie-textinput
               + button.lp-fab (mobile-only layers toggle, .on when open) + span.zoom-float (readout;
                 cursor coords wrapped in span.zf-xy — hidden via @media (hover:none))
@@ -73,8 +74,8 @@ layer ops `addLayer duplicateLayer deleteLayer moveLayer mergeDown` · IO `impor
     aside.layers-panel[.open ⇒ mobile sheet slides up]
       .lp-colour > .mx-label + <ColorPicker> (.cp > .cp-sv/.cp-hue/.cp-foot>.cp-preview+.cp-hex)
       .lp-hist > button.lp-hist-head (.mx-label + .lp-hist-count + .lp-hist-chev)
-        [histOpen && .lp-hist-list > button.hist-item×n (img thumb + step label, newest first,
-         onClick jumpTo) | .lp-hist-empty]
+        [histOpen && .lp-hist-list > button.hist-item.hist-future×n (redo steps → jumpForward) + the .current row
+         + button.hist-item×n (img thumb + step label, newest first, onClick jumpTo) | .lp-hist-empty]
       .lp-head > .mx-label
       .lp-ops > button×4 (svg + text label: add/dup/mergeDown/delete — replaced the old glyph-only head buttons)
       .lp-props (active layer): .lp-row opacity range · .lp-row select.lp-blend · .lp-row.lp-mask
@@ -100,7 +101,7 @@ Inline: Studio passes key={imgBase.id}, initialLayers from `project.imageDoc.lay
 imageDoc patches with `objects: []` (legacy object model is dead). Exports: `BLEND_MODES, Blend, Layer,
 newLayer, FONT_MAP`. i18n prefixes: `tool_*` + editor keys (see i18n families in libs.md).
 
-## GifEditor.tsx (644) — GIF/APNG frame editor
+## GifEditor.tsx (660) — GIF/APNG frame editor
 
 **Model**: `decodeAnim(item.file)` → `Frame = {bitmap: ImageBitmap, delay, thumb (48px dataURL)}` in
 **mutable `framesRef.current`** (not state) — mutations splice in place then bump `ver`; `bitmapsRef`
@@ -134,7 +135,7 @@ App: onSave=saveEditedGif. Studio inline: key={id+blob.size} (remount on blob ch
 saving rewrites the asset blob via replaceAssetBlob). lib: decodeAnim, writeGifFrame, extOf, GIFEncoder,
 UPNG. Output `${base}_edited.gif|apng`. Nothing persists between sessions (captions discarded on unmount).
 
-## PdfEditor.tsx (~800) — page-list editor (modal AND Studio inline)
+## PdfEditor.tsx (1072) — page-list editor (modal AND Studio inline)
 
 **Model**: `PPage = {id, src: PageSrc, intrinsic, rotate, flipH, flipV, w, h, overlay?, notes, watermark, thumb?}` —
 `src` is a tagged union `{kind:'pdf', doc, index}` (doc = key into `docsRef: Map<string, SrcDoc{file, proxy,
@@ -183,7 +184,7 @@ Overlay / PdfPasswordModal are SIBLINGS of the overlay inside the portal — nev
       draw-on-page · note(.active) · watermark(.active) · .pdf-del · spacer · .pdf-preview-toggle · select all/none
   [wmOpen] .pdf-wm > .pdf-wm-field×n (.pdf-wm-text input · opacity/angle/size ranges · .ed-seg center|tile ·
       .pdf-wm-btns image pick/replace/clear · .pdf-wm-color <ColorPicker>) + .pdf-wm-apply (sel/all/remove)
-  .pdf-body[.with-preview] (grid 1fr | 38%; stacks ≤760)
+  .pdf-body[.with-preview] (grid minmax(0,1fr) | gutter | preview min(--pdf-prev-w 400px, 46vw); stacks ≤760)
     .pdf-grid[role=listbox] > .pdf-status | .pdf-page[data-idx](.sel .dragging .over-before/.over-after)
         .pdf-thumb > img | .spinner · .pdf-badge(image/blank) · .pdf-badge.rot (90° ↔ ↕) · .pdf-badge.deco (💬 ✎ ◈)
         .pdf-page-foot > .pdf-check(.on) + .pdf-num + .pdf-ins
@@ -198,33 +199,17 @@ Overlay .editor.mini-modal.pdf-export: .pdf-x-row scope .ed-seg · split check (
 i18n: the pdf* key family (+ mergePdf/mergePdfTip in the App batch bar, kindPdf/mxEditPdf in
 FileCard/FormatMatrix, typePdf/typePdfDesc/pickPdf in Studio).
 
-## PdfPasswordModal.tsx (~80)
+## PdfPasswordModal.tsx (87)
 
 Props `{fileName, onSubmit(pw) → Promise<boolean>, onCancel}`. Owns pw/show/busy/wrong; the CALLER verifies
 (pdf.js open) and returns false to keep the modal open (`.pw-modal.shake` + `.pw-err`). Autofocus, Enter submits,
 Esc cancels. DOM: Overlay > .editor.mini-modal.pw-modal > .mx-label + .pw-file + .pw-row (.pw-input + eye
 toggle) + .pw-err|.ed-hint + .ed-foot.
 
-## DocEditor.tsx (~170) — source + preview for documents (modal + Studio inline)
+## DocEditor.tsx (369) — source + preview for documents (modal + Studio inline)
 
 Props `{item, onSave(id, file), onClose?, inline?}` — inline renders in place (.ie-inline-wrap, no head,
 save label = pdfSaveAsset, Esc disabled) for Studio TEXT projects.
-
-**Markdown toolbar** (`.doc-mdbar`, md mode + source visible): selection helpers `apply/sel/wrapSel/
-linesSel/insertBlock` (focus + selection restored via rAF); heading select (H1–H6/clear re-prefixes lines);
-bold/italic/strike/inline-code (Ctrl+B/I/K in `onKey`); ul/ol/task/quote line transforms; link (`insertLink`
-links a selected URL directly), image, code fence, hr; `insertTable` via the hover `.md-grid` picker (8×6);
-MorphKit specials — `insertToc` (heading scan → slugged link list, CJK-safe, skips code fences), date stamp,
-`csvToTable` (selected CSV/TSV → md table, quote-aware, delimiter auto), `insertQr` (lib/qr → 240px data-URI
-image, survives docx/pptx/pdf export). Popovers via `pop` state ('table'|'qr'), Esc closes pop before modal.
-
-**Markdown toolbar** (`.doc-mdbar`, md mode + source visible): selection helpers `apply/sel/wrapSel/
-linesSel/insertBlock` (focus + selection restored via rAF); heading select (H1–H6/clear re-prefixes lines);
-bold/italic/strike/inline-code (Ctrl+B/I/K in `onKey`); ul/ol/task/quote line transforms; link (`insertLink`
-links a selected URL directly), image, code fence, hr; `insertTable` via the hover `.md-grid` picker (8×6);
-MorphKit specials — `insertToc` (heading scan → slugged link list, CJK-safe, skips code fences), date stamp,
-`csvToTable` (selected CSV/TSV → md table, quote-aware, delimiter auto), `insertQr` (lib/qr → 240px data-URI
-image, survives docx/pptx/pdf export). Popovers via `pop` state ('table'|'qr'), Esc closes pop before modal.
 
 **Markdown toolbar** (`.doc-mdbar`, md mode + source visible): selection helpers `apply/sel/wrapSel/
 linesSel/insertBlock` (focus + selection restored via rAF); heading select (H1–H6/clear re-prefixes lines);
@@ -239,13 +224,13 @@ State: mode · text · orig (dirty check) · sheetName · html · loaded/error/b
 (initial view = 'source' when the APP_MQ media condition matches — a half-split is cramped on phones) · wrap.
 The md-bar icons are ALL monochrome SVG/text glyphs (link/image/clock/task were color emoji — banned:
 they clash with the Cyberdeck palette and iOS renders them full-color).
-`save()` → `docSave(original, mode, text, sheetName)` regenerates the ORIGINAL format (docx/xlsx rebuilt) →
+`save()` → `docSave(original, mode, text, sheetName)` regenerates the ORIGINAL format (docx/pptx/xlsx rebuilt) →
 App saveEditedDoc (replaces the item file, status ready, like images). Keys: Tab inserts \t, Ctrl+S saves, Esc closes.
 DOM: `.editor-overlay > .editor.editor-wide.doc-editor.view-* > .ed-head + .ed-toolbar.doc-tools (.chip mode ·
 hints · .ed-seg view · wrap) + .doc-body (textarea.doc-source | .doc-preview > .doc-prose) + .ed-foot (docStats)`.
-i18n: doc* keys (docSource docSplit docWrap docStats{words,lines,chars} docUnsaved docLoadError docDocxHint docSheetHint).
+i18n: doc* keys (docSource docSplit docWrap docStats{words,lines,chars} docUnsaved docLoadError docDocxHint docPptxHint docSheetHint).
 
-## SheetEditor.tsx (~330) — spreadsheet grid (modal)
+## SheetEditor.tsx (337) — spreadsheet grid (modal)
 
 Routed by App for `docTypeOf(file) === 'sheet'`. Model: `info: SheetInfo` (all sheets) + `rows: Cell[][]`
 (ACTIVE sheet, padded to ≥12×4 plus one spare row/col — typing into the spare grows the grid; `trim` strips
@@ -258,7 +243,7 @@ DOM: `.editor.editor-wide.sheet-editor > .ed-toolbar.sheet-tools + .sheet-tabs (
 .sheet-add .sheet-del .sheet-rename) + .sheet-grid (table, sticky thead th + tbody th, td>input.num,
 tr.sh-header, .sh-corner, th/td .sel) + .ed-foot (shStats)`. i18n: sh* keys.
 
-## QrTool.tsx (~330) — QR maker/reader (modal)
+## QrTool.tsx (358) — QR maker/reader (modal)
 
 Props `{initialDecoded?, onAddImage, onClose}` — a FileCard QR chip opens it on READ with the payload.
 MAKE: `tpl` url|text|wifi|vcard|mail (payload built by lib/qr `payloads`), style `QrStyle` {fg, bg

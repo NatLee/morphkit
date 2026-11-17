@@ -104,7 +104,8 @@ function shapeHtml(sp: Element, isTitle: boolean): string {
   return out;
 }
 
-/** PPTX file → sanitizable HTML (h2 per slide title-less header, page-break markers between slides). */
+/** PPTX file → sanitizable HTML: one <section data-slide> per slide (title placeholder → h3),
+    <hr data-page-break> between slides. */
 export async function pptxToHtml(file: File): Promise<string> {
   const zip = unzipSync(new Uint8Array(await file.arrayBuffer()));
   const pres = zip['ppt/presentation.xml'];

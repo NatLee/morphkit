@@ -9,7 +9,8 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
 
 ## New INPUT format (just accept & detect)
 
-1. `src/lib/formats.ts` — add the extension to `IMAGE_EXT`/`AUDIO_EXT`/`VIDEO_EXT`.
+1. `src/lib/formats.ts` — add the extension to `IMAGE_EXT`/`AUDIO_EXT`/`VIDEO_EXT` (documents:
+   `DOC_TEXT_EXT`/`DOC_SHEET_EXT` and `DOC_MIME`; PDF: `PDF_EXT`).
    `detectKind` checks MIME prefix first, then these lists. Decoding is the browser's or
    ffmpeg's job — no other wiring needed unless the browser can't decode it.
 2. Nothing else to touch for the file pickers: DropZone and Studio use `ACCEPT` from
@@ -29,7 +30,7 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
      (browser `toBlob` must support the MIME) + App `runConvert` routing.
    - PDF-based (pdf ⇄ image/text): extend `src/lib/pdf.ts` (`pdfToImages` / `pdfToText` /
      `buildPdf`) + `PDF_OUTPUTS`; pdf.js and pdf-lib stay lazy `import()`s (invariant 25).
-   - Document-based (docx/md/html/txt/csv/xlsx/json): extend `convertDoc` in `src/lib/docs.ts`
+   - Document-based (docx/pptx/md/html/txt/csv/xlsx/json): extend `convertDoc` in `src/lib/docs.ts`
      (+ `docOutputs`/`docTypeOf` in formats.ts). New targets usually mean one more `htmlTo*` writer.
    - Frame-based (animated): extend `convertAnimImage` in `src/lib/animImage.ts`. Keep-alpha GIF
      output MUST use `rgba4444` + `transparent: true` + `dispose: 2` (invariant 4).
@@ -38,12 +39,14 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
 4. `src/components/FormatMatrix.tsx` — the `MATRIX` chips are hardcoded strings, not derived
    from formats.ts. Add the chip so the marketing section stays truthful.
 5. i18n — only needed if you add visible labels (all three dicts: zh/en/ja).
-6. Verify: `npx tsc` clean, then convert a real file of that kind in `npm run dev` if feasible.
+6. Verify: `npx tsc` clean and `npm test` (extend `tests/formats.test.ts` for detection, outputs and
+   default targets), then convert a real file of that kind in `npm run dev` if feasible.
 
 ## Checklist
 
 - [ ] formats.ts registry (outputs/mime/default/filename)
-- [ ] Conversion branch (ffmpeg buildArgs case | imageConvert | animImage)
+- [ ] Conversion branch (ffmpeg buildArgs case | imageConvert | animImage | pdf.ts | docs.ts)
 - [ ] App runConvert routing correct
 - [ ] FormatMatrix chips updated
-- [ ] `npx tsc` clean
+- [ ] README format lists and `docs/images/formats-*.webp` still true
+- [ ] Tests; `npx tsc` and `npm test` clean

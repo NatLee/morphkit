@@ -1,4 +1,4 @@
-# Map: styles.css (~3800 lines) + responsive architecture
+# Map: styles.css (5415 lines) + responsive architecture
 
 > On-demand map for AI sessions. styles.css is the ONLY stylesheet (design system
 > "Cyberdeck" — neon tech + every component's CSS). Grep the `/* ============ name ============ */`
@@ -65,7 +65,7 @@
     .strip(horizontal film strip) .thumb(.active/.dim) · .tb-select .cap-panel .cap-row .cap-text
     .num-sm .cap-dash
 18. `pdf editor` — .pdf-editor(flex column) .pdf-tools(wrapping toolbar; .pdf-del hover = danger)
-    .pdf-grid(auto-fill 150px, max-h 58vh scroller; ≤640 112px + flex:1 inside a 100dvh sheet) .pdf-status
+    .pdf-grid(auto-fill 150px, max-h 64vh scroller; ≤640 112px + flex:1 inside a 100dvh sheet) .pdf-status
     .pdf-page(.sel glow · .dragging · .over-before/.over-after neon drop bar) .pdf-thumb(aspect-ratio inline)
     .pdf-badge(.rot .deco) .pdf-page-foot .pdf-num .pdf-check(.on) .pdf-ins(28px on coarse pointers) .pdf-progress ·
     .pdf-body(1fr|auto|auto grid; .with-preview shows the aside — width min(--pdf-prev-w,46vw) + gap animate,
@@ -79,10 +79,15 @@
     .pdf-export .pdf-x-row .pdf-x-pw · .pw-modal(.shake, pwShake keyframes) .pw-file .pw-row .pw-input .pw-err ·
     .pdf-lock .fc-lock(.open) · inline: `.editor.ie-inline.pdf-editor` flex column, grid+preview fill ·
     `.mx-pdf` + `.file-card.kind-pdf .fc-icon` violet live in the format-matrix section
-19. `sheet editor` — .sheet-editor .sheet-tools .sheet-tabs .sheet-tab(.active .sheet-add .sheet-del)
+19. `doc editor` — .doc-mdbar(2nd toolbar row, position:relative for popovers) .mdb-btn(.mdb-wide) .md-heading
+    .md-pop(.md-pop-qr) .md-grid/.md-cell(.on hover-picker) · `.editor.ie-inline.doc-editor` (Studio text projects: flex column, .doc-body fills) · .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
+    58vh; ≤760 two rows; ≤640 100dvh sheet) textarea.doc-source(mono, tab-size 2) .doc-preview(always-light sheet)
+    .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.mx-doc` + `.file-card.kind-doc .fc-icon`
+    accent live in the format-matrix section
+20. `sheet editor` — .sheet-editor .sheet-tools .sheet-tabs .sheet-tab(.active .sheet-add .sheet-del)
     .sheet-rename .sheet-grid(58vh scroller; sticky thead th top / tbody th left, .sh-corner z3; td input
     transparent, .num right-blue; .sel outlines; tr.sh-header tint) .sheet-more · ≤640 100dvh sheet, 16px inputs
-20. `qr tool` — .qr-tool .qr-tabs .qr-make(1fr|300px; 1 col ≤760, preview first) .qr-form ·
+21. `qr tool` — .qr-tool .qr-tabs .qr-make(1fr|300px; 1 col ≤760, preview first) .qr-form ·
     **.qr-sec grouped section cards** (content = .qr-tpl+fields wrapped, style = .qr-style.qr-sec;
     .qr-sec-title mx-label heads each; .qr-preview is its own sunken stage card) · **.qr-color-chip**
     (tap-to-open colour rows: .qr-chip-dot/.qr-chip-hex/.qr-chip-caret, the ColorPicker renders only
@@ -95,11 +100,6 @@
     `auto minmax(0,1fr)`: preview (order:-1, canvas 18vh cap, compact .qr-actions, .qr-payload hidden)
     pinned under the tabs, ONLY .qr-form scrolls; .qr-read scrolls likewise; .qr-foot pinned above the bar;
     .m-tabbar = repeat(4,1fr) — the rule lives in the MOBILE LAYER (an earlier-section override loses the cascade)
-21. `doc editor` — .doc-mdbar(2nd toolbar row, position:relative for popovers) .mdb-btn(.mdb-wide) .md-heading
-    .md-pop(.md-pop-qr) .md-grid/.md-cell(.on hover-picker) · `.editor.ie-inline.doc-editor` (Studio text projects: flex column, .doc-body fills) · .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
-    58vh; ≤760 two rows; ≤640 100dvh sheet) textarea.doc-source(mono, tab-size 2) .doc-preview(always-light sheet)
-    .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.mx-doc` + `.file-card.kind-doc .fc-icon`
-    accent live in the format-matrix section
 22. `studio` — desktop collapse: `.st-body:has(.st-assets.collapsed)` → max-content column, gutter + stats
     hidden · focus (≤760): .st-assets = fixed bottom sheet (translateY ↔ not-.collapsed, animation:none,
     72px FAB clearance) + .st-fab(.on, .st-fab-n badge) + .st-scrim + floating `.ed-foot` save pill,
@@ -135,7 +135,6 @@
 
 | Query | What |
 |---|---|
-| `≤900px` | .ie-layout side panel 262→220px |
 | app-mode: `≤760px, OR ≤540px tall, OR coarse+≤920px` (= APP_MQ in Studio.tsx) | .st-body + .vw-top collapse to `minmax(0,1fr)` — NEVER bare `1fr`: min-content of wide workspaces (mixer/pdf) blows the track past the screen, and the rule must repeat `.st-body:has(.st-assets.collapsed)` or the desktop max-content collapse template outranks it; rows are pinned `auto minmax(0,1fr)` (default auto rows + align-content stretch handed half the leftover height to the fit-content assets row → dead band above the editor); collapsed assets head shows the count/size again (desktop hides it); .split-gutter hidden; pdf-body + doc-body stack; **.studio → height:auto (page scrolls like a normal mobile page)**; .st-assets max-height 30vh; inline .layers-panel 32vh |
 | `≤720px` OR `≤540px tall` OR coarse-pointer ≤920 (image editor) | **.layers-panel → fixed bottom sheet** (translateY 105% ↔ .open, z130, 62dvh) + .lp-scrim (z129) + .lp-fab shown (toggle lives in ImageEditor.tsx panelOpen state); inline .ie-viewport bumps to 56vh |
 | `≤640px` OR `≤540px tall` OR coarse-pointer ≤920 (image editor) | `.editor-overlay > .editor:has(.ie-layout)` → **100dvh GRID, paint-app style** (short-viewport variant also resets overlay padding, editor max-width/height/radius, hides .ie-gutter): areas 'head head'/'rail canvas'/'rail options'/'foot foot', 50px left column; `.ed-toolbar` = vertical scrolling tool RAIL, `.ed-options` thin bottom strip, `.kbd-hints` hidden; .ie-viewport flex + .ie-inner margin:auto centers the canvas |
@@ -144,10 +143,10 @@
 | app-mode (studio focus) | `.st-focus-btn` shows (hidden on desktop); `.studio.st-focus` hides `.st-assets`+`.split-gutter`, `body:has(.studio.st-focus)` hides `.topbar`/`.m-tabbar`/`.footer` — workspace owns the screen; `.studio.st-focus` gets a REAL `height` of exactly 100dvh (not just min-height — WebKit doesn't stretch flex children from min-height alone) + padding-top `14px + env(safe-area-inset-top)` (the hidden topbar carried the notch padding); the app gutter is zeroed for every project type. The bar hosts everything: `.st-fab` (assets toggle, 38px bar button + `.st-fab-n` badge) and `.st-save` (save proxy — shown via `:has(.ed-foot)`, dimmed via `:has(.btn-accent:disabled)`); the editors' `.ed-foot` is display:none, `.st-back-txt` + the bar spacer hidden, `.st-name` flexes. Bottom is clear → `.st-main` padding-bottom 10px+safe (0+safe full-bleed). **Every project type is FULL-BLEED in focus**: all inline editors shed the card (border/radius/shadow); the image grid keeps padding 0 with the frameless viewport (padding 10) and an options strip whose padding-bottom extends its background into the home-indicator inset; gif/pdf/doc editors get `padding: 4px 10px calc(10px + inset-bottom)`; doc scrolls whole (`overflow-y:auto`) but GIF and PDF are APP-STYLE pinned: gif preview YIELDS (`flex:0 0 auto; height:30vh` + `grid-template-rows:100%` + canvas max-height 100% — a flex:1 preview buried the settings with no scroll hint), transport = one swipeable row, strip pinned, `.ed-controls` takes the REST (`flex:1`, border-top, thin scrollbar, side padding clears the iOS back-swipe zone, and CSS scroll-shadows — accent glows via local/scroll background-attachment that appear only while content hides past either end), editor `overflow:hidden`; pdf editor `overflow:hidden` with `.pdf-body` scrolling in place (toolbar + foot pinned); `.vw` gets `overflow-y:auto`; `.mixer`/`.vw` carry the same gutter + bottom inset; `.st-bar` keeps its own 12px gutter; `.st-main` padding-bottom 0. App-mode `.pdf-tools` is a nowrap swipeable row (scrollbar hidden, children flex-shrink 0) |
 | app-mode (studio assets) | `.st-assets-toggle` chevron shows; `.st-assets.collapsed` keeps only the head row (phones start collapsed); `.editor.ie-inline .ed-foot .btn` compacted (export button) |
 | `≤720px` (layers sheet) | **`.layers-panel.open` selector must ALSO match `.editor.ie-inline .layers-panel.open`** — the inline base selector is (0,3,0) and otherwise wins, leaving the sheet stuck off-screen; the open sheet is flex column with `.lp-colour`/`.lp-hist` ordered last so layer rows come first |
-| `≤720px` | .ie-layout → 1 column (layers panel stacks below canvas) |
+| `≤720px` OR `≤540px tall` OR coarse-pointer ≤920 | .ie-layout → 1 column (same condition as the layers sheet) |
 | `≤640px` (phone) | .app gutter 16px; .topbar wraps; hero compact; dropzone compact; .bb-actions full-width grow; file-card controls grow + .fc-details 1col; .fc-target hidden →
 .fc-chips target chip row shown (native select popup covered the card); **modal editors become full-width sheets** (.editor-overlay padding 0, .editor 100% wide, radius 0, safe-area padding, 100dvh cap); .media-preview.mp-video 34vh; .ie-viewport/.ie-canvas 44vh + .layers-panel 240px; .ed-toolbar + .gif-transport wrap into rows (.ed-options stays a nowrap scroller on purpose); drawer + studio compact; **text/number inputs + selects → 16px font (iOS focus-zoom guard)**; .fp-preview 180px; .vw-preview 26vh |
-| `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×3 (z95, safe-area padding); `.studio-toggle` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
+| `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×4 (z95, safe-area padding); `.studio-toggle` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
 | `≤640px` (settings) | drawer → full-screen APP PAGE under the tab bar (z90/91, the 設定 tab toggles it like QR): flex column, head + `.drawer-bottom-close` pinned (close carries the 76px tab-bar clearance), ONLY `.settings-panel` scrolls |
 | app-mode (toolbars) | **mobile-layer block** (must stay after the ≤640 `.ed-toolbar{flex-wrap:wrap}` or it loses the cascade): `.pdf-tools` / `.mixer .gif-transport` / `.doc-tools` / `.doc-mdbar` become nowrap swipeable rows (scrollbar hidden, children flex-shrink 0); `.md-pop` goes `position:fixed` above the tab bar (the strip's overflow would clip an absolute popover); `.vw-tabs` shows (video/audio pane switch, `.vw.vw-pane-*` hides the other pane); `.trk-head:not(.tl-corner)` is FORCED to 72px (= LANE_H) w/ compact name/buttons/gain — the coarse bumps grew it to ~90px and rows misaligned with their lanes |
 | `@media (display-mode: standalone)` | installed PWA: `.footer` hidden; `.topbar` padding-top honors `env(safe-area-inset-top)` (22px desktop / 14px ≤640) |
@@ -165,7 +164,7 @@ strips (.ed-options/.ed-toolbar/.gif-transport) get `overscroll-behavior-x: cont
 ## Rules when touching CSS here
 
 1. New component styles go inside the matching banner section; new breakpoint rules go in the
-   mobile layer (section 21) so they win the cascade.
+   mobile layer (section 26) so they win the cascade.
 2. Never shrink `.trk-head` / `.lane` without changing `HEAD_W` / `LANE_H` in Mixer.tsx.
 3. Hover-only affordances need a `@media (hover:none)` fallback.
 4. New drag surfaces need `touch-action:none` (CSS or inline) + setPointerCapture.
@@ -180,3 +179,10 @@ strips (.ed-options/.ed-toolbar/.gif-transport) get `overscroll-behavior-x: cont
 7. `.tool-btn.active:hover` keeps `color: var(--bg)` (invariant 6).
 8. The page body must NEVER scroll horizontally (html/body overflow-x clip stays; a decorative
    element wider than the viewport gets clipped by its own container, like `.hero`).
+
+## Dead CSS (kept, unused)
+
+No component renders these classes any more (checked with grep over `src/**/*.tsx`): `.lp-obj`,
+`.media-view` / `.media-grid` / `.media-card` / `.media-thumb` / `.media-name` / `.media-actions`,
+`.rz-grid`, `.bg-check`, `.btn-lg`, `.hero-cta`, and the old hero conversion stage (see app-shell.md).
+Don't style them; delete them in a change that also checks the screens they used to belong to.

@@ -1,10 +1,10 @@
 /**
- * Documents (DOCX / Markdown / HTML / plain text / CSV / XLSX / JSON) — 100% in-browser.
+ * Documents (DOCX / PPTX / Markdown / HTML / plain text / CSV / XLSX / JSON) — 100% in-browser.
  * Everything funnels through ONE intermediate: sanitized HTML.
- *   read:  docx → mammoth · md → marked · sheet → SheetJS (table) · json → table|pre · text → <p>
+ *   read:  docx → mammoth · pptx → lib/pptx · md → marked · sheet → SheetJS (table) · json → table|pre · text → <p>
  *   write: html → md (turndown+gfm) · html → docx (docx lib) · html → text ·
- *          html → PDF / PNG through the layout engine in lib/docPaint — pages are
- *          rasterized (CJK-safe without font files; text is not selectable — documented).
+ *          html → PDF / PNG through the layout engine in lib/docPaint. PDF text is selectable
+ *          by default (embedded Noto subsets); without them, and for PNG, pages are rasterized.
  * Every library is lazy-imported; nothing here touches the main bundle.
  */
 import { zipSync } from 'fflate';
