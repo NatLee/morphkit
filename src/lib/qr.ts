@@ -88,10 +88,11 @@ function toImageData(src: ImageBitmap, maxDim: number, invert = false, boost = f
   return { data, scale };
 }
 
-/** Decode the first QR found in an image blob (or null). */
-export async function decodeQr(blob: Blob): Promise<QrHit | null> {
+/** Decode the first QR found in an image (or null). A bitmap passed in stays the caller's to close. */
+export async function decodeQr(src: Blob | ImageBitmap): Promise<QrHit | null> {
   const J = await jsqr();
-  const bmp = await decodeImage(blob);
+  const own = src instanceof Blob;
+  const bmp = own ? await decodeImage(src) : src;
   try {
     const attempts: [number, boolean, boolean][] = [[1000, false, false], [1600, false, false], [1000, false, true], [1000, true, false], [600, false, false]];
     for (const [dim, inv, boost] of attempts) {
@@ -105,7 +106,7 @@ export async function decodeQr(blob: Blob): Promise<QrHit | null> {
     }
     return null;
   } finally {
-    bmp.close();
+    if (own) bmp.close();
   }
 }
 

@@ -23,7 +23,8 @@ describe('detectKind', () => {
   });
 
   it('falls back to the extension when the browser reports no type', () => {
-    expect(detectKind(file('photo.HEIC'))).toBeNull();
+    expect(detectKind(file('scene.blend'))).toBeNull();
+    expect(detectKind(file('photo.HEIC'))).toBe('image'); // decoded by libheif (lib/heic)
     expect(detectKind(file('song.flac'))).toBe('audio');
     expect(detectKind(file('clip.mkv'))).toBe('video');
     expect(detectKind(file('scan.pdf'))).toBe('pdf');
