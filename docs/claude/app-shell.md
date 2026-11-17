@@ -3,7 +3,7 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. If structure changed since this
 > was written, trust the code and update this file. Covers: `App.tsx`, `Hero`, `DropZone`,
-> `FileCard`, `SettingsPanel`, `FormatMatrix`, `DualRange`, `Overlay`, `FramePicker`, `InfoTip`,
+> `FileCard`, `SettingsPanel`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
 > `InstallPrompt`.
 
 ## App.tsx (781 lines) — owns ALL convert-mode state
@@ -150,6 +150,9 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 - **Overlay.tsx (14)**: `createPortal(div.editor-overlay, document.body)` — invariant 17 lives here.
   Children must stopPropagation. Page scroll behind overlays is locked via `body:has(.editor-overlay)` CSS
   (plus `html:has(.editor-overlay)` with `overflow-y: clip`).
+- **ConfirmDialog.tsx (47)**: Overlay + `.editor.mini-modal.confirm-modal[role=alertdialog]` with title, `.confirm-msg`,
+  Cancel (`.btn-ghost`, focused on mount) and confirm (`.btn-danger`). Backdrop click and Escape cancel; keydown stops
+  propagation so editor shortcuts underneath stay quiet. Used by Studio for every delete.
 - **FormatMatrix.tsx (78)**: static 5 cards (image/audio/video/pdf/doc — `.mx-pdf` violet, `.mx-doc` accent) from module const `MATRIX`.
   OUT chips are derived (`outs(IMAGE_OUTPUTS)` … `formatLabel`, documents = the union of `DOC_OUTPUTS`), so a new
   output appears by itself; IN chips are a short hand-picked list (detectKind accepts more).

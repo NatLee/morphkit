@@ -37,6 +37,7 @@
   --paint-violet: #7c3aed; /* ultraviolet */
   --weave: rgba(28, 46, 100, 0.05);
   --danger: #dc2626;
+  --danger-ink: #ffffff; /* text colour on danger surfaces */
   --warn: #b45309;
   --ok: #15803d;
   --shadow: 0 1px 2px rgba(17, 23, 41, 0.06), 0 10px 30px rgba(17, 23, 41, 0.1);
@@ -67,6 +68,7 @@
   --paint-violet: #a78bfa;
   --weave: rgba(130, 165, 255, 0.06);
   --danger: #ff6b6b;
+  --danger-ink: #1a0508;
   --warn: #ffb454;
   --ok: #3ce08c;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 36px rgba(0, 0, 0, 0.45);
@@ -589,6 +591,21 @@ select optgroup {
   color: var(--accent-ink);
   transform: translateY(-1px);
   box-shadow: var(--glow);
+}
+
+/* irreversible actions (ConfirmDialog) */
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--danger-ink);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--danger-ink);
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px var(--danger), 0 0 16px color-mix(in srgb, var(--danger) 45%, transparent);
 }
 
 .btn-sub {
@@ -3708,7 +3725,7 @@ kbd {
 .rec-btn.recording {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: var(--danger-ink);
   animation: recPulse 1.2s ease-in-out infinite;
 }
 
@@ -4323,6 +4340,9 @@ kbd {
 }
 
 .meta-list { grid-template-columns: 1fr; margin: 0; }
+
+.confirm-msg { margin: 0; color: var(--ink-dim); line-height: 1.6; overflow-wrap: anywhere; }
+.confirm-msg b { color: var(--ink); }
 
 .rz-grid {
   display: flex;

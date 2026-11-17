@@ -10,6 +10,7 @@ import { VideoWorkspace } from './VideoWorkspace';
 import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
 import { Overlay } from './Overlay';
+import { ConfirmDialog } from './ConfirmDialog';
 import { createPortal } from 'react-dom';
 import { ACCEPT, detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
@@ -189,6 +190,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     () => (localStorage.getItem('mk-sort') as 'updated' | 'name' | 'size') || 'updated'
   );
   const [metaPj, setMetaPj] = useState<ProjectRec | null>(null);
+  // every delete waits here for ConfirmDialog — both are irreversible (IndexedDB, no undo)
+  const [confirmDel, setConfirmDel] = useState<{ project: ProjectRec } | { asset: AssetRec } | null>(null);
   // primary-asset facts for the info modal, keyed by project so a slow probe
   // can never paint onto a different project's rows
   const [metaFacts, setMetaFacts] = useState<{ id: string; name: string; meta: FileMeta } | null>(null);
@@ -317,14 +320,54 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     setEntered(true);
   };
 
-  const removeProject = async () => {
-    const c = curRef.current;
-    if (!c) return;
-    await idbDeleteProject(c.id);
-    setProjects((prev) => prev.filter((p) => p.id !== c.id));
-    setCurId(null);
-    setEntered(false);
+  /** The one delete path for projects (launcher card and workspace bar both call it). */
+  const removeProject = async (p: ProjectRec) => {
+    if (curRef.current?.id === p.id) {
+      // a debounced save still pending for this project would write it back after the delete
+      window.clearTimeout(saveTimer.current);
+      window.clearTimeout(baseSaveTimer.current);
+      curRef.current = null; // editors unmounting below must not patch a deleted project
+      setCurId(null);
+      setEntered(false);
+      setFocus(false);
+    }
+    persistedRef.current.delete(p.id);
+    await idbDeleteProject(p.id);
+    setProjects((prev) => prev.filter((x) => x.id !== p.id));
   };
+
+  /** Files and bytes a project delete takes with it: live assets when it is open, launcher stats otherwise. */
+  const projectSize = (p: ProjectRec) =>
+    entered && cur?.id === p.id
+      ? { n: assets.length, bytes: assets.reduce((sum, a) => sum + a.blob.size, 0) }
+      : pjStats[p.id] ?? { n: 0, bytes: 0 };
+
+  const confirmNode = confirmDel && (() => {
+    const close = () => setConfirmDel(null);
+    if ('project' in confirmDel) {
+      const p = confirmDel.project;
+      const size = projectSize(p);
+      return (
+        <ConfirmDialog
+          title={t('confirmDeleteProjectTitle')}
+          message={t('confirmDeleteProjectMsg', { name: p.name, files: t('filesCount', { n: String(size.n) }), size: formatBytes(size.bytes) })}
+          confirmLabel={t('confirmDelete')}
+          onCancel={close}
+          onConfirm={() => { close(); void removeProject(p); }}
+        />
+      );
+    }
+    const a = confirmDel.asset;
+    return (
+      <ConfirmDialog
+        title={t('confirmDeleteAssetTitle')}
+        message={t('confirmDeleteAssetMsg', { name: a.name, size: formatBytes(a.blob.size) })}
+        confirmLabel={t('confirmDelete')}
+        onCancel={close}
+        onConfirm={() => { close(); void removeAsset(a); }}
+      />
+    );
+  })();
 
   const renameProject = (name: string) => savePatch({ name });
 
@@ -968,12 +1011,9 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
                 </button>
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={() => {
-                    persistedRef.current.delete(p.id);
-                    void idbDeleteProject(p.id).then(() =>
-                      setProjects((prev) => prev.filter((x) => x.id !== p.id))
-                    );
-                  }}
+                  onClick={() => setConfirmDel({ project: p })}
+                  title={t('deleteProject')}
+                  aria-label={t('deleteProject')}
                 >
                   ×
                 </button>
@@ -1009,6 +1049,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
             </div>
           </Overlay>
         )}
+
+        {confirmNode}
 
         {/* project metadata modal — rows differ per project type (see metaRows) */}
         {metaPj && (
@@ -1065,7 +1107,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
             {t('exportProject')}
           </button>
         )}
-        <button className="btn btn-ghost btn-sm st-del" onClick={() => void removeProject()}>
+        <button className="btn btn-ghost btn-sm st-del" onClick={() => cur && setConfirmDel({ project: cur })}>
           {t('deleteProject')}
         </button>
         <button
@@ -1168,7 +1210,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
                 <button onClick={() => downloadAsset(a)} title={t('download')}>
                   <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 19h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </button>
-                <button onClick={() => void removeAsset(a)} title={t('remove')}>×</button>
+                <button onClick={() => setConfirmDel({ asset: a })} title={t('remove')} aria-label={t('remove')}>×</button>
               </span>
             </div>
           ))}
@@ -1423,6 +1465,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           </div>
         </Overlay>
       )}
+
+      {confirmNode}
     </div>
   );
 }

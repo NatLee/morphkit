@@ -22,7 +22,7 @@
    (glow text-shadow + RGB-split glitch ::before/::after via `data-text` attr, glitchA/B
    keyframes) · **DEAD**: .hero-stage .format-card .stage-* .fsel (Hero no longer renders
    the stage — don't style these) · .hero-cta
-4. `buttons` — .btn (**::after = hover sheen sweep; position:relative + overflow:hidden**)
+4. `buttons` — .btn (**::after = hover sheen sweep; position:relative + overflow:hidden**), .btn-danger (`--danger` fill, `--danger-ink` text — both themes define the pair)
    .btn-accent (gradient accent→violet, --accent-ink text, --glow hover) .btn-ghost .btn-lg
    .btn-sub (.btn-sm lives near matrix section)
 5. `workbench` — .workbench .dropzone (**HUD corner brackets = 8 background gradients,
@@ -118,7 +118,7 @@
     `inline editors`: .ie-inline-wrap .editor.ie-inline(flex column, overflow hidden, viewport fills) ·
     `video workspace`: .vw .vw-top(1fr|8px .split-gutter|min(--vw-side-w,44vw); 1fr ≤760)
     .vw-preview(var(--vw-ph, 34vh) via .split-gutter.h; 26vh ≤640) .vw-side .vw-extract .vw-note ·
-    `launcher v2`: .pj-thumb .pj-body .pj-list .type-modal .mini-modal .meta-list .rz-grid .bg-check
+    `launcher v2`: .pj-thumb .pj-body .pj-list .type-modal .mini-modal .meta-list .confirm-msg .rz-grid .bg-check
     .vw-pick .frame-modal .fp-preview(240px; 180 ≤640) .st-note(fixed toast z150, safe-area aware) ·
     .footer-link · .st-tabs · `media view`: .media-grid .media-card .media-thumb .media-name .media-actions ·
     `info tooltip`: .info-i .tip-pop(fixed z300)
