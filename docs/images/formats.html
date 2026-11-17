@@ -1,0 +1,89 @@
+<!doctype html>
+<!--
+  "What converts to what" overview for the READMEs: formats-en.webp (#en) and formats-zh.webp (#zh).
+
+  Re-render from the repo root with Edge or Chrome (both paths absolute, see cover.html for why):
+    msedge --headless=new --hide-scrollbars --window-size=1400,920 --virtual-time-budget=8000 \
+      --user-data-dir="$(mktemp -d)" --screenshot="$PWD/docs/images/formats-en.webp" \
+      "file://$PWD/docs/images/formats.html#en"
+  and the same with formats-zh.webp and #zh. In Git Bash on Windows use $(pwd -W) and file:///.
+
+  The OUT lists must match the format registry in src/lib/formats.ts (IMAGE_OUTPUTS, AUDIO_OUTPUTS,
+  VIDEO_OUTPUTS, PDF_OUTPUTS, DOC_OUTPUTS); tests/formatsPicture.test.ts fails when they drift.
+  The IN lists are a short pick, like the ones in src/components/FormatMatrix.tsx.
+-->
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@500&family=Noto+Sans+TC:wght@500;700&display=block" rel="stylesheet">
+<style>
+  :root { --bg:#0a0e1c; --raised:#161d33; --line:rgba(145,175,255,.17); --ink:#e8edff; --dim:#a6b2d8; --faint:#67729b; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1400px; height: 920px; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: var(--bg); color: var(--ink); font-family: 'IBM Plex Sans', 'Noto Sans TC', sans-serif; padding: 44px 52px 40px;
+    background-image: linear-gradient(rgba(145,175,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(145,175,255,.05) 1px, transparent 1px); background-size: 28px 28px; }
+  header { display: flex; align-items: baseline; gap: 18px; margin-bottom: 26px; }
+  h1 { font-family: 'Chakra Petch', 'Noto Sans TC', sans-serif; font-size: 38px; letter-spacing: .5px; }
+  h1 b { color: #38dfff; }
+  header p { color: var(--dim); font-size: 18px; }
+  .row { display: grid; grid-template-columns: 190px 1fr 46px 1fr; align-items: center; gap: 18px; padding: 16px 22px; margin-bottom: 12px;
+    background: rgba(22,29,51,.92); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 10px; }
+  .kind { display: flex; align-items: center; gap: 12px; font-family: 'Chakra Petch', 'Noto Sans TC', sans-serif; font-size: 22px; font-weight: 700; color: var(--c); }
+  .kind svg { width: 30px; height: 30px; flex: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 14px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--line); color: var(--dim); background: rgba(4,6,15,.5); }
+  .out .chip { color: var(--c); border-color: color-mix(in srgb, var(--c) 55%, transparent); background: color-mix(in srgb, var(--c) 10%, transparent); }
+  .arrow { color: var(--faint); font-size: 26px; text-align: center; }
+  .lbl { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1.5px; color: var(--faint); text-transform: uppercase; margin-bottom: 6px; }
+  .edit { grid-column: 2 / 5; color: var(--faint); font-size: 14px; margin-top: -4px; }
+  .edit b { color: var(--dim); font-weight: 500; }
+  footer { display: flex; gap: 26px; margin-top: auto; color: var(--dim); font-size: 16px; }
+  footer span::before { content: '◆ '; color: #38dfff; }
+</style></head>
+<body>
+<header><h1>Morph<b>Kit</b></h1><p id="sub"></p></header>
+<main id="rows"></main>
+<footer id="foot"></footer>
+<script>
+const L = location.hash === '#zh' ? 'zh' : 'en';
+const T = {
+  en: { sub: 'What converts to what — all inside the browser', in: 'in', out: 'out', edit: 'Edit:',
+        kinds: ['Images', 'Audio', 'Video', 'PDF', 'Documents'],
+        edits: ['layers, pen, shapes, text, crop, magic-wand background removal · GIF/APNG frames & captions',
+                'trim, volume, speed · multi-track mixer in Studio', 'trim, speed, rotate, mute or replace audio',
+                'reorder, rotate, draw, notes, watermark, merge, split, AES-256 encryption',
+                'Markdown editor with live preview · spreadsheet grid editor'],
+        foot: ['No uploads, no server', 'Installable as an app (PWA)', 'Fit to a file size', 'English · 中文 · 日本語'] },
+  zh: { sub: '能轉哪些格式 — 全部在瀏覽器裡完成', in: '輸入', out: '輸出', edit: '可編輯：',
+        kinds: ['圖片', '音訊', '影片', 'PDF', '文件'],
+        edits: ['圖層、畫筆、形狀、文字、裁切、魔術棒去背 · GIF/APNG 逐格編輯與字幕',
+                '剪輯、音量、變速 · Studio 多軌混音', '剪輯、變速、旋轉、靜音或替換音軌',
+                '排序、旋轉、繪圖、註解、浮水印、合併、分割、AES-256 加密',
+                'Markdown 編輯器即時預覽 · 試算表表格編輯器'],
+        foot: ['不上傳、沒有伺服器', '可安裝成 App（PWA）', '可壓到指定大小', 'English · 中文 · 日本語'] },
+}[L];
+const ICON = {
+  image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6zm2.5-7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z',
+  audio: 'M9 18a3 3 0 1 1-2-2.83V6l11-2v10a3 3 0 1 1-2-2.83V7.4l-7 1.27V18z',
+  video: 'M4 6h11a1 1 0 0 1 1 1v2.5l4-2.5a.6.6 0 0 1 1 .5v9a.6.6 0 0 1-1 .5l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
+  pdf: 'M6 3h8l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm7 1.5V9h4.5L13 4.5zM8 12h8v1.6H8V12zm0 3.2h8v1.6H8v-1.6zm0 3.2h5V20H8v-1.6z',
+  doc: 'M6 3h9l4 4v14H6zM8 12h8v1.6H8zm0 3.2h8v1.6H8zm0 3.2h5V20H8z',
+};
+// [kind, colour, IN (a short pick), OUT (must match src/lib/formats.ts)]
+const ROWS = [
+  ['image', '#3ce08c', ['PNG', 'JPG', 'WEBP', 'BMP', 'GIF', 'APNG', 'AVIF'], ['WEBP', 'PNG', 'JPG', 'APNG', 'GIF', 'PDF', 'ICO']],
+  ['audio', '#4db8ff', ['MP3', 'WAV', 'OGG', 'FLAC', 'M4A', 'AAC', 'OPUS'], ['MP3', 'WAV', 'OGG', 'FLAC', 'M4A']],
+  ['video', '#ff5c8a', ['MP4', 'WEBM', 'MOV', 'AVI', 'MKV'], ['MP4', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'FLAC', 'M4A']],
+  ['pdf', '#a78bfa', ['PDF', 'PNG', 'JPG', 'WEBP'], ['PDF', 'PNG', 'JPG', 'WEBP', 'TXT', 'DOCX', 'MD', 'HTML']],
+  ['doc', '#ffc23e', ['DOCX', 'PPTX', 'MD', 'TXT', 'HTML', 'CSV', 'XLSX', 'JSON'], ['PDF', 'DOCX', 'PPTX', 'MD', 'HTML', 'TXT', 'CSV', 'XLSX', 'JSON', 'PNG']],
+];
+document.getElementById('sub').textContent = T.sub;
+document.getElementById('rows').innerHTML = ROWS.map(([k, c, ins, outs], i) => `
+  <section class="row" style="--c:${c}">
+    <div class="kind"><svg viewBox="0 0 24 24"><path d="${ICON[k]}" fill="currentColor"/></svg>${T.kinds[i]}</div>
+    <div><p class="lbl">${T.in}</p><div class="chips">${ins.map((x) => `<span class="chip">${x}</span>`).join('')}</div></div>
+    <div class="arrow">→</div>
+    <div class="out"><p class="lbl">${T.out}</p><div class="chips">${outs.map((x) => `<span class="chip">${x}</span>`).join('')}</div></div>
+    <p class="edit"><b>${T.edit}</b> ${T.edits[i]}</p>
+  </section>`).join('');
+document.getElementById('foot').innerHTML = T.foot.map((x) => `<span>${x}</span>`).join('');
+</script>
+</body></html>
