@@ -14,8 +14,15 @@ MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小�
 **線上試用：** <https://natlee.github.io/morphkit/>
 
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/start-zh-dark.webp">
+  <img alt="MorphKit 首頁：上面是丟檔案的區域，下面是可以搜尋的「我想要…」清單，例如圖片轉文字、轉 MP3、PDF 加頁碼" src="docs/images/start-zh-light.webp">
+</picture>
+
+丟進檔案後，每個檔案是一張卡片：輸出格式、這種檔案最常做的三件事，還有它自己的選項。
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-zh-dark.webp">
-  <img alt="MorphKit 轉檔畫面：清單裡有六個檔案，其中幾個已經轉好" src="docs/images/home-zh-light.webp">
+  <img alt="清單裡有六個檔案：圖片和 GIF 已經轉好，另外有 PDF、筆記、音檔，以及一支設定成壓到 25 MB 以內的影片" src="docs/images/home-zh-light.webp">
 </picture>
 
 ## 能轉哪些格式
@@ -52,7 +59,11 @@ MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小�
 | 試算表 | CSV / TSV / XLSX / XLS / ODS 表格編輯：工作表分頁，插入 / 移動 / 刪除列和欄，排序 |
 | 音訊 / 影片 | 雙把手時間軸剪輯、音量、變速、旋轉、靜音或替換音軌 |
 
-**專案**（2026 年 11 月以前叫 Studio）是給要分幾次完成的作品用的。專案存在瀏覽器裡（IndexedDB），頁面一開始就會說明，也會顯示佔了多少空間。每個專案會標出最新內容有沒有匯出備份；刪掉的專案會先在垃圾桶放 30 天，之後才永久刪除：多軌混音，可以錄音、匯出 WAV；影片專案會把混好的聲音一起匯出成 MP4；圖片、GIF、PDF 和文字專案會保留圖層和編輯內容。專案可以匯出、匯入成 ZIP。
+**專案**（2026 年 11 月以前叫 Studio）是給要分幾次完成的作品用的。專案存在瀏覽器裡（IndexedDB），頁面一開始就會說明，也會顯示佔了多少空間。每個專案會標出最新內容有沒有匯出備份；刪掉的專案會先在垃圾桶放 30 天，之後才永久刪除。
+
+![專案頁：三個專案和各自的備份狀態、六種可以開的專案、垃圾桶](docs/images/projects-zh.webp)
+
+專案可以是：多軌混音，可以錄音、匯出 WAV；影片專案會把混好的聲音一起匯出成 MP4；圖片、GIF、PDF 和文字專案會保留圖層和編輯內容。專案可以匯出、匯入成 ZIP。
 
 **QR Code 工具** 可以產生網址、文字、Wi-Fi、名片和郵件的 QR Code（可調顏色、大小、留白、容錯等級、中央 Logo，輸出 PNG 或 SVG），也能從圖片、剪貼簿或相機讀取。
 
@@ -130,7 +141,7 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 
 地圖裡寫到的檔案、函式或 CSS class 已經不存在、`src/` 裡有檔案在 `CLAUDE.md` 沒有對應的一行，或三種介面語言的字串鍵不一致時，`npm run check:context` 都會失敗。改程式時，請在同一個 commit 更新對應的地圖。
 
-README 用到的圖片在 [`docs/images/`](docs/images/)。封面的原始檔是 [`cover.html`](docs/images/cover.html)，檔頭寫了怎麼重新產生。
+README 用到的圖片在 [`docs/images/`](docs/images/)。截圖是用腳本在 headless Edge 裡操作 App 拍的，最後一次是 2026-11-17 入口改版之後。封面的原始檔是 [`cover.html`](docs/images/cover.html)，檔頭寫了怎麼重新產生。
 
 ## 授權
 

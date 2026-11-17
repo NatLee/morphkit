@@ -17,8 +17,16 @@ installed as an app (PWA).
 **Try it:** <https://natlee.github.io/morphkit/>
 
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/start-en-dark.webp">
+  <img alt="The MorphKit home page: a drop zone, and under it a searchable list of jobs such as Image to text, Convert to MP3 and Add page numbers to a PDF" src="docs/images/start-en-light.webp">
+</picture>
+
+Add files, and each one gets a card: the output format, the three jobs most often done with that kind
+of file, and its own options.
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-en-dark.webp">
-  <img alt="The MorphKit converter with six files queued: two already converted, the rest waiting" src="docs/images/home-en-light.webp">
+  <img alt="Six files in the list: an image and a GIF already converted, a PDF, a note, an audio file and a video set to stay under 25 MB" src="docs/images/home-en-light.webp">
 </picture>
 
 ## What it converts
@@ -78,7 +86,11 @@ installed as an app (PWA).
 | Spreadsheet | Grid editor for CSV / TSV / XLSX / XLS / ODS with sheet tabs, row and column insert / move / delete and sorting |
 | Audio / video | Trim with a two-handle timeline, volume, speed, rotate, mute or replace the audio track |
 
-**Projects** (called Studio until November 2026) are for work you come back to. They are kept in the browser (IndexedDB), and the page says so up front, with how much space they take. Each project shows whether its latest state has been exported as a backup, and a deleted project waits 30 days in a trash before it is gone for good: a multi-track audio mixer with recording and WAV
+**Projects** (called Studio until November 2026) are for work you come back to. They are kept in the browser (IndexedDB), and the page says so up front, with how much space they take. Each project shows whether its latest state has been exported as a backup, and a deleted project waits 30 days in a trash before it is gone for good.
+
+![The Projects page: three projects with their backup state, six kinds of project to start, and the trash](docs/images/projects-en.webp)
+
+What a project can be: a multi-track audio mixer with recording and WAV
 export, video projects that export MP4 with the mixed audio, and image, GIF, PDF and text projects
 that keep their layers and edits. Projects can be exported and imported as ZIP files.
 
@@ -169,7 +181,8 @@ The code base comes with a written map, for people and coding assistants alike. 
 when a file in `src/` has no line in `CLAUDE.md`, or when the three interface languages have
 different keys. Update a map in the same commit as the code it describes.
 
-The README pictures are in [`docs/images/`](docs/images/). [`cover.html`](docs/images/cover.html) is
+The README pictures are in [`docs/images/`](docs/images/). The screenshots come from a script that drives the app
+in headless Edge; they were last taken on 2026-11-17, after the entry redesign. [`cover.html`](docs/images/cover.html) is
 the source of the cover and says how to render it again.
 
 ## License
