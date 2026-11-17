@@ -68,6 +68,10 @@ of file, and its own options.
 - **Even loudness**: make every file land at the same level, −14 LUFS for streaming, −16 for podcasts
   or −23 for broadcast. It measures the sound first and then moves the whole level once, so nothing
   gets squashed; the sound of MP4 / WebM output is levelled too.
+- **Sizes you can see**: every finished conversion draws the result against the original ("65% smaller",
+  with the size target as a tick), the list shows how its bytes split by file type, and the Projects
+  page shows where the space goes, how much of the browser's allowance it is, and a countdown for
+  each project in the trash.
 - **Options per file**: every card lists the settings that change its own conversion (a size target for
   this video, loudness for that recording) and shows what differs from the defaults as chips you can
   remove. The drawer holds the defaults for new files.

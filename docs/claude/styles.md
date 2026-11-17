@@ -31,7 +31,7 @@
 7. `batch bar` — .batch-bar .bb-info .bb-count .bb-progress(.bb-bar) .bb-done .bb-actions
 8. `file list` — .file-card(.status-*) .fc-main .fc-icon .fc-thumb .fc-meta .fc-name .fc-info
    .fc-kind .fc-size .fc-controls .fc-target .fc-remove .fc-more(.fc-menu popover, z20; spans the card ≤640)
-   .fc-optrow(.fc-optrow-label .fc-opt-default .fc-opt-chip .fc-opt-toggle) .fc-opts(the file's own controls, an .sp-grid)
+   .size-compare (rules live in the LAST section, `size pictures`) .fc-optrow(.fc-optrow-label .fc-opt-default .fc-opt-chip .fc-opt-toggle) .fc-opts(the file's own controls, an .sp-grid)
 9. `details / quality / progress / warnings` — .fc-details .fc-detail-row .fc-quality .fc-progress
    .fc-bar .fc-progress-row .fc-pct .engine-* .fc-error .fc-warn
 10. `settings drawer` — .drawer-overlay(z100) .drawer(z101, min(380px,92vw), right sheet)
@@ -135,6 +135,10 @@
 26. `responsive & motion` + **mobile optimization layer** (see below)
 27. `micro-interactions` — tap-highlight, :active press, focus-visible, .drop-hot, modalPop,
     `prefers-reduced-motion` (last block in file)
+
+**Appended at the END of the file — `size pictures (SizeViz)`**: .size-compare(.sc-smaller/.sc-larger/.sc-same; .sc-label .sc-track
+.sc-bar.sc-before/.sc-after .sc-target .sc-num) · .stack(.stack-bar > span[--c](.muted hatched) .stack-legend .stack-note) · .meter(.mt-accent/.mt-warn)
+· placement: .bb-viz (full-width row of the batch bar) .pj-storage(.pj-storage-title .pj-quota) · ≤640: the compare numbers drop under the bars.
 
 ## Responsive architecture (all breakpoints, why)
 

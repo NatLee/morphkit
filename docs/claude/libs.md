@@ -91,7 +91,7 @@ Never throws — missing fields are the failure mode.
 
 ## lib/formats.ts (164)
 
-Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf ico txt]` · `RASTER_OUTPUTS` (png jpeg webp: canvas outputs) · `PDF_TEXT_OUTPUTS` (txt docx md html: made from the page text) · `SLOW_IMAGE_OUTPUTS` (pdf, txt: queued through the semaphore, every other image output runs at once) · `PDF_OUTPUTS` ·
+Exports: `Kind` (image|audio|video|pdf|doc) · `KINDS` (each kind's name key and signal colour, in list order — the kind chart reads it) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf ico txt]` · `RASTER_OUTPUTS` (png jpeg webp: canvas outputs) · `PDF_TEXT_OUTPUTS` (txt docx md html: made from the page text) · `SLOW_IMAGE_OUTPUTS` (pdf, txt: queued through the semaphore, every other image output runs at once) · `PDF_OUTPUTS` ·
 `DOC_TEXT_EXT`/`DOC_SHEET_EXT` · `DocType` + `docTypeOf(file)` (docx|pptx|text|md|html|sheet|json) · `isTextDoc`
 (md/text/html/json — the docs that can be Studio text projects) · `DOC_OUTPUTS` (record per sub-type; first
 entry = default; sheets/json lead with xlsx/csv) + `docOutputs(file)` · `outputsFor(kind, file?)` (file REQUIRED for docs) · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
@@ -102,6 +102,13 @@ the same lists) · `outputsFor` · `defaultTarget`
 case; FormatMatrix chips) · `outputFileName` (jpeg→.jpg) ·
 `mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
 `apng` has NO ffmpeg path — must route to convertAnimImage; `ico` has none either — App routes it to `convertToIco`; image `txt` goes to `imageToText` (lib/ocr).
+
+## lib/sizeStats.ts (60)
+
+Pure arithmetic for components/SizeViz (tests/sizeViz.test.tsx). `sizeChange(before, after)` → `{ratio, savedPct, dir: smaller|larger|same}`
+(within 0.5% = same; null without a source size) · `compareBars(before, after, target?)` (percent lengths on the longer bar's scale; a target
+beyond it is not drawn) · `shares(segments)` (drops empty parts) · `sumBy(items, keys, key, value)` (totals per kind / project type, in
+key order) · `usedPct(used, quota)` → the text before "%" ("<0.1" for tiny real use — never rounded UP to a bigger figure).
 
 ## lib/tasks.ts (120)
 

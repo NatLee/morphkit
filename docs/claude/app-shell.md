@@ -3,7 +3,7 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. If structure changed since this
 > was written, trust the code and update this file. Covers: `App.tsx`, `Hero`, `DropZone`,
-> `FileCard`, `TaskList`, `SettingsPanel`, `SettingControl`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
+> `FileCard`, `SizeViz`, `TaskList`, `SettingsPanel`, `SettingControl`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
 > `InstallPrompt`.
 
 ## App.tsx (781 lines) — owns ALL convert-mode state
@@ -48,6 +48,8 @@ div.app (+ .studio-mode)
     div.topbar-actions > button.theme-toggle.qr-btn (QR tool) + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(auto half-circle/sun/moon cycle)
   main → <Studio/>  |  <Hero compact={items.length>0}/> + section.workbench + <FormatMatrix/>
     section.workbench
+      (inside div.batch-bar, when the list has more than one file) div.bb-viz > <StackBar> of the list by kind (`KINDS` from lib/formats,
+        `kindBytes`) + li.stack-note = what the finished conversions did to the total (`converted*`; editor saves excluded)
       div.banner.info.task-banner (preset chosen: name + what to add; batch → mergePdf button; cancel)
       <DropZone onFiles=addFiles compact={items.length>0}/>
       <TaskList chosen={preset} onPick={pickTask}/>   (only while the list is empty)
@@ -114,6 +116,7 @@ article.file-card.kind-*.status-*
   div.fc-optrow > .fc-optrow-label + (.fc-opt-default | span.fc-opt-chip×n > button ×) + button.fc-opt-toggle×1–2
   div.fc-opts.sp-grid > <SettingControl/>×n   (optsOpen)
   div.fc-quality (image jpeg|webp) > input[range .4–1]
+  <SizeCompare before=file.size after=outSize target=sizeTarget/>   (status done, not `edited`; `sizeTarget` = the file's effective image/video size target when that setting applies)
   div.fc-progress-row (converting media) > .fc-progress>.fc-bar + .fc-pct
   p.fc-error (t(item.error ?? 'failed') — ConvertError keys) | p.fc-warn(.danger)
 ```
@@ -155,6 +158,10 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
   div.hero-fold > div.hero-fold-inner (p.hero-tagline + h1.hero-title>span.hero-accent)`.
   Compact folds it away (grid-template-rows 1fr→0fr transition on `.hero-fold`). The six feature chips
   are gone: they looked like buttons and did nothing — the task list below the drop zone replaced them.
+- **SizeViz.tsx (74)**: `SizeCompare {before, after, target?}` → `div.size-compare.sc-{smaller|larger|same}[role=img]` (3-col grid: .sc-label,
+  .sc-track > .sc-bar.sc-before|.sc-after (+ .sc-target tick), .sc-num with the verdict in words) · `StackBar {segments, label, children?}` →
+  `div.stack > div.stack-bar[role=img] > span×n (width = share, --c colour, .muted = hatched) + ul.stack-legend` (children = extra legend items)
+  · `Meter {value, max, tone, label}` → `span.meter.mt-{accent|warn}[role=img] > span`. All sizes go through lib/sizeStats.
 - **TaskList.tsx (67)**: `section.tasks > .tasks-head (h2 + count hint) + .tasks-find (input[type=search] +
   .tasks-kinds > button×7 from `KIND_FILTERS`) + .tasks-grid > button.task.tk-{kind}(.chosen) (b name, span
   description, i how-it-runs) | p.tasks-empty`. Local state `query`/`kind`; the list is

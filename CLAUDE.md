@@ -70,6 +70,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, the file's own options (override chips + the controls that apply to its conversion), a "more" menu (save as project, file details), warnings, ConvertError message |
 | `components/SettingsPanel.tsx` | The drawer: every setting as the DEFAULT for new files, drawn section by section from `lib/settingFields`; only ever mounted inside the drawer |
 | `components/SettingControl.tsx` | One setting as a form control (select / range / check) from its `SettingField` description — shared by the drawer and the file cards |
+| `components/SizeViz.tsx` | The size pictures: `SizeCompare` (source vs result on one scale, size target as a tick), `StackBar` (one total split into coloured parts + a legend with the numbers), `Meter` (one quantity against its limit). Numbers come from `lib/sizeStats` |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes; output chips come from lib/formats, input chips are a short curated pick |
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
@@ -88,6 +89,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) — the defaults for new files |
 | `lib/settingFields.ts` | The ONE description of every setting: label, control, hint and `applies(kind, target)` = the conversions it changes. `fieldsFor`, `effectiveSettings(defaults, item.opts)`, `withOption` (an override equal to the default is dropped), `activeOverrides`, `showValue`. Invariant 33 |
 | `lib/tasks.ts` | "I want to…" registry: each `Task` is a preset over what the app already does — convert (target and/or per-file opts), editor (optionally a PDF export option), batch (merge), tool (QR). `suggestionsFor` (card chips), `taskFits`, `taskActive` (derived, nothing stored), `applyTask`, `filterTasks`. Invariant 34 |
+| `lib/sizeStats.ts` | Arithmetic behind the size pictures: `sizeChange`, `compareBars`, `shares`, `sumBy`, `usedPct` (label; "<0.1" for tiny real use, never rounded up) |
 | `lib/ocr.ts` | Text recognition (tesseract.js, lazy): `withOcr(langs, consent, fn)` hands `fn` a reader that starts the engine on its FIRST read — asking `consent` before a download (sizes in `ocrDownloadBytes`) — and closes it after; `imageToText`; `ocrLangs` (setting `auto` follows the UI language, English always added). Invariant 32 |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
@@ -320,6 +322,7 @@ the palette or the mark changes.
 - New converter feature → param in `settings.ts` + one entry in `lib/settingFields.ts` (the drawer and the cards draw themselves from it) + wire into `buildArgs` (recipe: `/add-setting`).
 - New editor capability → keep ImageEditor raster (paint into the active layer, invariant 18) and GifEditor frame-based; bake only geometry.
 - Structural change to a mapped file → update its `docs/claude/*.md` map in the same commit.
+- A size, a share or a countdown shown to the user gets a picture next to the number (`SizeViz`): the number stays as text, the bar is `role="img"` with the same facts in its label, colours come from tokens, and a bar never claims more than the number (`usedPct`).
 - New thing people can do → add it to `lib/tasks.ts` so the home page and the file cards can offer it (invariant 34).
 - Bug fix → add a regression test in `tests/` next to the closest existing one.
 - Anything that deletes without an undo (IndexedDB records, user files) goes through `ConfirmDialog`; say in the message what goes with it.
