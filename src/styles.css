@@ -4253,7 +4253,10 @@ kbd {
 }
 
 /* the badge and the backup mark share one line */
-.pj-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.pj-tags { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* one line on every card, so cards in a row line up; a long mark ("Changed since the backup") is cut, the title says it all */
+.pj-tags .type-badge { flex: none; }
+.pj-tags .pj-backup { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* the "⋯" menu (info, export, delete) sits on the thumbnail's corner; in rows it ends the row */
 .pj-card > .fc-more { position: absolute; top: 8px; right: 8px; }

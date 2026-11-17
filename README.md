@@ -18,7 +18,7 @@ installed as an app (PWA).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/start-en-dark.webp">
-  <img alt="The MorphKit home page: a drop zone, and under it a searchable list of jobs such as Image to text, Convert to MP3 and Add page numbers to a PDF" src="docs/images/start-en-light.webp">
+  <img alt="The MorphKit home page: a drop zone, three projects to continue, and the &quot;I have a ___ file and want to…&quot; panel showing what Video to MP3 does and what it lets you adjust" src="docs/images/start-en-light.webp">
 </picture>
 
 Add files, and each one gets a card: the output format, the three jobs most often done with that kind
@@ -57,9 +57,13 @@ of file, and its own options.
   Excel / ODS and JSON. PDF output embeds Noto fonts so the text stays selectable, including CJK.
 - File details per type: dimensions, duration, bitrate, page count, word count, photo EXIF with GPS
   and a map link, and QR codes found inside images.
-- **"I want to…"** on the home page: 23 common jobs you can search or filter by file type, such as
-  "Add page numbers to a PDF", "Shrink a video under 25 MB" or "Image to text". Pick one and add the
-  file, or add the file first: each card suggests the three jobs most often done with that kind of file.
+- **"I have a ___ file and want to…"** on the home page: pick the kind of file you have and see the jobs
+  people do with it (such as "Add page numbers to a PDF", "Shrink a video under 25 MB" or "Image to
+  text"), every format it can become, what each conversion needs first and what it lets you adjust. One
+  click sets it up for the files you drop next. A search box finds extensions and jobs, and "All formats"
+  shows the whole map as a table. Or add the file first: each card suggests the three jobs most often
+  done with that kind of file.
+- **Continue**: when you have projects, the three you changed last are one click away on the home page.
 - Paste with Ctrl+V: a file or screenshot joins the list, plain text becomes a new Markdown note.
 - **Fit to a file size** for upload limits: pick a target (100 KB – 5 MB for images, 10 – 100 MB for
   video) and each image is squeezed under it (quality first, then dimensions), while MP4 / WebM get
@@ -96,7 +100,9 @@ of file, and its own options.
 
 **Projects** (called Studio until November 2026) are for work you come back to. They are kept in the browser (IndexedDB), and the page says so up front, with how much space they take. Each project shows whether its latest state has been exported as a backup, and a deleted project waits 30 days in a trash before it is gone for good.
 
-![The Projects page: three projects with their backup state, six kinds of project to start, and the trash](docs/images/projects-en.webp)
+**New project** sits at the top of the page however many projects you have: pick what you want to make, or drop a file and it opens as the matching kind of project. A rail beside the list filters by type (each with the space it takes), by "not backed up" and by the trash; a search box finds projects by name, and the list is split into today, the last 7 days, the last 30 days and older.
+
+![The Projects page: New project and a search box at the top, a rail of project types with the space each takes, not backed up and the trash, and the projects in date sections with their backup state](docs/images/projects-en.webp)
 
 What a project can be: a multi-track audio mixer with recording and WAV
 export, video projects that export MP4 with the mixed audio, and image, GIF, PDF and text projects
@@ -109,9 +115,9 @@ The interface comes in English, 繁體中文 and 日本語, with light, dark and
 
 ![Six editors: image, PDF, GIF, document, QR and a project workspace](docs/images/editors-en.webp)
 
-It is built for phones too — the editors switch to a full-screen, app-style layout:
+It is built for phones too — the project filters become a row of chips and the projects rows, and the editors switch to a full-screen, app-style layout:
 
-<img alt="MorphKit on a phone: home screen, file list and image editor" src="docs/images/mobile-en.webp" width="720">
+<img alt="MorphKit on a phone: home screen with Continue and the format panel, the projects, and the image editor" src="docs/images/mobile-en.webp" width="720">
 
 ## Run it locally
 
@@ -193,7 +199,7 @@ when a file in `src/` has no line in `CLAUDE.md`, or when the three interface la
 different keys. Update a map in the same commit as the code it describes.
 
 The README pictures are in [`docs/images/`](docs/images/). The screenshots come from a script that drives the app
-in headless Edge; they were last taken on 2026-11-17, after the entry redesign. [`cover.html`](docs/images/cover.html) is
+in headless Edge; they were last taken on 2026-11-18, after the home and projects redesign. [`cover.html`](docs/images/cover.html) is
 the source of the cover and says how to render it again.
 
 ## License

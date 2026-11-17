@@ -1154,7 +1154,7 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
             <span className="pj-body">
               <span className="pj-tags">
                 <span className={`type-badge tb-${ty}`}>{t(TYPE_META[ty].labelKey)}</span>
-                <span className={`pj-backup bk-${bk}`}>{t(`backup_${bk}`)}</span>
+                <span className={`pj-backup bk-${bk}`} title={t(`backup_${bk}`)}>{t(`backup_${bk}`)}</span>
               </span>
               <span className="pj-name">{p.name}</span>
               <span className="pj-meta">
