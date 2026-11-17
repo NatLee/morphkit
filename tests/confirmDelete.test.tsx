@@ -56,7 +56,12 @@ describe('Projects are deleted only after a confirmation', () => {
     const user = userEvent.setup();
     openStudio();
     await screen.findByText('Podcast cut');
-    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    // a card's delete is in its "⋯" menu
+    const fromMenu = async () => {
+      await user.click(screen.getByRole('button', { name: 'More for “Podcast cut”' }));
+      await user.click(screen.getByRole('menuitem', { name: /^Delete project/ }));
+    };
+    await fromMenu();
 
     const dialog = screen.getByRole('alertdialog', { name: 'Delete this project?' });
     // the message says what goes with it (1 file, 2.0 KB from the launcher stats)
@@ -69,7 +74,7 @@ describe('Projects are deleted only after a confirmation', () => {
     expect(idb.deleteProject).not.toHaveBeenCalled();
     expect(screen.getByText('Podcast cut')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await fromMenu();
     await user.click(screen.getByRole('button', { name: 'Move to trash' }));
     // into the trash, files kept: nothing is deleted from IndexedDB yet
     expect(idb.deleteProject).not.toHaveBeenCalled();

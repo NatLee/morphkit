@@ -13,7 +13,9 @@ import { Overlay } from './Overlay';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Meter } from './SizeViz';
 import { sumBy, usedPct } from '../lib/sizeStats';
-import { filterCounts, liveFilter, matchesFilter, projectTypeFor, type ProjectFilter } from '../lib/projectList';
+import { filterCounts, groupByAge, liveFilter, matchesFilter, matchesQuery, projectTypeFor, type ProjectFilter } from '../lib/projectList';
+import { useMediaQuery } from '../lib/useMediaQuery';
+import { MoreMenu } from './MoreMenu';
 import { createPortal } from 'react-dom';
 import { ACCEPT, detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
@@ -225,6 +227,9 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   const [npMsg, setNpMsg] = useState('');
   const npFileRef = useRef<HTMLInputElement>(null);
   const [npHot, setNpHot] = useState(false);
+  // the launcher's search box (project names) and the phone layout, where cards are always rows
+  const [query, setQuery] = useState('');
+  const phone = useMediaQuery('(max-width: 640px)');
   useEffect(() => {
     if (!npOpen) return;
     (document.querySelector('.np-modal .pj-use') as HTMLElement | null)?.focus();
@@ -771,12 +776,13 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   }, [trash]);
 
   const sortedProjects = useMemo(() => {
-    const list = projects.filter((p) => matchesFilter(p, shown));
+    const list = projects.filter((p) => matchesFilter(p, shown) && matchesQuery(p, query));
     if (sortBy === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === 'size') list.sort((a, b) => (pjStats[b.id]?.bytes ?? 0) - (pjStats[a.id]?.bytes ?? 0));
     else list.sort((a, b) => b.updatedAt - a.updatedAt);
     return list;
-  }, [projects, sortBy, pjStats, shown]);
+  }, [projects, sortBy, pjStats, shown, query]);
+  const shownTrash = trash.filter((p) => matchesQuery(p, query));
 
   /** White blank canvas asset for image projects. */
   const blankCanvas = async (w: number, h: number) => {
@@ -1147,6 +1153,46 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
         {npMsg && <p className="np-msg" role="status">{npMsg}</p>}
       </div>
     );
+    /** One project in the list: open it with a click, everything else is in its "⋯" menu. */
+    const card = (p: ProjectRec) => {
+      const ty = p.type ?? 'audio';
+      const bytes = pjStats[p.id]?.bytes ?? 0;
+      const bk = backupState(p);
+      return (
+        <div className="pj-card" key={p.id} style={{ '--c': TYPE_META[ty].color } as CSSProperties}>
+          <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
+            <span className="pj-thumb">
+              {thumbs[p.id] ? (
+                thumbs[p.id].video
+                  ? <video src={thumbs[p.id].url} muted preload="metadata" />
+                  : <img src={thumbs[p.id].url} alt="" draggable={false} />
+              ) : (
+                <svg viewBox="0 0 24 24" width="26" height="26"><path d={TYPE_META[ty].glyph} fill={ty === 'gif' ? 'none' : 'currentColor'} stroke={ty === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
+              )}
+            </span>
+            <span className="pj-body">
+              <span className="pj-tags">
+                <span className={`type-badge tb-${ty}`}>{t(TYPE_META[ty].labelKey)}</span>
+                <span className={`pj-backup bk-${bk}`}>{t(`backup_${bk}`)}</span>
+              </span>
+              <span className="pj-name">{p.name}</span>
+              <span className="pj-meta">
+                {new Date(p.updatedAt).toLocaleDateString()} · {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(bytes)}
+              </span>
+              {projects.length > 1 && <Meter value={bytes} max={largestBytes} label={t('sizeOfLargest', { size: formatBytes(bytes) })} />}
+            </span>
+          </button>
+          <MoreMenu
+            label={t('pjMore', { name: p.name })}
+            items={[
+              { key: 'info', label: t('projectInfo'), onSelect: () => void openMeta(p) },
+              { key: 'export', label: t('exportProject'), hint: t('pjExportHint'), onSelect: () => void exportProjectZip(p) },
+              { key: 'delete', label: t('deleteProject'), hint: t('pjDeleteHint', { days: String(TRASH_DAYS) }), onSelect: () => setConfirmDel({ project: p }) },
+            ]}
+          />
+        </div>
+      );
+    };
     /** One rail row = one filter; type rows (and the trash) also draw the space they take. */
     const railRow = (key: ProjectFilter, name: string, opts: { color?: string; bytes?: number; warn?: boolean } = {}) => (
       <button
@@ -1179,6 +1225,16 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
               {t('pjNew')}
             </button>
           )}
+          {projects.length + trash.length > 1 && (
+            <input
+              type="search"
+              className="pj-search"
+              value={query}
+              placeholder={t('pjSearch')}
+              aria-label={t('pjSearch')}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          )}
           <span className="opt-spacer" />
           {projects.length > 0 && shown !== 'trash' && (
             <>
@@ -1187,14 +1243,14 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                 <option value="name">{t('sortName')}</option>
                 <option value="size">{t('sortSize')}</option>
               </select>
-              <div className="st-tabs" role="group">
+              {!phone && <div className="st-tabs" role="group">
                 <button className={layout === 'grid' ? 'active' : ''} onClick={() => setLayoutP('grid')} title="Grid">
                   <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
                 </button>
                 <button className={layout === 'list' ? 'active' : ''} onClick={() => setLayoutP('list')} title="List">
                   <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
                 </button>
-              </div>
+              </div>}
             </>
           )}
           <button className="btn btn-ghost" onClick={() => pjImportRef.current?.click()}>
@@ -1255,8 +1311,9 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                     <span>{t('trashHint', { days: String(TRASH_DAYS) })}</span>
                     <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDel({ emptyTrash: true })}>{t('trashEmpty')}</button>
                   </div>
+                  {!shownTrash.length && <p className="pj-empty">{t('pjNoMatch', { q: query.trim() })}</p>}
                   <ul className="pj-trash-list">
-                      {trash.map((p) => (
+                      {shownTrash.map((p) => (
                         <li key={p.id}>
                           <span className={`type-badge tb-${p.type ?? 'audio'}`}>{t(TYPE_META[p.type ?? 'audio'].labelKey)}</span>
                           <span className="pj-trash-name">{p.name}</span>
@@ -1281,52 +1338,15 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                   {picker}
                 </>
               ) : (
-              <div className={layout === 'grid' ? 'pj-grid' : 'pj-list'}>
-                {sortedProjects.map((p) => (
-                  <div className="pj-card" key={p.id}>
-                    <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
-                      <span className="pj-thumb">
-                        {thumbs[p.id] ? (
-                          thumbs[p.id].video
-                            ? <video src={thumbs[p.id].url} muted preload="metadata" />
-                            : <img src={thumbs[p.id].url} alt="" draggable={false} />
-                        ) : (
-                          <svg viewBox="0 0 24 24" width="26" height="26"><path d={TYPE_META[p.type ?? 'audio'].glyph} fill={(p.type ?? 'audio') === 'gif' ? 'none' : 'currentColor'} stroke={(p.type ?? 'audio') === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
-                        )}
-                      </span>
-                      <span className="pj-body">
-                        <span className={`type-badge tb-${p.type ?? 'audio'}`}>
-                          {t(TYPE_META[p.type ?? 'audio'].labelKey)}
-                        </span>
-                        <span className="pj-name">{p.name}</span>
-                        <span className="pj-meta">
-                          {new Date(p.updatedAt).toLocaleDateString()} · {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
-                        </span>
-                        {projects.length > 1 && (
-                          <Meter value={pjStats[p.id]?.bytes ?? 0} max={largestBytes} label={t('sizeOfLargest', { size: formatBytes(pjStats[p.id]?.bytes ?? 0) })} />
-                        )}
-                        <span className={`pj-backup bk-${backupState(p)}`}>{t(`backup_${backupState(p)}`)}</span>
-                      </span>
-                    </button>
-                    <div className="pj-actions">
-                      <button className="btn btn-ghost btn-sm" onClick={() => void openMeta(p)} title={t('projectInfo')}>
-                        <svg viewBox="0 0 24 24" width="13" height="13"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 7.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                      </button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
-                        {t('exportProject')}
-                      </button>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => setConfirmDel({ project: p })}
-                        title={t('deleteProject')}
-                        aria-label={t('deleteProject')}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                <>
+                  {!sortedProjects.length && <p className="pj-empty">{t('pjNoMatch', { q: query.trim() })}</p>}
+                  {(sortBy === 'updated' ? groupByAge(sortedProjects, Date.now()) : [{ key: 'all' as const, items: sortedProjects }]).map((g) => (
+                    <section className="pj-group" key={g.key} aria-label={g.key === 'all' ? undefined : t(`age_${g.key}`)}>
+                      {g.key !== 'all' && <h3 className="pj-group-h">{t(`age_${g.key}`)} <span>{g.items.length}</span></h3>}
+                      <div className={layout === 'list' || phone ? 'pj-list' : 'pj-grid'}>{g.items.map(card)}</div>
+                    </section>
+                  ))}
+                </>
               )}
             </div>
           </div>
