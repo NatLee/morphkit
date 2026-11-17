@@ -5,6 +5,8 @@ export interface Settings {
   defaultQuality: number;
   /** Image: longest-edge cap in px. 0 = keep original size. */
   imageMaxDim: number;
+  /** Image: squeeze each output under this many bytes (quality first, then size). 0 = off. */
+  imageTargetSize: number;
   audioBitrate: '128k' | '192k' | '256k' | '320k';
   /** Audio: 'cbr' pins the bitrate, 'vbr' hands the encoder a quality target. */
   audioRateMode: 'cbr' | 'vbr';
@@ -24,6 +26,8 @@ export interface Settings {
   videoFps: number;
   /** Video: strip the audio track. */
   videoMute: boolean;
+  /** Video (MP4/WebM): bitrate from the length so the file stays under this many bytes. 0 = off (CRF). */
+  videoTargetSize: number;
   gifFps: number;
   /** Video → GIF: max width in px. Smaller videos keep their size (never enlarged). */
   gifWidth: number;
@@ -44,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   concurrency: 2,
   defaultQuality: 0.9,
   imageMaxDim: 0,
+  imageTargetSize: 0,
   audioBitrate: '192k',
   audioRateMode: 'cbr',
   audioQuality: 2,
@@ -54,6 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   videoMaxH: 0,
   videoFps: 0,
   videoMute: false,
+  videoTargetSize: 0,
   gifFps: 12,
   gifWidth: 480,
   keepMetadata: true,

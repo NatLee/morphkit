@@ -1,11 +1,20 @@
 import { useI18n } from '../i18n';
 import type { Settings } from '../lib/settings';
+import { MIN_QUALITY } from '../lib/imageConvert';
 
 /** LAME VBR presets and the average bitrate each typically lands on. */
 const VBR_LEVELS: ReadonlyArray<[q: number, kbps: number]> = [
   [0, 245], [1, 225], [2, 190], [3, 175], [4, 165],
   [5, 130], [6, 115], [7, 100], [8, 85], [9, 65],
 ];
+
+/**
+ * Size-target choices, in decimal bytes on purpose: an upload limit of "500 KB" may mean 500,000
+ * or 512,000 bytes, and a file under the decimal figure passes both readings.
+ */
+const IMAGE_TARGET_SIZES = [100e3, 200e3, 500e3, 1e6, 2e6, 5e6];
+const VIDEO_TARGET_SIZES = [10e6, 25e6, 50e6, 100e6];
+const sizeLabel = (bytes: number) => (bytes >= 1e6 ? `${bytes / 1e6} MB` : `${bytes / 1e3} KB`);
 
 interface Props {
   settings: Settings;
@@ -69,7 +78,7 @@ export function SettingsPanel({ settings, onChange }: Props) {
             </span>
             <input
               type="range"
-              min={0.4}
+              min={MIN_QUALITY}
               max={1}
               step={0.01}
               value={settings.defaultQuality}
@@ -89,6 +98,20 @@ export function SettingsPanel({ settings, onChange }: Props) {
                 <option key={n} value={n}>{n}px</option>
               ))}
             </select>
+          </label>
+
+          <label className="sp-field">
+            <span className="sp-label">{t('targetSize')}</span>
+            <select
+              value={settings.imageTargetSize}
+              onChange={(e) => set('imageTargetSize', Number(e.target.value))}
+            >
+              <option value={0}>{t('targetSizeOff')}</option>
+              {IMAGE_TARGET_SIZES.map((n) => (
+                <option key={n} value={n}>{sizeLabel(n)}</option>
+              ))}
+            </select>
+            <span className="sp-hint">{t('imageTargetSizeHint', { min: `${Math.round(MIN_QUALITY * 100)}%` })}</span>
           </label>
         </div>
       </div>
@@ -180,9 +203,24 @@ export function SettingsPanel({ settings, onChange }: Props) {
               max={32}
               step={1}
               value={settings.videoCrf}
+              disabled={settings.videoTargetSize > 0}
               onChange={(e) => set('videoCrf', Number(e.target.value))}
             />
             <span className="sp-hint">{t('videoCrfHint')}</span>
+          </label>
+
+          <label className="sp-field">
+            <span className="sp-label">{t('targetSize')}</span>
+            <select
+              value={settings.videoTargetSize}
+              onChange={(e) => set('videoTargetSize', Number(e.target.value))}
+            >
+              <option value={0}>{t('targetSizeOff')}</option>
+              {VIDEO_TARGET_SIZES.map((n) => (
+                <option key={n} value={n}>{sizeLabel(n)}</option>
+              ))}
+            </select>
+            <span className="sp-hint">{t('videoTargetSizeHint')}</span>
           </label>
 
           <label className="sp-field">

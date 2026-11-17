@@ -35,14 +35,14 @@ describe('buildArgs — audio', () => {
   });
 
   it('maps cover art only for formats that can hold it', () => {
-    expect(buildArgs('mp3', 'i', 'o.mp3', S(), undefined, undefined, true)).toContain('attached_pic');
+    expect(buildArgs('mp3', 'i', 'o.mp3', S(), undefined, { hasArt: true })).toContain('attached_pic');
     for (const t of ['wav', 'ogg']) {
-      expect(buildArgs(t, 'i', `o.${t}`, S(), undefined, undefined, true)).not.toContain('attached_pic');
+      expect(buildArgs(t, 'i', `o.${t}`, S(), undefined, { hasArt: true })).not.toContain('attached_pic');
     }
   });
 
   it('drops cover art when trimming, because the streams would desync', () => {
-    expect(buildArgs('mp3', 'i', 'o.mp3', S(), { trimStart: 1 }, undefined, true)).not.toContain('attached_pic');
+    expect(buildArgs('mp3', 'i', 'o.mp3', S(), { trimStart: 1 }, { hasArt: true })).not.toContain('attached_pic');
   });
 
   it('puts the trim before -i and applies volume + speed as audio filters', () => {
@@ -75,7 +75,7 @@ describe('buildArgs — video', () => {
 
   it('mutes when asked, and maps a replacement audio track', () => {
     expect(buildArgs('mp4', 'i', 'o.mp4', S(), { mute: true })).toContain('-an');
-    const a = buildArgs('mp4', 'v.mp4', 'o.mp4', S(), undefined, 'a.wav');
+    const a = buildArgs('mp4', 'v.mp4', 'o.mp4', S(), undefined, { input2: 'a.wav' });
     expect(a.join(' ')).toContain('-i v.mp4 -i a.wav -map 0:v:0 -map 1:a:0 -shortest');
   });
 
