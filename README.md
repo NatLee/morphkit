@@ -154,7 +154,7 @@ Your files never leave the browser. The app does make a few network requests:
 - Animated images are decoded up to 300 frames; longer GIFs are cut off.
 - PDF → TXT / DOCX / Markdown / HTML reads the text layer; pages without one (scans) are read with
   OCR. That gives plain text only: tables, columns and fonts are not rebuilt, small or blurry print
-  comes out with mistakes, and there is no "searchable PDF" output yet. Handwriting is not recognised.
+  comes out with mistakes, and there is no "searchable PDF" output yet.
 - Canvas WEBP export does not work in older Safari; copying results to the clipboard needs HTTPS.
 - A video size target needs the clip's length, which comes from the browser. For a file the browser
   cannot play (some AVI / WMV / FLV), the card asks you to turn the target off instead of guessing.
