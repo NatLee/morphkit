@@ -1,3 +1,5 @@
+![MorphKit: convert and edit images, audio, video, PDFs and documents in your browser. Nothing is uploaded.](docs/images/cover.webp)
+
 # MorphKit
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
@@ -119,8 +121,28 @@ Your files never leave the browser. The app does make a few network requests:
   and suggests PNG / JPG or an OCR tool instead (there is no OCR built in).
 - Canvas WEBP export does not work in older Safari; copying results to the clipboard needs HTTPS.
 
-## Contributing
+## Working on the code
 
-`npm test` and `npm run build` must pass. The file map, invariants and design notes for the code base
-live in [`CLAUDE.md`](CLAUDE.md) and [`docs/claude/`](docs/claude/); `npm run check:context` checks
-that they still match the source.
+`npm test` and `npm run build` must pass (CI runs both on every pull request). Run
+`npm run check:context` as well when you touch the structure of the code.
+
+The code base comes with a written map, for people and coding assistants alike. Start with
+`CLAUDE.md`, then open the map for the part you are changing:
+
+| Document | What it covers |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | Commands, one line on every file in `src/`, the invariants (each one guards against a regression that really happened) and the design language |
+| [`docs/claude/app-shell.md`](docs/claude/app-shell.md) | The converter: app state, how a conversion is routed, file cards, the settings drawer, small components |
+| [`docs/claude/editors.md`](docs/claude/editors.md) | The image, GIF / APNG, PDF and document editors |
+| [`docs/claude/studio.md`](docs/claude/studio.md) | Studio projects, the audio mixer and video projects |
+| [`docs/claude/libs.md`](docs/claude/libs.md) | Everything in `src/lib/`: ffmpeg arguments, formats, settings, PDF, documents, QR codes, translations |
+| [`docs/claude/styles.md`](docs/claude/styles.md) | The sections of `styles.css`, the themes and the phone layout |
+| [`docs/claude/README.md`](docs/claude/README.md) | How the maps are organised and kept up to date |
+| [`.claude/skills/`](.claude/skills/) | Step-by-step recipes for adding a converter setting or an output format |
+
+`npm run check:context` fails when a map names a file, function or CSS class that no longer exists,
+when a file in `src/` has no line in `CLAUDE.md`, or when the three interface languages have
+different keys. Update a map in the same commit as the code it describes.
+
+The README pictures are in [`docs/images/`](docs/images/). [`cover.html`](docs/images/cover.html) is
+the source of the cover and says how to render it again.

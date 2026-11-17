@@ -1,3 +1,5 @@
+![MorphKit：在瀏覽器裡轉換、編輯圖片、音訊、影片、PDF 和文件，檔案不會上傳](docs/images/cover.webp)
+
 # MorphKit
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
@@ -102,4 +104,21 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 
 ## 參與開發
 
-`npm test` 和 `npm run build` 都要通過。程式的檔案地圖、不變條件和設計說明在 [`CLAUDE.md`](CLAUDE.md) 和 [`docs/claude/`](docs/claude/)；`npm run check:context` 會檢查這些說明是否還跟程式一致。
+`npm test` 和 `npm run build` 都要通過（每個 pull request 的 CI 都會跑）。改到程式結構時，也請跑 `npm run check:context`。
+
+程式附有一套文字地圖，人和程式助手都能用。先看 `CLAUDE.md`，再打開你要改的那一塊的地圖：
+
+| 文件 | 內容 |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | 指令、`src/` 每個檔案的用途、不變條件（每一條都對應一個真的發生過的問題），以及設計語言 |
+| [`docs/claude/app-shell.md`](docs/claude/app-shell.md) | 轉檔畫面：App 的狀態、轉檔怎麼分流、檔案卡片、設定面板、小元件 |
+| [`docs/claude/editors.md`](docs/claude/editors.md) | 圖片、GIF / APNG、PDF 和文件編輯器 |
+| [`docs/claude/studio.md`](docs/claude/studio.md) | Studio 專案、混音器和影片專案 |
+| [`docs/claude/libs.md`](docs/claude/libs.md) | `src/lib/` 的所有模組：ffmpeg 參數、格式、設定、PDF、文件、QR Code、翻譯 |
+| [`docs/claude/styles.md`](docs/claude/styles.md) | `styles.css` 的分區、主題和手機版面 |
+| [`docs/claude/README.md`](docs/claude/README.md) | 這套地圖怎麼分層、怎麼保持跟程式一致 |
+| [`.claude/skills/`](.claude/skills/) | 新增轉檔設定、新增輸出格式的步驟 |
+
+地圖裡寫到的檔案、函式或 CSS class 已經不存在、`src/` 裡有檔案在 `CLAUDE.md` 沒有對應的一行，或三種介面語言的字串鍵不一致時，`npm run check:context` 都會失敗。改程式時，請在同一個 commit 更新對應的地圖。
+
+README 用到的圖片在 [`docs/images/`](docs/images/)。封面的原始檔是 [`cover.html`](docs/images/cover.html)，檔頭寫了怎麼重新產生。
