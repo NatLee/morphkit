@@ -34,7 +34,7 @@ workspace, skipping the launcher; App clears it when the nav is used. Prop `onPr
 
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
-entered · quota · `confirmDel` ({project}|{asset}|null — the pending delete shown in ConfirmDialog) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
+entered · quota · `confirmDel` ({project}|{asset}|{purge}|{emptyTrash}|null — the pending delete shown in ConfirmDialog) · `trash` (deleted projects, newest first) · trashOpen · trashStats · `justTrashed` (+ `trashToast` timer: the restore toast, `TRASH_TOAST_MS`) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
 sortBy (`'mk-sort'`) · metaPj · metaFacts {id, name, meta: FileMeta} (info-modal probe, keyed by project
 id so a slow probe can't paint another project's rows) · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
 framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
@@ -49,25 +49,28 @@ shared by the thumb effect and the info modal) · `openMeta(p)` (probes the prim
 `extractMeta`, drops the blob preview per invariant 2) · `metaRows` (useMemo: **per-type** info rows —
 audio/video get tracks+clips+timeline, video adds dims/duration/trim, image adds canvas/layers/bg,
 gif adds dims; never show track counts on an image project) ·
-`flattenImageProject` (≤320px launcher thumb) · `noteThumb` (doc assets: paints first lines on a 320×200 canvas — an .md blob is NOT an <img> src; the thumbs effect branches doc → noteThumb, pdf → extractMeta preview, before the generic object-URL branch) · `savePatch(patch)` — THE mutation funnel
-(merge curRef → setProjects → debounced putProject) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
-`createProject`/`removeProject(p)` (the ONLY project delete — launcher × and the workspace bar both reach it through `confirmDel`; deleting the open project first clears `saveTimer`/`baseSaveTimer` and nulls `curRef`, or a pending debounced save writes the deleted record back)/`renameProject` · `projectSize(p)` + `confirmNode` (dialog text: live assets for the open project, launcher stats otherwise) · `importFiles` (hidden input uses the shared `ACCEPT` from lib/formats) · `removeAsset` (must strip clips +
+`flattenImageProject` (≤320px launcher thumb) · `noteThumb` (doc assets: paints first lines on a 320×200 canvas — an .md blob is NOT an <img> src; the thumbs effect branches doc → noteThumb, pdf → extractMeta preview, before the generic object-URL branch) · `savePatch(patch, touch = true)` — THE mutation funnel
+(merge curRef → setProjects → debounced putProject; `touch: false` keeps `updatedAt` — used for the export stamp) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
+`createProject`/`removeProject(p)` (the ONLY way out of the list — launcher × and the workspace bar both reach it through `confirmDel`; it clears `saveTimer`/`baseSaveTimer`, nulls `curRef`, then writes the latest state with `deletedAt` and shows the restore toast; a never-saved project is just dropped — invariant 35)/`restoreProject(p)` (strips `deletedAt`)/`purgeProjects(list)` (the only `idbDeleteProject` callers besides the init purge)/`renameProject` · `projectSize(p)` + `confirmNode` (dialog text: live assets for the open project, launcher stats otherwise) · `importFiles` (hidden input uses the shared `ACCEPT` from lib/formats) · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
 `withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `onAudioExtracted` (extracted WAV →
 `*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` (delegates to
 idb `createProjectWithAsset`, then enters) · `blankCanvas`
-(clamp 8–4096) · `blankGif` (480×360) · `remapMixer` + `exportProjectZip`/`importProjectZip` (id remap) ·
+(clamp 8–4096) · `blankGif` (480×360) · `remapMixer` + `exportProjectZip` (then stamps `exportedAt`)/`importProjectZip` (id remap; keeps the whole `imageDoc`: layers + bg) ·
 `importAssetToEditor` (routes by ptype; video→framePick modal; GIF→decodeAnim; GIF→MP4 via convertMedia,
 15MB cap `tooBigGif`) · `dropExternalToEditor` · `onFramesPicked` · `pseudoItem(a)` (**memoized** pseudo-Item
 for inline editors — invariant 15) · `persistBase`. Window `paste` listener while entered.
 
 **Launcher DOM** (two states by `projects.length`): `.studio.st-launcher > .st-bar (h2.launcher-title, .opt-spacer,
 [select.tb-select + .st-tabs grid|list — only with projects], import btn)` + first visit `p.pj-explain` | later `p.pj-note`
-(count · `totalBytes` from pjStats · `quota` from navigator.storage.estimate when the browser reports one · local-only reminder)
+(count · `totalBytes` from pjStats · `quota` from navigator.storage.estimate when the browser reports one · local-only reminder ·
+`.pj-warn` = how many projects are not `backupState === 'fresh'`)
 + `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body (.type-badge.tb-{type}, .pj-name, .pj-meta)) +
-.pj-actions (info/export/delete → confirm)` + `.pj-uses-head` + `.pj-uses > button.pj-use.ut-{type}×6` (one per `TYPE_META`
+.pj-actions (info/export/delete → confirm)` (`.pj-body` ends with `span.pj-backup.bk-{never|stale|fresh}`) + `.pj-uses-head` + `.pj-uses > button.pj-use.ut-{type}×6` (one per `TYPE_META`
 entry: `useKey` title = what people make with it, `descKey`, type badge; click = `createProject(type)` — there is no type
-modal any more) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
+modal any more) · `section.pj-trash` (only with trashed projects: `.pj-trash-head` > button.pj-trash-toggle + hint + "empty" btn,
+`ul.pj-trash-list > li` (type badge, name, days left · files · size, restore, delete for good)) · portal `.banner.info.st-note.pj-undo`
+(restore toast) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
 **Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete → confirm)` +
 `.st-body (resizable assets | .split-gutter | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon
