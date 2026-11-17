@@ -7,6 +7,8 @@ import { FileCard } from './components/FileCard';
 import { SettingsPanel } from './components/SettingsPanel';
 import { FormatMatrix } from './components/FormatMatrix';
 import { TaskList } from './components/TaskList';
+import { StackBar } from './components/SizeViz';
+import { sizeChange, sumBy } from './lib/sizeStats';
 import { MediaEditor } from './components/MediaEditor';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Studio } from './components/Studio';
@@ -19,7 +21,7 @@ import { DocEditor } from './components/DocEditor';
 import { QrTool } from './components/QrTool';
 import { SheetEditor } from './components/SheetEditor';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName, PDF_TEXT_OUTPUTS, SLOW_IMAGE_OUTPUTS } from './lib/formats';
+import { KINDS, defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName, PDF_TEXT_OUTPUTS, SLOW_IMAGE_OUTPUTS } from './lib/formats';
 import { convertImage, convertToIco } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
@@ -575,6 +577,12 @@ export default function App() {
   const doneCount = items.filter((i) => i.status === 'done').length;
   const activeCount = items.filter((i) => i.status === 'converting' || i.status === 'queued').length;
   const totalSize = items.reduce((s, i) => s + i.file.size, 0);
+  // the list by kind, and what the finished conversions did to the size (editor saves are not conversions)
+  const kindBytes = sumBy(items, KINDS.map((k) => k.kind), (i) => i.kind, (i) => i.file.size);
+  const converted = items.filter((i) => i.status === 'done' && i.outSize != null && !i.edited);
+  const convertedIn = converted.reduce((s, i) => s + i.file.size, 0);
+  const convertedOut = converted.reduce((s, i) => s + (i.outSize ?? 0), 0);
+  const convertedChange = sizeChange(convertedIn, convertedOut);
   const overall = items.length
     ? items.reduce(
         (s, i) => s + (i.status === 'done' ? 1 : i.status === 'converting' ? i.progress : 0),
@@ -729,6 +737,21 @@ export default function App() {
                     </span>
                   )}
                 </div>
+                {items.length > 1 && (
+                  <div className="bb-viz">
+                    <StackBar
+                      label={t('listByKind')}
+                      segments={KINDS.map((k, i) => ({ key: k.kind, label: t(k.nameKey), color: k.color, value: kindBytes[i].value }))}
+                    >
+                      {convertedChange && converted.length > 1 && (
+                        <li className={`stack-note sc-${convertedChange.dir}`}>
+                          {t('batchResult', { n: String(converted.length), before: formatBytes(convertedIn), after: formatBytes(convertedOut) })}{' '}
+                          <b>{convertedChange.dir === 'same' ? t('sizeSame') : convertedChange.dir === 'smaller' ? t('sizeSmaller', { pct: String(convertedChange.savedPct) }) : t('sizeLarger', { pct: String(-convertedChange.savedPct) })}</b>
+                        </li>
+                      )}
+                    </StackBar>
+                  </div>
+                )}
                 <div className="bb-actions">
                   <button className="btn btn-accent" onClick={convertAll} disabled={pending === 0}>
                     {t('convertAll')}

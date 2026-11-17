@@ -64,12 +64,13 @@ for inline editors — invariant 15) · `persistBase`. Window `paste` listener w
 **Launcher DOM** (two states by `projects.length`): `.studio.st-launcher > .st-bar (h2.launcher-title, .opt-spacer,
 [select.tb-select + .st-tabs grid|list — only with projects], import btn)` + first visit `p.pj-explain` | later `p.pj-note`
 (count · `totalBytes` from pjStats · `quota` from navigator.storage.estimate when the browser reports one · local-only reminder ·
-`.pj-warn` = how many projects are not `backupState === 'fresh'`)
+`.pj-warn` = how many projects are not `backupState === 'fresh'`) + `div.pj-storage` (when anything is stored: <StackBar> by project type from
+`typeBytes` + a hatched trash part from `trashBytes`; `p.pj-quota` = <Meter> + text of `storedBytes` against `quota`, when the browser reports one)
 + `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body (.type-badge.tb-{type}, .pj-name, .pj-meta)) +
-.pj-actions (info/export/delete → confirm)` (`.pj-body` ends with `span.pj-backup.bk-{never|stale|fresh}`) + `.pj-uses-head` + `.pj-uses > button.pj-use.ut-{type}×6` (one per `TYPE_META`
+.pj-actions (info/export/delete → confirm)` (`.pj-body` ends with a <Meter> of the project's size against `largestBytes` — with two projects or more — and `span.pj-backup.bk-{never|stale|fresh}`) + `.pj-uses-head` + `.pj-uses > button.pj-use.ut-{type}×6` (one per `TYPE_META`
 entry: `useKey` title = what people make with it, `descKey`, type badge; click = `createProject(type)` — there is no type
 modal any more) · `section.pj-trash` (only with trashed projects: `.pj-trash-head` > button.pj-trash-toggle + hint + "empty" btn,
-`ul.pj-trash-list > li` (type badge, name, days left · files · size, restore, delete for good)) · portal `.banner.info.st-note.pj-undo`
+`ul.pj-trash-list > li` (type badge, name, <Meter> of days left out of `TRASH_DAYS` — warn tone from `TRASH_WARN_DAYS` — days left · files · size, restore, delete for good)) · portal `.banner.info.st-note.pj-undo`
 (restore toast) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
 **Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete → confirm)` +
