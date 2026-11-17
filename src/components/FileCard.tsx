@@ -8,6 +8,7 @@ import {
   type Kind,
 } from '../lib/formats';
 import { fmtDuration } from '../lib/metadata';
+import { MIN_QUALITY } from '../lib/imageConvert';
 import { extOf } from '../lib/formats';
 import type { Item } from '../types';
 import { docTypeOf, isTextDoc } from '../lib/formats';
@@ -316,7 +317,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
           <span>{t('quality')}</span>
           <input
             type="range"
-            min={0.4}
+            min={MIN_QUALITY}
             max={1}
             step={0.01}
             value={item.quality}

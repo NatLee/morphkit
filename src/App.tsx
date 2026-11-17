@@ -233,7 +233,8 @@ export default function App() {
             item.file,
             item.target as 'png' | 'jpeg' | 'webp',
             item.quality,
-            settingsRef.current.imageMaxDim
+            settingsRef.current.imageMaxDim,
+            settingsRef.current.imageTargetSize
           );
         }
       } else {
@@ -245,7 +246,8 @@ export default function App() {
             settingsRef.current,
             item.edit,
             (p) => patch(id, { progress: p }),
-            (received, total) => setEngineDl({ received, total })
+            (received, total) => setEngineDl({ received, total }),
+            { maxBytes: settingsRef.current.videoTargetSize, duration: item.meta?.duration }
           );
           setEngine('ready');
           setEngineDl(null);

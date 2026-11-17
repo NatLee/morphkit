@@ -1,5 +1,6 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { ConvertError } from './errors';
 import { extOf, mimeFor } from './formats';
 import type { Settings } from './settings';
 import type { MediaEdit } from '../types';
@@ -170,14 +171,64 @@ function fpsOpt(s: Settings): string[] {
   return s.videoFps > 0 ? ['-r', String(s.videoFps)] : [];
 }
 
+/** AAC bitrate of the sound in MP4 output; also what the size budget sets aside for sound. */
+export const VIDEO_AUDIO_KBPS = 128;
+
 function videoAudioTrack(s: Settings, e?: MediaEdit): string[] {
-  return s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)];
+  return s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'aac', '-b:a', `${VIDEO_AUDIO_KBPS}k`, ...afChain(e)];
+}
+
+/**
+ * Video rate control. Normally quality-driven (CRF; WebM also caps at 1 Mbps). With `kbps` from
+ * the size target it switches to an average bitrate — x264 also gets a matching max rate and a
+ * two-second buffer so a busy scene cannot blow the budget.
+ */
+function videoRate(codec: 'x264' | 'vp8', s: Settings, kbps?: number): string[] {
+  if (kbps) {
+    return codec === 'x264'
+      ? ['-b:v', `${kbps}k`, '-maxrate', `${kbps}k`, '-bufsize', `${kbps * 2}k`]
+      : ['-b:v', `${kbps}k`];
+  }
+  return codec === 'x264'
+    ? ['-crf', String(s.videoCrf)]
+    : ['-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M'];
+}
+
+/** Outputs with both a picture and a sound track (GIF has no sound, the audio formats no
+    picture): the ones whose sound can be replaced and that the size target applies to. */
+export const AV_TARGETS: ReadonlySet<string> = new Set(['mp4', 'webm']);
+/** Share of the size budget given to the streams; the rest is room for the container. */
+const SIZE_MARGIN = 0.95;
+/** Below this the picture is mush — better to say the target cannot be met. */
+const MIN_VIDEO_KBPS = 50;
+
+/** How long the output runs: the trimmed span, sped up or slowed down. */
+export function mediaSeconds(duration: number, e?: MediaEdit): number {
+  const start = e?.trimStart ?? 0;
+  const end = e?.trimEnd != null && e.trimEnd > start ? e.trimEnd : duration;
+  return (end - start) / (e?.speed || 1);
+}
+
+/** Video bitrate (kbps) that lands `seconds` of video plus its sound under `maxBytes`. */
+export function videoKbpsFor(maxBytes: number, seconds: number, audioKbps: number): number {
+  const kbps = Math.floor((maxBytes * 8 * SIZE_MARGIN) / 1000 / seconds - audioKbps);
+  if (!(kbps >= MIN_VIDEO_KBPS)) throw new ConvertError('fitTooSmall');
+  return kbps;
 }
 
 /** Extra input + stream mapping when the audio track is replaced. */
 function trackMap(input2?: string): { inputs: string[]; map: string[] } {
   if (!input2) return { inputs: [], map: [] };
   return { inputs: ['-i', input2], map: ['-map', '0:v:0', '-map', '1:a:0', '-shortest'] };
+}
+
+export interface BuildOpts {
+  /** second input that replaces the video's sound */
+  input2?: string;
+  /** the source carries cover art (see `sniffCoverArt`) */
+  hasArt?: boolean;
+  /** average video bitrate from the size target (`videoKbpsFor`), in place of CRF */
+  videoKbps?: number;
 }
 
 /** Exported for the unit tests — argument order (trim before -i, maps, codecs) matters. */
@@ -187,8 +238,7 @@ export function buildArgs(
   output: string,
   s: Settings,
   e?: MediaEdit,
-  input2?: string,
-  hasArt = false
+  { input2, hasArt = false, videoKbps }: BuildOpts = {}
 ): string[] {
   const trim = trimOpts(e);
   const t2 = trackMap(input2);
@@ -209,9 +259,9 @@ export function buildArgs(
       return [...trim, '-i', input, ...art, '-c:a', 'aac', ...rateOpts('aac', s), ...audioOpts(s), ...afChain(e), ...meta, output];
     // ---- video ----
     case 'mp4':
-      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, '-crf', String(s.videoCrf), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', '128k', ...afChain(e)] : videoAudioTrack(s, e)), ...meta, output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, ...videoRate('x264', s, videoKbps), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', `${VIDEO_AUDIO_KBPS}k`, ...afChain(e)] : videoAudioTrack(s, e)), ...meta, output];
     case 'webm':
-      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', '-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), ...meta, output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', ...videoRate('vp8', s, videoKbps), ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), ...meta, output];
     case 'gif':
       // GIF carries no tags — copying metadata here only risks muxer warnings
       return [...trim, '-i', input, ...vfChain(s, e, [`fps=${s.gifFps}`], s.gifWidth), '-loop', '0', output];
@@ -320,6 +370,14 @@ export async function extractAudio(
   }
 }
 
+/** Size target for one conversion: the converter passes it; Studio's own conversions do not. */
+export interface FitTarget {
+  /** 0 = no target */
+  maxBytes: number;
+  /** source length in seconds, from the file's metadata */
+  duration?: number;
+}
+
 /** Convert audio/video in the browser. Job progress callback receives 0..1. */
 export async function convertMedia(
   file: File,
@@ -327,13 +385,23 @@ export async function convertMedia(
   settings: Settings,
   edit: MediaEdit | undefined,
   onProgress: (p: number) => void,
-  onDownload?: DownloadProgress
+  onDownload?: DownloadProgress,
+  fit?: FitTarget
 ): Promise<Blob> {
+  // size target → average bitrate, worked out before the engine is taken
+  const maxBytes = fit && fit.maxBytes > 0 && AV_TARGETS.has(target) ? fit.maxBytes : 0;
+  let videoKbps: number | undefined;
+  if (maxBytes) {
+    if (!(fit!.duration! > 0)) throw new ConvertError('fitNoDuration');
+    const audioKbps = settings.videoMute || edit?.mute ? 0 : VIDEO_AUDIO_KBPS;
+    videoKbps = videoKbpsFor(maxBytes, mediaSeconds(fit!.duration!, edit), audioKbps);
+  }
+
   const ff = await acquireEngine(onDownload);
   const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const inName = `in_${stamp}.${extOf(file.name) || 'bin'}`;
   const outName = `out_${stamp}.${target}`;
-  const replaceAudio = edit?.audioTrack && (target === 'mp4' || target === 'webm');
+  const replaceAudio = edit?.audioTrack && AV_TARGETS.has(target);
   const in2Name = replaceAudio
     ? `in2_${stamp}.${extOf(edit!.audioTrack!.name) || 'bin'}`
     : undefined;
@@ -347,14 +415,26 @@ export async function convertMedia(
     if (in2Name) await ff.writeFile(in2Name, await fetchFile(edit!.audioTrack!));
     const hasArt = settings.keepCoverArt ? await sniffCoverArt(file) : false;
     ff.on('progress', handler);
-    let code = await ff.exec(buildArgs(target, inName, outName, settings, edit, in2Name, hasArt));
-    // cover-art mapping is best-effort: retry once without it rather than fail
-    if (code !== 0 && hasArt) {
-      code = await ff.exec(buildArgs(target, inName, outName, settings, edit, in2Name, false));
+    // every run writes the same output name; -y overwrites instead of asking (no stdin here)
+    const run = async (kbps?: number) => {
+      let code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, hasArt, videoKbps: kbps })]);
+      // cover-art mapping is best-effort: retry once without it rather than fail
+      if (code !== 0 && hasArt) {
+        code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, videoKbps: kbps })]);
+      }
+      if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
+      const data = await ff.readFile(outName);
+      if (typeof data === 'string') throw new Error('unexpected output');
+      return data;
+    };
+    let data = await run(videoKbps);
+    if (videoKbps && data.length > maxBytes) {
+      // one-pass rate control can overshoot: aim lower by the overshoot ratio, once
+      const lower = Math.floor(videoKbps * (maxBytes / data.length) * SIZE_MARGIN);
+      if (lower < MIN_VIDEO_KBPS) throw new ConvertError('fitTooSmall');
+      data = await run(lower);
+      if (data.length > maxBytes) throw new ConvertError('fitTooSmall');
     }
-    if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
-    const data = await ff.readFile(outName);
-    if (typeof data === 'string') throw new Error('unexpected output');
     return new Blob([data.slice()], { type: mimeFor(target) });
   } finally {
     ff.off('progress', handler);

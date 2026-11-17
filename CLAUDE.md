@@ -85,9 +85,9 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
-| `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only) |
+| `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only); `fitToSize` squeezes an output under the image size target (quality first, then dimensions); `MIN_QUALITY` is the floor of every quality slider |
 | `lib/animImage.ts` | GIF/APNG/static → RGBA frames (`decodeAnim`), `encodeAPNG` (upng-js, lossless alpha), `encodeGIFBlob(anim, matte\|null)` — `null` keeps binary alpha via gifenc `rgba4444` + `transparent+dispose:2`; `writeGifFrame` shared with GifEditor |
-| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) |
+| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) + the video size target (`videoKbpsFor` → average bitrate in place of CRF, one lower retry when the output overshoots) |
 | `lib/metadata.ts` | Per-kind file info: dims/duration/EXIF-GPS (exifr)/bitrate estimate, PDF pages/author/encryption, document words/chars/lines/sheets/slides, QR codes found in images + `preview` (object URL for images — owned by `useBlobUrlOwner` once in state; dataURL frame-grab for video) |
 
 ### PDF

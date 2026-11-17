@@ -3,13 +3,18 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. Update when structure changes.
 
-## lib/ffmpegClient.ts (366)
+## lib/ffmpegClient.ts (446)
 
-Exports: `isEngineReady()` · `convertMedia(file, target, settings, edit, onProgress, onDownload?)` ·
+Exports: `isEngineReady()` · `convertMedia(file, target, settings, edit, onProgress, onDownload?, fit?: FitTarget)` ·
 `muxVideo(video, audioWav|null, trimStart, trimEnd, settings, onProgress, onDownload?)` ·
 `extractAudio(video, trimStart, trimEnd, onDownload?)` (trim-aligned 44.1k stereo WAV; throws when
 the video has no audio stream — header-only output is treated as failure) · `type DownloadProgress` ·
-`buildArgs` and `fitWithin` (exported for the unit tests in tests/ffmpegArgs.test.ts).
+`buildArgs` and `fitWithin` (exported for the unit tests in tests/ffmpegArgs.test.ts) ·
+size target: `FitTarget {maxBytes, duration?}` (only the converter passes one; Studio never does) ·
+`AV_TARGETS` (mp4/webm: outputs with picture AND sound — audio replacement and the size target) ·
+`VIDEO_AUDIO_KBPS` (128, AAC in MP4 and the budget set aside for sound) · `mediaSeconds(duration, edit)`
+(trimmed span ÷ speed) · `videoKbpsFor(maxBytes, seconds, audioKbps)` (95% of the budget; below 50 kbps
+throws `ConvertError('fitTooSmall')`).
 
 Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-thread**, CDN-pinned) ·
 `getCoreBlobs` (memoized, resets to null on failure for retry) · `pool`/`acquireEngine`/`releaseEngine`
@@ -19,10 +24,14 @@ Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-threa
 `rateOpts(codec, s)` — CBR/VBR split: mp3 VBR `-q:a q`; vorbis ALWAYS quality-driven (`-q:a 10-q` VBR, `5` CBR);
 aac/m4a always `-b:a` (native AAC VBR is experimental) · `audioOpts` (`-ar`/`-ac` when >0) ·
 `trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → one `fitWithin` size cap: GIF width × videoMaxH, downscale-only) · `afChain` (volume → atempo) ·
-`buildArgs(target, input, output, s, e?, input2?, hasArt)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
+`videoRate(codec, s, kbps?)` (CRF normally; `-b:v` + x264 `-maxrate`/`-bufsize` with a size target) ·
+`buildArgs(target, input, output, s, e?, {input2, hasArt, videoKbps}: BuildOpts)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
 `sniffCoverArt` (first 64KiB latin1: APIC | covr | fLaC+image/).
 
-Gotchas: art skipped whenever trim present (desync); convertMedia retries exec ONCE without art;
+Gotchas: art skipped whenever trim present (desync); convertMedia retries exec ONCE without art, and
+with a size target re-encodes ONCE at a lower rate when the output is still too big — every exec passes
+`-y` because those retries reuse the output name (ffmpeg would ask before overwriting, and gets no answer);
+no readable duration with a target set → `ConvertError('fitNoDuration')` before the engine is taken;
 `data.slice()` copies out of wasm heap (keep); temp names `${Date.now()}_${rand}`; progress handler
 removed in finally; muxVideo has its own trim thresholds + fixed `-b:a 192k`, ignores vfChain/videoMaxH.
 
@@ -48,10 +57,14 @@ alpha GIF path = `quantize(rgba4444)` + `applyPalette rgba4444` + `{transparent:
 `encodeGIFBlob` yields to event loop every 6th frame and composites through a tmp canvas (direct
 putImageData would wipe the matte — keep).
 
-## lib/imageConvert.ts (32)
+## lib/imageConvert.ts (92)
 
-`convertImage(file, 'png'|'jpeg'|'webp', quality, maxDim=0)` — createImageBitmap → optional
-longest-edge downscale (never upscales) → toBlob. jpeg pre-fills `#ffffff`. Throws sentinel strings
+`convertImage(file, 'png'|'jpeg'|'webp', quality, maxDim=0, maxBytes=0)` — createImageBitmap → optional
+longest-edge downscale (never upscales) → toBlob; with `maxBytes` the encode goes through `fitToSize`.
+`fitToSize(encode: Encoder, maxBytes, maxQuality, minQuality = MIN_QUALITY)`: highest quality that fits
+(binary search, 0.02 steps); when even `minQuality` is too big, scale by √(target/size) × 0.9 and search
+again (≤ 6 shrinks, then `ConvertError('fitTooSmall')`). PNG passes `minQuality = maxQuality`, so only
+its size moves. `MIN_QUALITY` (0.4) is also the minimum of both quality sliders. jpeg pre-fills `#ffffff`. Throws sentinel strings
 `'decode' | 'canvas' | 'encode'`. Animated inputs collapse to frame 1 (animated targets → animImage).
 
 ## lib/metadata.ts (280)
@@ -79,15 +92,15 @@ the same lists) · `outputsFor` · `defaultTarget`
 `mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
 `apng` has NO ffmpeg path — must route to convertAnimImage.
 
-## lib/settings.ts (79)
+## lib/settings.ts (85)
 
 `Settings` + `DEFAULT_SETTINGS` + `loadSettings` (`{...defaults, ...parsed}` forward-compatible) +
 `saveSettings` (swallows quota errors). Key `'morphkit-settings'`, unversioned — renaming a field
 silently drops the user's value.
-Fields (defaults): concurrency 2 · imageMaxDim 0 · audioBitrate '192k' · audioRateMode 'cbr' ·
+Fields (defaults): concurrency 2 · imageMaxDim 0 · imageTargetSize 0 · audioBitrate '192k' · audioRateMode 'cbr' ·
 audioQuality 2 · audioSampleRate 0 · audioChannels 0 · defaultQuality 0.9 · pdfImageScale 2 ·
 docPageSize a4 · docFontSize 11 · docPdfText true · videoCrf 23 · videoPreset 'veryfast' ·
-videoMaxH 0 · videoFps 0 · videoMute false · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true.
+videoMaxH 0 · videoFps 0 · videoMute false · videoTargetSize 0 · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true.
 
 ## lib/idb.ts (93)
 
