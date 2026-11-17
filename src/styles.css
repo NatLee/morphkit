@@ -197,7 +197,7 @@ select optgroup {
 
 .mode-nav button:hover:not(.active) { color: var(--ink); }
 .mode-nav button.active { background: var(--ink); color: var(--bg); }
-.mode-nav-n { font-family: var(--font-mono); font-size: 11px; opacity: 0.75; }
+.mode-nav-n, .pj-trash-n { font-family: var(--font-mono); font-size: 11px; opacity: 0.75; }
 
 .lang-switch {
   display: flex;
@@ -4267,6 +4267,63 @@ kbd {
 }
 
 .pj-note b { color: var(--ink); font-weight: 600; }
+.pj-warn { color: var(--warn); }
+
+/* is the latest state of this project also outside the browser? */
+.pj-backup { font-family: var(--font-mono); font-size: 11px; }
+.bk-fresh { color: var(--ok); }
+.bk-stale, .bk-never { color: var(--warn); }
+
+/* deleted projects wait here before they go for good */
+.pj-trash { margin-top: 30px; padding-top: 16px; border-top: 1px dashed var(--line-strong); }
+
+.pj-trash-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.pj-trash-head > span { flex: 1 1 200px; }
+
+.pj-trash-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--ink-dim);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.pj-trash-toggle:hover, .pj-trash-toggle[aria-expanded='true'] { color: var(--ink); border-color: var(--ink); }
+
+.pj-trash-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.pj-trash-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.pj-trash-name { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
+.pj-trash-list .pj-meta { flex: 1 1 180px; }
+.pj-purge:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+
+/* "moved to the trash — restore" toast */
+.pj-undo { display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100vw - 32px)); }
 
 /* start a project by what you want to make */
 .pj-uses-head {

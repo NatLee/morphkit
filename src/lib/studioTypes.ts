@@ -61,6 +61,27 @@ export interface ProjectRec {
   pdfAssetId?: string | null;
   /** text projects: the markdown/text asset the inline DocEditor writes back to */
   textAssetId?: string | null;
+  /** when it was moved to the trash; absent = a live project */
+  deletedAt?: number;
+  /** when it was last exported as a ZIP — a backup is current while this is not older than `updatedAt` */
+  exportedAt?: number;
+}
+
+/** Days a deleted project waits in the trash before it is removed for good. */
+export const TRASH_DAYS = 30;
+const DAY_MS = 86_400_000;
+
+export const isTrashed = (p: ProjectRec): boolean => p.deletedAt != null;
+/** Whole days left before a trashed project is removed (0 = due now). */
+export const trashDaysLeft = (p: ProjectRec, now: number): number =>
+  Math.max(0, Math.ceil(((p.deletedAt ?? now) + TRASH_DAYS * DAY_MS - now) / DAY_MS));
+export const trashExpired = (p: ProjectRec, now: number): boolean => isTrashed(p) && trashDaysLeft(p, now) === 0;
+
+/** never exported · exported, then changed · the export is still the latest state */
+export type BackupState = 'never' | 'stale' | 'fresh';
+export function backupState(p: ProjectRec): BackupState {
+  if (p.exportedAt == null) return 'never';
+  return p.exportedAt >= p.updatedAt ? 'fresh' : 'stale';
 }
 
 export interface AssetRec {
