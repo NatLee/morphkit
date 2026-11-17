@@ -282,8 +282,21 @@ export async function pdfToImages(
   return { blob: new Blob([zipped.slice()], { type: 'application/zip' }), multi: true };
 }
 
-/** PDF → plain text (pages separated by a blank line). */
-export async function pdfToText(file: File, onProgress?: (p: number) => void, password?: string): Promise<Blob> {
+/** A scanned page is rendered at this resolution for text recognition (Tesseract likes ~300 dpi)… */
+const OCR_DPI = 300;
+/** …with its longest side capped, so a poster-sized page cannot exhaust memory. */
+const OCR_MAX_DIM = 5000;
+
+/**
+ * PDF → plain text (pages separated by a blank line). A page with no text layer is a picture of a
+ * page (a scan): with `readScan` it is rendered and read by OCR instead of coming out empty.
+ */
+export async function pdfToText(
+  file: File,
+  onProgress?: (p: number) => void,
+  password?: string,
+  readScan?: (page: HTMLCanvasElement) => Promise<string>
+): Promise<Blob> {
   const doc = await openPdf(await file.arrayBuffer(), password);
   const parts: string[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
@@ -297,8 +310,14 @@ export async function pdfToText(file: File, onProgress?: (p: number) => void, pa
         else if (it.str && !it.str.endsWith(' ')) s += ' ';
       }
     }
-    parts.push(s.replace(/[ \t]+\n/g, '\n').trim());
+    let text = s.replace(/[ \t]+\n/g, '\n').trim();
     page.cleanup();
+    if (!/\S/.test(text) && readScan) {
+      const canvas = await renderPage(doc, i - 1, { scale: OCR_DPI / 72, maxDim: OCR_MAX_DIM });
+      text = (await readScan(canvas)).trim();
+      canvas.width = canvas.height = 0;
+    }
+    parts.push(text);
     onProgress?.(i / doc.numPages);
   }
   await closePdf(doc);
@@ -306,8 +325,8 @@ export async function pdfToText(file: File, onProgress?: (p: number) => void, pa
 }
 
 /**
- * Page texts → one document. Pages that carry no text at all mean the PDF is pictures of pages
- * (a scan): an empty export would look like success, so this fails with a message that says so.
+ * Page texts → one document. No text on any page — not even after OCR — means there is nothing to
+ * export: an empty file would look like success, so this fails with a message that says so.
  */
 export function joinPageText(pages: readonly string[]): string {
   if (!pages.some((p) => /\S/.test(p))) throw new ConvertError('pdfNoText');

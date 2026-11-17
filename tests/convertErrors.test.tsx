@@ -36,9 +36,9 @@ describe('FileCard failure message', () => {
   };
 
   it('shows the message the conversion reported, in every language', () => {
-    expect(card({ error: 'pdfNoText' }, 'en')).toMatch(/No text found.*PNG or JPG.*OCR/);
-    expect(card({ error: 'pdfNoText' }, 'zh')).toMatch(/找不到文字.*PNG 或 JPG.*OCR/);
-    expect(card({ error: 'pdfNoText' }, 'ja')).toMatch(/文字が見つかりません.*PNG か JPG.*OCR/);
+    expect(card({ error: 'pdfNoText' }, 'en')).toMatch(/No text found.*OCR.*PNG or JPG/);
+    expect(card({ error: 'pdfNoText' }, 'zh')).toMatch(/找不到文字.*OCR.*PNG 或 JPG/);
+    expect(card({ error: 'pdfNoText' }, 'ja')).toMatch(/文字が見つかりません.*OCR.*PNG か JPG/);
   });
 
   it('falls back to the generic message for other failures', () => {

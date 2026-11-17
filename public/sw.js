@@ -5,8 +5,8 @@
  * Bump VERSION to drop every old cache on activate. */
 const VERSION = 'morphkit-v1';
 
-/* cross-origin hosts worth caching (fonts + ffmpeg.wasm core) */
-const CACHEABLE_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'unpkg.com'];
+/* cross-origin hosts worth caching (fonts, the ffmpeg.wasm core, the OCR engine + language data) */
+const CACHEABLE_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'unpkg.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

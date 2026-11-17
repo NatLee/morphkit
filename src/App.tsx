@@ -13,16 +13,18 @@ import { ImageEditor } from './components/ImageEditor';
 import { GifEditor } from './components/GifEditor';
 import { PdfEditor } from './components/PdfEditor';
 import { PdfPasswordModal } from './components/PdfPasswordModal';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { DocEditor } from './components/DocEditor';
 import { QrTool } from './components/QrTool';
 import { SheetEditor } from './components/SheetEditor';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName } from './lib/formats';
+import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName, SLOW_IMAGE_OUTPUTS } from './lib/formats';
 import { convertImage, convertToIco } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
 import { convertDoc } from './lib/docs';
+import { imageToText, OCR_HOST, OCR_LANGS, ocrLangs, withOcr, type OcrConsent, type OcrLang } from './lib/ocr';
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { createProjectWithAsset } from './lib/idb';
@@ -107,6 +109,13 @@ export default function App() {
   const [pwFor, setPwFor] = useState<string | null>(null);
   // QR tool modal: null = closed, '' = generator, text = reader with that payload
   const [qrOpen, setQrOpen] = useState<string | null>(null);
+  // the OCR download question; every job that needs the same download waits on one answer
+  const [ocrAsk, setOcrAsk] = useState<{ bytes: number; langs: readonly OcrLang[]; answer: (ok: boolean) => void } | null>(null);
+  const ocrGate = useRef<Promise<boolean> | null>(null);
+  const askOcr: OcrConsent = (bytes, langs) =>
+    (ocrGate.current ??= new Promise<boolean>((resolve) =>
+      setOcrAsk({ bytes, langs, answer: (ok) => { setOcrAsk(null); ocrGate.current = null; resolve(ok); } })
+    ));
 
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -203,10 +212,13 @@ export default function App() {
         const onP = (p: number) => patch(id, { progress: p });
         const pw = item.pdfPassword;
         const enc = !!item.meta?.encrypted;
-        if (item.target === 'txt') blob = await pdfToText(item.file, onP, pw);
+        // text layer per page; scanned pages are read by OCR (asks before its first download)
+        const readText = (onTextP: (p: number) => void) =>
+          withOcr(ocrLangs(settingsRef.current.ocrLang, lang), askOcr, (read) => pdfToText(item.file, onTextP, pw, read));
+        if (item.target === 'txt') blob = await readText(onP);
         else if (item.target === 'docx' || item.target === 'md' || item.target === 'html') {
-          // text-layer export: paragraphs from pdf.js text, re-flowed through the doc pipeline
-          const txt = await (await pdfToText(item.file, (p) => onP(p * 0.6), pw)).text();
+          // text export: paragraphs from the page text, re-flowed through the doc pipeline
+          const txt = await (await readText((p) => onP(p * 0.6))).text();
           const { convertDoc: cd } = await import('./lib/docs');
           blob = (await cd(new File([txt], item.file.name.replace(/\.pdf$/i, '.txt'), { type: 'text/plain' }), item.target, (p) => onP(0.6 + p * 0.4))).blob;
         }
@@ -230,6 +242,8 @@ export default function App() {
           blob = await convertAnimImage(item.file, item.target);
         } else if (item.target === 'ico') {
           blob = await convertToIco(item.file);
+        } else if (item.target === 'txt') {
+          blob = await imageToText(item.file, ocrLangs(settingsRef.current.ocrLang, lang), askOcr, (p) => patch(id, { progress: p }));
         } else {
           blob = await convertImage(
             item.file,
@@ -287,8 +301,8 @@ export default function App() {
     const item = itemsRef.current.find((i) => i.id === id);
     if (!item || item.status === 'converting' || item.status === 'queued') return;
     if (item.kind === 'pdf' && item.meta?.encrypted && !item.pdfPassword) { setPwFor(id); return; }
-    if (item.kind === 'image' && item.target !== 'pdf') {
-      // images are near-instant — run immediately, no queue (PDF work goes through the semaphore)
+    if (item.kind === 'image' && !SLOW_IMAGE_OUTPUTS.has(item.target)) {
+      // images are near-instant — run immediately, no queue (PDF and OCR work go through the semaphore)
       void runConvert(id);
       return;
     }
@@ -682,6 +696,21 @@ export default function App() {
 
       {qrOpen != null && (
         <QrTool initialDecoded={qrOpen || null} onAddImage={(f) => addFiles([f])} onClose={() => setQrOpen(null)} />
+      )}
+
+      {ocrAsk && (
+        <ConfirmDialog
+          tone="accent"
+          title={t('ocrAskTitle')}
+          message={t('ocrAskMsg', {
+            langs: ocrAsk.langs.map((l) => OCR_LANGS[l]).join(' + '),
+            size: formatBytes(ocrAsk.bytes),
+            host: OCR_HOST,
+          })}
+          confirmLabel={t('ocrAskConfirm')}
+          onConfirm={() => ocrAsk.answer(true)}
+          onCancel={() => ocrAsk.answer(false)}
+        />
       )}
 
       {pwFor && (() => {
