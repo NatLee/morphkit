@@ -30,12 +30,13 @@
 6. `banners` — .banner .danger/.warn/.info/.note .spinner
 7. `batch bar` — .batch-bar .bb-info .bb-count .bb-progress(.bb-bar) .bb-done .bb-actions
 8. `file list` — .file-card(.status-*) .fc-main .fc-icon .fc-thumb .fc-meta .fc-name .fc-info
-   .fc-kind .fc-size .fc-controls .fc-target .fc-remove .fc-detail-btn
+   .fc-kind .fc-size .fc-controls .fc-target .fc-remove .fc-more(.fc-menu popover, z20; spans the card ≤640)
+   .fc-optrow(.fc-optrow-label .fc-opt-default .fc-opt-chip .fc-opt-toggle) .fc-opts(the file's own controls, an .sp-grid)
 9. `details / quality / progress / warnings` — .fc-details .fc-detail-row .fc-quality .fc-progress
    .fc-bar .fc-progress-row .fc-pct .engine-* .fc-error .fc-warn
 10. `settings drawer` — .drawer-overlay(z100) .drawer(z101, min(380px,92vw), right sheet)
     .drawer-head; `.drawer .sp-grid → 1fr` (drawer forces single column)
-11. `settings fields` — .settings-panel .sp-section .sp-sec-title .sp-grid(minmax 190px) .sp-check
+11. `settings fields` — .settings-panel .sp-intro .sp-section .sp-sec-title .sp-grid(minmax 190px) .sp-check
     .sp-field .sp-label .sp-val .sp-hint
 12. `format matrix` — .matrix .matrix-title(+::after brush dash) .matrix-grid(minmax 250px)
     .mx-card(+.mx-image/.mx-audio/.mx-video pigment top borders, set in FormatMatrix.tsx)

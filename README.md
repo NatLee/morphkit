@@ -57,6 +57,9 @@ installed as an app (PWA).
 - **Even loudness**: make every file land at the same level, −14 LUFS for streaming, −16 for podcasts
   or −23 for broadcast. It measures the sound first and then moves the whole level once, so nothing
   gets squashed; the sound of MP4 / WebM output is levelled too.
+- **Options per file**: every card lists the settings that change its own conversion (a size target for
+  this video, loudness for that recording) and shows what differs from the defaults as chips you can
+  remove. The drawer holds the defaults for new files.
 - A settings drawer for image size caps, size targets and the text recognition language, audio
   bitrate / VBR / sample rate / channels / loudness, video CRF / size target / preset / resolution /
   frame rate, GIF frame rate and width, PDF render resolution and document page size.

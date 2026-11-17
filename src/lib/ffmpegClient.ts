@@ -82,7 +82,8 @@ function releaseEngine(ff: FFmpeg): void {
  * Containers that cannot carry artwork (WAV, OGG/Vorbis via this path) are
  * skipped — a stray mjpeg stream would make the file unplayable.
  */
-const ART_CAPABLE = new Set(['mp3', 'm4a', 'flac']);
+/** Audio formats that can carry embedded cover art. */
+export const ART_CAPABLE: ReadonlySet<string> = new Set(['mp3', 'm4a', 'flac']);
 
 function metaOpts(target: string, s: Settings): string[] {
   if (!s.keepMetadata) return ['-map_metadata', '-1'];

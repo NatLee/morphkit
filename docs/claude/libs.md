@@ -91,7 +91,7 @@ Never throws — missing fields are the failure mode.
 
 ## lib/formats.ts (164)
 
-Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf ico txt]` · `SLOW_IMAGE_OUTPUTS` (pdf, txt: queued through the semaphore, every other image output runs at once) · `PDF_OUTPUTS` ·
+Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf ico txt]` · `RASTER_OUTPUTS` (png jpeg webp: canvas outputs) · `PDF_TEXT_OUTPUTS` (txt docx md html: made from the page text) · `SLOW_IMAGE_OUTPUTS` (pdf, txt: queued through the semaphore, every other image output runs at once) · `PDF_OUTPUTS` ·
 `DOC_TEXT_EXT`/`DOC_SHEET_EXT` · `DocType` + `docTypeOf(file)` (docx|pptx|text|md|html|sheet|json) · `isTextDoc`
 (md/text/html/json — the docs that can be Studio text projects) · `DOC_OUTPUTS` (record per sub-type; first
 entry = default; sheets/json lead with xlsx/csv) + `docOutputs(file)` · `outputsFor(kind, file?)` (file REQUIRED for docs) · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
@@ -103,11 +103,22 @@ case; FormatMatrix chips) · `outputFileName` (jpeg→.jpg) ·
 `mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
 `apng` has NO ffmpeg path — must route to convertAnimImage; `ico` has none either — App routes it to `convertToIco`; image `txt` goes to `imageToText` (lib/ocr).
 
-## lib/settings.ts (85)
+## lib/settingFields.ts (188)
+
+The registry behind the drawer AND the per-file options (invariant 33). `SETTING_SECTIONS` (drawer order; `titleKey`
+or literal `title`) · `SettingField {key, section, labelKey, control, hintKey?, hintVars?, hintWhen?, applies?, visible?,
+disabled?}` · `Control` = select (`Choice {value, label | labelKey}`) | range (`show`) | check · `SETTING_FIELDS` (one entry
+per `Settings` key — a test compares the two lists; no `applies` = app-wide: concurrency, defaultQuality) ·
+`fieldsFor(kind, target)` · `effectiveSettings(defaults, opts?)` · `withOption(defaults, opts, key, value)` (drops an
+override equal to the default; returns undefined when none is left) · `activeOverrides(defaults, opts, kind, target)`
+(applicable AND different from the default) · `showValue(field, value, t)` (chip text). Size choices are DECIMAL bytes
+(`sizeChoice`); `VBR_LEVELS` (LAME V0→245 … V9→65 kbps). Tests: tests/fileOptions.test.tsx.
+
+## lib/settings.ts (93)
 
 `Settings` + `DEFAULT_SETTINGS` + `loadSettings` (`{...defaults, ...parsed}` forward-compatible) +
 `saveSettings` (swallows quota errors). Key `'morphkit-settings'`, unversioned — renaming a field
-silently drops the user's value.
+silently drops the user's value. These are the DEFAULTS; a file's overrides (`Item.opts`) are not persisted.
 Fields (defaults): concurrency 2 · imageMaxDim 0 · imageTargetSize 0 · audioBitrate '192k' · audioRateMode 'cbr' ·
 audioQuality 2 · audioSampleRate 0 · audioChannels 0 · defaultQuality 0.9 · pdfImageScale 2 ·
 docPageSize a4 · docFontSize 11 · docPdfText true · videoCrf 23 · videoPreset 'veryfast' ·

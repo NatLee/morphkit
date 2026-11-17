@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { I18nProvider } from '../src/i18n';
 import { FileCard } from '../src/components/FileCard';
+import { DEFAULT_SETTINGS } from '../src/lib/settings';
 import { ConvertError } from '../src/lib/errors';
 import { joinPageText } from '../src/lib/pdf';
 import type { Item } from '../src/types';
@@ -29,7 +30,7 @@ describe('FileCard failure message', () => {
     const it: Item = { id: 'f1', file: new File(['x'], 'scan.pdf'), kind: 'pdf', target: 'txt', quality: 0.9, status: 'error', progress: 0, ...item };
     const { container } = render(
       <I18nProvider>
-        <FileCard item={it} onTarget={noop} onQuality={noop} onConvert={noop} onRemove={noop} onEdit={noop} onToProject={noop} onUnlock={noop} onQr={noop} />
+        <FileCard item={it} settings={DEFAULT_SETTINGS} onOption={noop} onResetOptions={noop} onTarget={noop} onQuality={noop} onConvert={noop} onRemove={noop} onEdit={noop} onToProject={noop} onUnlock={noop} onQr={noop} />
       </I18nProvider>
     );
     return container.querySelector('.fc-error')?.textContent ?? '';

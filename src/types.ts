@@ -1,5 +1,6 @@
 import type { Kind } from './lib/formats';
 import type { FileMeta } from './lib/metadata';
+import type { Settings } from './lib/settings';
 
 export type Status = 'ready' | 'queued' | 'converting' | 'done' | 'error';
 
@@ -32,6 +33,8 @@ export interface Item {
   error?: string;
   progress: number;
   meta?: FileMeta;
+  /** settings this file overrides; everything else follows the defaults (lib/settingFields) */
+  opts?: Partial<Settings>;
   /** pending audio/video edit, applied on convert */
   edit?: MediaEdit;
   /** true when the source file was replaced by an editor (image / GIF / PDF) */

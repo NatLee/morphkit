@@ -18,7 +18,7 @@ import { DocEditor } from './components/DocEditor';
 import { QrTool } from './components/QrTool';
 import { SheetEditor } from './components/SheetEditor';
 import { LANGS, useI18n } from './i18n';
-import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName, SLOW_IMAGE_OUTPUTS } from './lib/formats';
+import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName, PDF_TEXT_OUTPUTS, SLOW_IMAGE_OUTPUTS } from './lib/formats';
 import { convertImage, convertToIco } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
@@ -27,6 +27,7 @@ import { convertDoc } from './lib/docs';
 import { imageToText, OCR_HOST, OCR_LANGS, ocrLangs, withOcr, type OcrConsent, type OcrLang } from './lib/ocr';
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
+import { effectiveSettings, withOption, type SettingValue } from './lib/settingFields';
 import { createProjectWithAsset, listProjects } from './lib/idb';
 import { ConvertError } from './lib/errors';
 import { useBlobUrlOwner } from './lib/useBlobUrlOwner';
@@ -204,12 +205,14 @@ export default function App() {
     const item = itemsRef.current.find((i) => i.id === id);
     if (!item) return;
     patch(id, { status: 'converting', progress: 0, outUrl: undefined, error: undefined });
+    // the defaults, with this file's own options on top
+    const s = effectiveSettings(settingsRef.current, item.opts);
     try {
       let blob: Blob;
       let outName = outputFileName(item.file.name, item.target);
       if (item.kind === 'doc') {
         // documents: html intermediate → md/txt/html/docx/pdf/png, sheets → csv/xlsx/json
-        const r = await convertDoc(item.file, item.target, (p) => patch(id, { progress: p }), { pdfText: settingsRef.current.docPdfText, pageSize: settingsRef.current.docPageSize, fontSize: settingsRef.current.docFontSize });
+        const r = await convertDoc(item.file, item.target, (p) => patch(id, { progress: p }), { pdfText: s.docPdfText, pageSize: s.docPageSize, fontSize: s.docFontSize });
         blob = r.blob;
         if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip');
       } else if (item.kind === 'pdf') {
@@ -219,9 +222,9 @@ export default function App() {
         const enc = !!item.meta?.encrypted;
         // text layer per page; scanned pages are read by OCR (asks before its first download)
         const readText = (onTextP: (p: number) => void) =>
-          withOcr(ocrLangs(settingsRef.current.ocrLang, lang), askOcr, (read) => pdfToText(item.file, onTextP, pw, read));
+          withOcr(ocrLangs(s.ocrLang, lang), askOcr, (read) => pdfToText(item.file, onTextP, pw, read));
         if (item.target === 'txt') blob = await readText(onP);
-        else if (item.target === 'docx' || item.target === 'md' || item.target === 'html') {
+        else if (PDF_TEXT_OUTPUTS.has(item.target)) {
           // text export: paragraphs from the page text, re-flowed through the doc pipeline
           const txt = await (await readText((p) => onP(p * 0.6))).text();
           const { convertDoc: cd } = await import('./lib/docs');
@@ -235,7 +238,7 @@ export default function App() {
             blob = await rasterizePdf(item.file, pw, onP); // plan B: qpdf couldn't decrypt
           }
         } else {
-          const r = await pdfToImages(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality, settingsRef.current.imageMaxDim, onP, pw, settingsRef.current.pdfImageScale);
+          const r = await pdfToImages(item.file, item.target as 'png' | 'jpeg' | 'webp', item.quality, s.imageMaxDim, onP, pw, s.pdfImageScale);
           blob = r.blob;
           if (r.multi) outName = outName.replace(/\.[^.]+$/, '.zip'); // one file per page
         }
@@ -248,14 +251,14 @@ export default function App() {
         } else if (item.target === 'ico') {
           blob = await convertToIco(item.file);
         } else if (item.target === 'txt') {
-          blob = await imageToText(item.file, ocrLangs(settingsRef.current.ocrLang, lang), askOcr, (p) => patch(id, { progress: p }));
+          blob = await imageToText(item.file, ocrLangs(s.ocrLang, lang), askOcr, (p) => patch(id, { progress: p }));
         } else {
           blob = await convertImage(
             item.file,
             item.target as 'png' | 'jpeg' | 'webp',
             item.quality,
-            settingsRef.current.imageMaxDim,
-            settingsRef.current.imageTargetSize
+            s.imageMaxDim,
+            s.imageTargetSize
           );
         }
       } else {
@@ -264,11 +267,11 @@ export default function App() {
           blob = await convertMedia(
             item.file,
             item.target,
-            settingsRef.current,
+            s,
             item.edit,
             (p) => patch(id, { progress: p }),
             (received, total) => setEngineDl({ received, total }),
-            { maxBytes: settingsRef.current.videoTargetSize, duration: item.meta?.duration }
+            { maxBytes: s.videoTargetSize, duration: item.meta?.duration }
           );
           setEngine('ready');
           setEngineDl(null);
@@ -300,6 +303,22 @@ export default function App() {
     const it = itemsRef.current.find((i) => i.id === id);
     if (!it || it.target === target) return; // re-tapping the active phone chip keeps the result
     patch(id, { target, status: 'ready', outUrl: undefined });
+  };
+
+  /** A result made with other options no longer matches: drop it and go back to ready. */
+  const staleResult = (it: Item): Partial<Item> =>
+    it.status === 'done' || it.status === 'error' ? { status: 'ready', outUrl: undefined, error: undefined } : {};
+
+  /** Override one setting for one file (a value equal to the default removes the override). */
+  const setOption = (id: string, key: keyof Settings, value: SettingValue) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (!it) return;
+    patch(id, { opts: withOption(settingsRef.current, it.opts, key, value), ...staleResult(it) });
+  };
+
+  const resetOptions = (id: string) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (it?.opts) patch(id, { opts: undefined, ...staleResult(it) });
   };
 
   const schedule = (id: string) => {
@@ -673,6 +692,9 @@ export default function App() {
                   <FileCard
                     key={item.id}
                     item={item}
+                    settings={settings}
+                    onOption={setOption}
+                    onResetOptions={resetOptions}
                     onTarget={changeTarget}
                     onQuality={(id, quality) => patch(id, { quality })}
                     onConvert={schedule}
