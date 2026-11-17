@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useI18n } from '../i18n';
+import { MoreMenu } from './MoreMenu';
 import {
   formatBytes,
   outputsFor,
@@ -61,17 +62,6 @@ export function FileCard({ item, settings, onOption, onResetOptions, onTask, onT
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
   const [optsOpen, setOptsOpen] = useState(false);
-  // "more" menu: closes on a click elsewhere and on Escape
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menuOpen) return;
-    const away = (e: PointerEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
-    document.addEventListener('pointerdown', away);
-    document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
-  }, [menuOpen]);
 
   // this file's options: the settings that change its conversion, and the ones it overrides
   const fields = fieldsFor(item.kind, item.target);
@@ -294,34 +284,13 @@ export function FileCard({ item, settings, onOption, onResetOptions, onTask, onT
 
           {/* less-used actions: one menu instead of two more buttons in the row */}
           {(canProject || hasDetails) && (
-            <div className="fc-more" ref={menuRef}>
-              <button
-                className={`btn btn-ghost fc-remove${menuOpen ? ' active' : ''}`}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                aria-label={t('more')}
-                title={t('more')}
-                onClick={() => setMenuOpen((v) => !v)}
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="5" cy="12" r="1.7" fill="currentColor" /><circle cx="12" cy="12" r="1.7" fill="currentColor" /><circle cx="19" cy="12" r="1.7" fill="currentColor" /></svg>
-              </button>
-              {menuOpen && (
-                <div className="fc-menu" role="menu">
-                  {canProject && (
-                    <button role="menuitem" disabled={busy} onClick={() => { setMenuOpen(false); onToProject(item.id); }}>
-                      <b>{t('openAsProject')}</b>
-                      <span>{t('tipOpenAsProject')}</span>
-                    </button>
-                  )}
-                  {hasDetails && (
-                    <button role="menuitem" onClick={() => { setMenuOpen(false); setShowDetails((v) => !v); }}>
-                      <b>{t(showDetails ? 'detailsHide' : 'details')}</b>
-                      <span>{t('detailsTip')}</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            <MoreMenu
+              label={t('more')}
+              items={[
+                ...(canProject ? [{ key: 'project', label: t('openAsProject'), hint: t('tipOpenAsProject'), disabled: busy, onSelect: () => onToProject(item.id) }] : []),
+                ...(hasDetails ? [{ key: 'details', label: t(showDetails ? 'detailsHide' : 'details'), hint: t('detailsTip'), onSelect: () => setShowDetails((v) => !v) }] : []),
+              ]}
+            />
           )}
 
           <button className="btn btn-ghost fc-remove" disabled={busy} onClick={() => onRemove(item.id)} aria-label={t('remove')}>
