@@ -11,8 +11,9 @@ import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
 import { Overlay } from './Overlay';
 import { ConfirmDialog } from './ConfirmDialog';
-import { Meter, StackBar } from './SizeViz';
+import { Meter } from './SizeViz';
 import { sumBy, usedPct } from '../lib/sizeStats';
+import { filterCounts, liveFilter, matchesFilter, projectTypeFor, type ProjectFilter } from '../lib/projectList';
 import { createPortal } from 'react-dom';
 import { ACCEPT, detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
@@ -164,9 +165,6 @@ async function flattenImageProject(p: ProjectRec, base: AssetRec): Promise<Blob 
 const isGifAsset = (a: AssetRec) =>
   ['gif', 'apng'].includes(extOf(a.name)) || a.blob.type === 'image/gif' || a.blob.type === 'image/apng';
 
-const projectTypeFor = (a: AssetRec): ProjectType =>
-  isGifAsset(a) ? 'gif' : a.kind === 'image' ? 'image' : a.kind === 'video' ? 'video' : a.kind === 'pdf' ? 'pdf' : a.kind === 'doc' ? 'text' : 'audio';
-
 /** The asset a project is "about": its wired-in primary, else the first visual one. */
 const primaryAsset = (p: ProjectRec, list: AssetRec[]): AssetRec | null => {
   const id = p.imageDoc?.baseAssetId ?? p.gifAssetId ?? p.videoDoc?.videoAssetId ?? p.pdfAssetId ?? p.textAssetId ?? null;
@@ -220,7 +218,20 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   const [confirmDel, setConfirmDel] = useState<{ project: ProjectRec } | { asset: AssetRec } | { purge: ProjectRec } | { emptyTrash: true } | null>(null);
   // deleted projects, kept for TRASH_DAYS (newest first)
   const [trash, setTrash] = useState<ProjectRec[]>([]);
-  const [trashOpen, setTrashOpen] = useState(false);
+  // what the list shows (rail on desktop, chips on phones); `liveFilter` falls back to "all" when it empties
+  const [filter, setFilter] = useState<ProjectFilter>('all');
+  // the "new project" picker as a dialog (the first visit shows it in the page instead)
+  const [npOpen, setNpOpen] = useState(false);
+  const [npMsg, setNpMsg] = useState('');
+  const npFileRef = useRef<HTMLInputElement>(null);
+  const [npHot, setNpHot] = useState(false);
+  useEffect(() => {
+    if (!npOpen) return;
+    (document.querySelector('.np-modal .pj-use') as HTMLElement | null)?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNpOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [npOpen]);
   const [trashStats, setTrashStats] = useState<Record<string, { n: number; bytes: number }>>({});
   // the project just moved to the trash: a toast offers to put it back
   const [justTrashed, setJustTrashed] = useState<ProjectRec | null>(null);
@@ -573,13 +584,42 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
 
   /** Spin an asset off into its own typed project. */
   const newFromAsset = async (a: AssetRec) => {
-    if (a.kind === 'doc' && !isTextDoc(new File([a.blob], a.name, { type: a.blob.type }))) { flash(t('typeTextOnly')); return; }
-    const p = await createProjectWithAsset(a.name, a.kind, a.blob, projectTypeFor(a));
+    const type = projectTypeFor(a.name, a.kind, a.blob.type);
+    if (!type) { flash(t('typeTextOnly')); return; }
+    const p = await createProjectWithAsset(a.name, a.kind, a.blob, type);
     // it is in IndexedDB already: a delete must move it to the trash, not just drop it from the list
     persistedRef.current.add(p.id);
     setProjects((prev) => [p, ...prev]);
     setCurId(p.id);
     setEntered(true);
+  };
+
+  /**
+   * "New project → start from a file": each file opens the project its kind makes (the same rule as
+   * spinning off an asset). One file goes straight into its workspace; several stay on the list.
+   */
+  const startFromFiles = async (files: File[]) => {
+    const made: ProjectRec[] = [];
+    const skipped: string[] = [];
+    for (const f of files) {
+      const kind = detectKind(f);
+      const type = kind ? projectTypeFor(f.name, kind, f.type) : null;
+      if (!kind || !type) { skipped.push(f.name); continue; }
+      const p = await createProjectWithAsset(f.name, kind, f, type);
+      persistedRef.current.add(p.id);
+      made.push(p);
+    }
+    if (made.length) setProjects((prev) => [...made.reverse(), ...prev]);
+    if (skipped.length) {
+      setNpMsg(t('npSkipped', { names: skipped.join(', ') }));
+      return;
+    }
+    setNpOpen(false);
+    setNpMsg('');
+    if (made.length === 1) {
+      setCurId(made[0].id);
+      setEntered(true);
+    } else if (made.length) setFilter('all');
   };
 
   /** Open the info modal and probe the primary asset for real facts. */
@@ -706,13 +746,15 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   }, [entered, projects]);
 
   const totalBytes = useMemo(() => Object.values(pjStats).reduce((sum, s) => sum + s.bytes, 0), [pjStats]);
-  // the same bytes as pictures: per project type, the trash, and the largest project (the scale of the card bars)
+  // the same bytes as pictures: per project type (the rail bars, scaled to the biggest type), the trash,
+  // and the largest project (the scale of the card bars)
   const typeBytes = sumBy(projects, PROJECT_TYPES, (p) => p.type ?? 'audio', (p) => pjStats[p.id]?.bytes ?? 0);
+  const largestType = Math.max(0, ...typeBytes.map((x) => x.value));
   const trashBytes = trash.reduce((sum, p) => sum + (trashStats[p.id]?.bytes ?? 0), 0);
   const storedBytes = totalBytes + trashBytes;
   const largestBytes = Math.max(0, ...projects.map((p) => pjStats[p.id]?.bytes ?? 0));
-  // projects whose latest state exists only in this browser
-  const unsaved = projects.filter((p) => backupState(p) !== 'fresh').length;
+  const counts = filterCounts(projects, trash.length);
+  const shown = liveFilter(filter, projects, trash.length);
 
   // what the trash holds (files and bytes per project), for its rows
   useEffect(() => {
@@ -729,12 +771,12 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   }, [trash]);
 
   const sortedProjects = useMemo(() => {
-    const list = [...projects];
+    const list = projects.filter((p) => matchesFilter(p, shown));
     if (sortBy === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === 'size') list.sort((a, b) => (pjStats[b.id]?.bytes ?? 0) - (pjStats[a.id]?.bytes ?? 0));
     else list.sort((a, b) => b.updatedAt - a.updatedAt);
     return list;
-  }, [projects, sortBy, pjStats]);
+  }, [projects, sortBy, pjStats, shown]);
 
   /** White blank canvas asset for image projects. */
   const blankCanvas = async (w: number, h: number) => {
@@ -1060,12 +1102,85 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
 
   // ================= launcher =================
   if (!entered) {
+    /** Six things to make + "start from a file": in the page on the first visit, as a dialog later. */
+    const picker = (
+      <div className="np">
+        <div className="pj-uses-head">
+          <h3 id="np-title">{t(projects.length ? 'pjUsesMore' : 'pjUsesFirst')}</h3>
+          <span>{t('pjTypeFixed')}</span>
+        </div>
+        <div className="pj-uses">
+          {(Object.keys(TYPE_META) as ProjectType[]).map((tp) => (
+            <button key={tp} className={`pj-use ut-${tp}`} onClick={() => void createProject(tp)}>
+              <span className="pj-use-title">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={TYPE_META[tp].glyph} fill={tp === 'gif' ? 'none' : 'currentColor'} stroke={tp === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
+                {t(TYPE_META[tp].useKey)}
+              </span>
+              <span className="pj-use-desc">{t(TYPE_META[tp].descKey)}</span>
+              <span className={`type-badge tb-${tp}`}>{t(TYPE_META[tp].labelKey)}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className={`np-drop${npHot ? ' hot' : ''}`}
+          onClick={() => npFileRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setNpHot(true); }}
+          onDragLeave={() => setNpHot(false)}
+          onDrop={(e) => { e.preventDefault(); setNpHot(false); void startFromFiles([...e.dataTransfer.files]); }}
+        >
+          <b>{t('npFromFile')}</b>
+          <span>{t('npFromFileHint')}</span>
+        </button>
+        <input
+          ref={npFileRef}
+          type="file"
+          accept={ACCEPT}
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            if (files.length) void startFromFiles(files);
+          }}
+        />
+        {npMsg && <p className="np-msg" role="status">{npMsg}</p>}
+      </div>
+    );
+    /** One rail row = one filter; type rows (and the trash) also draw the space they take. */
+    const railRow = (key: ProjectFilter, name: string, opts: { color?: string; bytes?: number; warn?: boolean } = {}) => (
+      <button
+        key={key}
+        type="button"
+        className={`pj-f${shown === key ? ' on' : ''}${opts.warn ? ' warn' : ''}`}
+        aria-pressed={shown === key}
+        style={opts.color ? ({ '--c': opts.color } as CSSProperties) : undefined}
+        onClick={() => setFilter(key)}
+      >
+        <span className="pj-f-dot" aria-hidden="true" />
+        <span className="pj-f-name">{name}</span>
+        <span className="pj-f-n">{counts[key]}</span>
+        {opts.bytes != null && (
+          <>
+            <Meter value={opts.bytes} max={Math.max(largestType, opts.bytes)} color={opts.color} label={t('railBytes', { type: name, size: formatBytes(opts.bytes) })} />
+            <span className="pj-f-size">{formatBytes(opts.bytes)}</span>
+          </>
+        )}
+      </button>
+    );
     return (
       <div className="studio st-launcher">
         <div className="st-bar">
           <h2 className="launcher-title">{t('projectsTitle')}</h2>
-          <span className="opt-spacer" />
+          {/* starting one is the first thing on the page, however long the list gets */}
           {projects.length > 0 && (
+            <button type="button" className="btn btn-accent pj-new" aria-haspopup="dialog" onClick={() => { setNpMsg(''); setNpOpen(true); }}>
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
+              {t('pjNew')}
+            </button>
+          )}
+          <span className="opt-spacer" />
+          {projects.length > 0 && shown !== 'trash' && (
             <>
               <select className="tb-select" aria-label={t('sortLabel')} value={sortBy} onChange={(e) => setSortP(e.target.value as 'updated' | 'name' | 'size')}>
                 <option value="updated">{t('sortUpdated')}</option>
@@ -1098,137 +1213,134 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
           />
         </div>
 
-        {/* first visit: say what a project is; later: the work comes first, the facts shrink to one line */}
-        {projects.length === 0 ? (
-          <p className="pj-explain">{t('pjExplain')}</p>
+        {projects.length === 0 && trash.length === 0 ? (
+          // first visit: say what a project is, and offer the ways to start one right here
+          <>
+            <p className="pj-explain">{t('pjExplain')}</p>
+            {picker}
+          </>
         ) : (
-          <p className="pj-note">
-            <b>{t('pjNoteCount', { n: String(projects.length), size: formatBytes(totalBytes) })}</b>
-            <span>{t('pjNoteLocal')}</span>
-            {unsaved > 0 && <span className="pj-warn">{t('pjNoteUnsaved', { n: String(unsaved) })}</span>}
-          </p>
-        )}
+          <div className="pj-layout">
+            <aside className="pj-side">
+              <nav className="pj-rail" aria-label={t('pjFilterLabel')}>
+                {railRow('all', t('pjFilterAll'))}
+                <p className="pj-rail-h">{t('pjRailTypes')}</p>
+                {PROJECT_TYPES.filter((tp) => counts[tp] > 0).map((tp) =>
+                  railRow(tp, t(TYPE_META[tp].labelKey), { color: TYPE_META[tp].color, bytes: typeBytes[PROJECT_TYPES.indexOf(tp)].value })
+                )}
+                {(counts.unsaved > 0 || trash.length > 0) && <p className="pj-rail-h">{t('pjRailState')}</p>}
+                {counts.unsaved > 0 && railRow('unsaved', t('pjFilterUnsaved'), { warn: true })}
+                {trash.length > 0 && railRow('trash', t('trashTitle'), { color: 'var(--ink-faint)', bytes: trashBytes })}
+              </nav>
+              {/* the facts: how much is kept, that it lives in this browser, and how much of its allowance that is */}
+              <div className="pj-store">
+                <p className="pj-note">
+                  <b>{t('pjNoteCount', { n: String(projects.length), size: formatBytes(totalBytes) })}</b>
+                  <span>{t('pjNoteLocal')}</span>
+                </p>
+                {quota != null && storedBytes > 0 && (
+                  <p className="pj-quota">
+                    <Meter value={storedBytes} max={quota} label={t('storageOf', { used: formatBytes(storedBytes), quota: formatBytes(quota), pct: usedPct(storedBytes, quota) })} />
+                    <span>{t('storageOf', { used: formatBytes(storedBytes), quota: formatBytes(quota), pct: usedPct(storedBytes, quota) })}</span>
+                  </p>
+                )}
+              </div>
+            </aside>
 
-        {/* where the space goes: by project type, plus what the trash still holds */}
-        {storedBytes > 0 && (
-          <div className="pj-storage">
-            <p className="pj-storage-title">{t('storageTitle')}</p>
-            <StackBar
-              label={t('storageTitle')}
-              segments={[
-                ...PROJECT_TYPES.map((tp, i) => ({ key: tp, label: t(TYPE_META[tp].labelKey), color: TYPE_META[tp].color, value: typeBytes[i].value })),
-                { key: 'trash', label: t('trashTitle'), color: 'var(--ink-faint)', value: trashBytes, muted: true },
-              ]}
-            />
-            {quota != null && (
-              <p className="pj-quota">
-                <Meter value={storedBytes} max={quota} label={t('storageOf', { used: formatBytes(storedBytes), quota: formatBytes(quota), pct: usedPct(storedBytes, quota) })} />
-                <span>{t('storageOf', { used: formatBytes(storedBytes), quota: formatBytes(quota), pct: usedPct(storedBytes, quota) })}</span>
-              </p>
-            )}
+            <div className="pj-main">
+              {shown === 'trash' ? (
+                <section className="pj-trash" aria-label={t('trashTitle')}>
+                  <div className="pj-trash-head">
+                    <h3>{t('trashTitle')}</h3>
+                    <span>{t('trashHint', { days: String(TRASH_DAYS) })}</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDel({ emptyTrash: true })}>{t('trashEmpty')}</button>
+                  </div>
+                  <ul className="pj-trash-list">
+                      {trash.map((p) => (
+                        <li key={p.id}>
+                          <span className={`type-badge tb-${p.type ?? 'audio'}`}>{t(TYPE_META[p.type ?? 'audio'].labelKey)}</span>
+                          <span className="pj-trash-name">{p.name}</span>
+                          <Meter
+                            value={trashDaysLeft(p, Date.now())}
+                            max={TRASH_DAYS}
+                            tone={trashDaysLeft(p, Date.now()) <= TRASH_WARN_DAYS ? 'warn' : 'accent'}
+                            label={t('trashLeft', { n: String(trashDaysLeft(p, Date.now())) })}
+                          />
+                          <span className="pj-meta">
+                            {t('trashLeft', { n: String(trashDaysLeft(p, Date.now())) })} · {t('filesCount', { n: String(trashStats[p.id]?.n ?? 0) })} · {formatBytes(trashStats[p.id]?.bytes ?? 0)}
+                          </span>
+                          <button className="btn btn-ghost btn-sm" onClick={() => void restoreProject(p)}>{t('trashRestore')}</button>
+                          <button className="btn btn-ghost btn-sm pj-purge" onClick={() => setConfirmDel({ purge: p })}>{t('confirmPurge')}</button>
+                        </li>
+                      ))}
+                  </ul>
+                </section>
+              ) : projects.length === 0 ? (
+                <>
+                  <p className="pj-explain">{t('pjExplain')}</p>
+                  {picker}
+                </>
+              ) : (
+              <div className={layout === 'grid' ? 'pj-grid' : 'pj-list'}>
+                {sortedProjects.map((p) => (
+                  <div className="pj-card" key={p.id}>
+                    <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
+                      <span className="pj-thumb">
+                        {thumbs[p.id] ? (
+                          thumbs[p.id].video
+                            ? <video src={thumbs[p.id].url} muted preload="metadata" />
+                            : <img src={thumbs[p.id].url} alt="" draggable={false} />
+                        ) : (
+                          <svg viewBox="0 0 24 24" width="26" height="26"><path d={TYPE_META[p.type ?? 'audio'].glyph} fill={(p.type ?? 'audio') === 'gif' ? 'none' : 'currentColor'} stroke={(p.type ?? 'audio') === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
+                        )}
+                      </span>
+                      <span className="pj-body">
+                        <span className={`type-badge tb-${p.type ?? 'audio'}`}>
+                          {t(TYPE_META[p.type ?? 'audio'].labelKey)}
+                        </span>
+                        <span className="pj-name">{p.name}</span>
+                        <span className="pj-meta">
+                          {new Date(p.updatedAt).toLocaleDateString()} · {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
+                        </span>
+                        {projects.length > 1 && (
+                          <Meter value={pjStats[p.id]?.bytes ?? 0} max={largestBytes} label={t('sizeOfLargest', { size: formatBytes(pjStats[p.id]?.bytes ?? 0) })} />
+                        )}
+                        <span className={`pj-backup bk-${backupState(p)}`}>{t(`backup_${backupState(p)}`)}</span>
+                      </span>
+                    </button>
+                    <div className="pj-actions">
+                      <button className="btn btn-ghost btn-sm" onClick={() => void openMeta(p)} title={t('projectInfo')}>
+                        <svg viewBox="0 0 24 24" width="13" height="13"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 7.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
+                        {t('exportProject')}
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setConfirmDel({ project: p })}
+                        title={t('deleteProject')}
+                        aria-label={t('deleteProject')}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              )}
+            </div>
           </div>
         )}
 
-        {projects.length > 0 && (
-        <div className={layout === 'grid' ? 'pj-grid' : 'pj-list'}>
-          {sortedProjects.map((p) => (
-            <div className="pj-card" key={p.id}>
-              <button className="pj-open" onClick={() => { setCurId(p.id); setEntered(true); }}>
-                <span className="pj-thumb">
-                  {thumbs[p.id] ? (
-                    thumbs[p.id].video
-                      ? <video src={thumbs[p.id].url} muted preload="metadata" />
-                      : <img src={thumbs[p.id].url} alt="" draggable={false} />
-                  ) : (
-                    <svg viewBox="0 0 24 24" width="26" height="26"><path d={TYPE_META[p.type ?? 'audio'].glyph} fill={(p.type ?? 'audio') === 'gif' ? 'none' : 'currentColor'} stroke={(p.type ?? 'audio') === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
-                  )}
-                </span>
-                <span className="pj-body">
-                  <span className={`type-badge tb-${p.type ?? 'audio'}`}>
-                    {t(TYPE_META[p.type ?? 'audio'].labelKey)}
-                  </span>
-                  <span className="pj-name">{p.name}</span>
-                  <span className="pj-meta">
-                    {new Date(p.updatedAt).toLocaleDateString()} · {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
-                  </span>
-                  {projects.length > 1 && (
-                    <Meter value={pjStats[p.id]?.bytes ?? 0} max={largestBytes} label={t('sizeOfLargest', { size: formatBytes(pjStats[p.id]?.bytes ?? 0) })} />
-                  )}
-                  <span className={`pj-backup bk-${backupState(p)}`}>{t(`backup_${backupState(p)}`)}</span>
-                </span>
-              </button>
-              <div className="pj-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => void openMeta(p)} title={t('projectInfo')}>
-                  <svg viewBox="0 0 24 24" width="13" height="13"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 7.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => void exportProjectZip(p)}>
-                  {t('exportProject')}
-                </button>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setConfirmDel({ project: p })}
-                  title={t('deleteProject')}
-                  aria-label={t('deleteProject')}
-                >
-                  ×
-                </button>
+        {npOpen && (
+          <Overlay onClick={() => setNpOpen(false)}>
+            <div className="editor mini-modal np-modal" role="dialog" aria-modal="true" aria-labelledby="np-title" onClick={(e) => e.stopPropagation()}>
+              {picker}
+              <div className="ed-foot-main">
+                <button className="btn btn-ghost" onClick={() => setNpOpen(false)}>{t('close')}</button>
               </div>
             </div>
-          ))}
-
-        </div>
-        )}
-
-        {/* starting a project: pick by what you want to make — the type badge says what it becomes */}
-        <div className="pj-uses-head">
-          <h3>{t(projects.length ? 'pjUsesMore' : 'pjUsesFirst')}</h3>
-          <span>{t('pjTypeFixed')}</span>
-        </div>
-        <div className="pj-uses">
-          {(Object.keys(TYPE_META) as ProjectType[]).map((tp) => (
-            <button key={tp} className={`pj-use ut-${tp}`} onClick={() => void createProject(tp)}>
-              <span className="pj-use-title">
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={TYPE_META[tp].glyph} fill={tp === 'gif' ? 'none' : 'currentColor'} stroke={tp === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
-                {t(TYPE_META[tp].useKey)}
-              </span>
-              <span className="pj-use-desc">{t(TYPE_META[tp].descKey)}</span>
-              <span className={`type-badge tb-${tp}`}>{t(TYPE_META[tp].labelKey)}</span>
-            </button>
-          ))}
-        </div>
-
-        {trash.length > 0 && (
-          <section className="pj-trash" aria-label={t('trashTitle')}>
-            <div className="pj-trash-head">
-              <button className="pj-trash-toggle" aria-expanded={trashOpen} onClick={() => setTrashOpen((v) => !v)}>
-                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                {t('trashTitle')} <span className="pj-trash-n">{trash.length}</span>
-              </button>
-              <span>{t('trashHint', { days: String(TRASH_DAYS) })}</span>
-              {trashOpen && <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDel({ emptyTrash: true })}>{t('trashEmpty')}</button>}
-            </div>
-            {trashOpen && (
-              <ul className="pj-trash-list">
-                {trash.map((p) => (
-                  <li key={p.id}>
-                    <span className={`type-badge tb-${p.type ?? 'audio'}`}>{t(TYPE_META[p.type ?? 'audio'].labelKey)}</span>
-                    <span className="pj-trash-name">{p.name}</span>
-                    <Meter
-                      value={trashDaysLeft(p, Date.now())}
-                      max={TRASH_DAYS}
-                      tone={trashDaysLeft(p, Date.now()) <= TRASH_WARN_DAYS ? 'warn' : 'accent'}
-                      label={t('trashLeft', { n: String(trashDaysLeft(p, Date.now())) })}
-                    />
-                    <span className="pj-meta">
-                      {t('trashLeft', { n: String(trashDaysLeft(p, Date.now())) })} · {t('filesCount', { n: String(trashStats[p.id]?.n ?? 0) })} · {formatBytes(trashStats[p.id]?.bytes ?? 0)}
-                    </span>
-                    <button className="btn btn-ghost btn-sm" onClick={() => void restoreProject(p)}>{t('trashRestore')}</button>
-                    <button className="btn btn-ghost btn-sm pj-purge" onClick={() => setConfirmDel({ purge: p })}>{t('confirmPurge')}</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          </Overlay>
         )}
 
         {justTrashed && createPortal(
@@ -1384,7 +1496,7 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                 {ptype === 'pdf' && a.kind === 'pdf' && (
                   <button onClick={() => savePatch({ pdfAssetId: a.id })} title={t('pickPdf')}>◎</button>
                 )}
-                {ptype === 'text' && a.kind === 'doc' && isTextDoc(new File([a.blob], a.name, { type: a.blob.type })) && (
+                {ptype === 'text' && a.kind === 'doc' && isTextDoc(a) && (
                   <button onClick={() => savePatch({ textAssetId: a.id })} title={t('pickText')}>◎</button>
                 )}
                 {canImportToEditor(a) && (
@@ -1562,7 +1674,7 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                     <button className="btn btn-accent" onClick={() => void blankNote()}>
                       {t('blankNote')}
                     </button>
-                    {assets.filter((a) => a.kind === 'doc' && isTextDoc(new File([a.blob], a.name, { type: a.blob.type }))).map((a) => (
+                    {assets.filter((a) => a.kind === 'doc' && isTextDoc(a)).map((a) => (
                       <button key={a.id} className="btn btn-ghost" onClick={() => savePatch({ textAssetId: a.id })}>
                         {a.name}
                       </button>

@@ -21,7 +21,7 @@ import { DocEditor } from './components/DocEditor';
 import { QrTool } from './components/QrTool';
 import { SheetEditor } from './components/SheetEditor';
 import { LANGS, useI18n } from './i18n';
-import { KINDS, defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName, PDF_TEXT_OUTPUTS, SLOW_IMAGE_OUTPUTS } from './lib/formats';
+import { KINDS, defaultTarget, detectKind, docTypeOf, extOf, formatBytes, outputFileName, PDF_TEXT_OUTPUTS, SLOW_IMAGE_OUTPUTS } from './lib/formats';
 import { convertImage, convertToIco } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
@@ -33,9 +33,10 @@ import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { effectiveSettings, withOption, type SettingValue } from './lib/settingFields';
 import { applyTask, taskById, taskFits, type PdfExportPreset, type Task } from './lib/tasks';
 import { createProjectWithAsset, listProjects } from './lib/idb';
+import { projectTypeFor } from './lib/projectList';
 import { ConvertError } from './lib/errors';
 import { useBlobUrlOwner } from './lib/useBlobUrlOwner';
-import { isTrashed, type ProjectType } from './lib/studioTypes';
+import { isTrashed } from './lib/studioTypes';
 import type { Item, MediaEdit } from './types';
 
 let uid = 0;
@@ -496,8 +497,8 @@ export default function App() {
   const openAsProject = async (id: string) => {
     const it = itemsRef.current.find((i) => i.id === id);
     if (!it) return;
-    if (it.kind === 'doc' && !isTextDoc(it.file)) return; // only text-ish docs become projects
-    const type: ProjectType = isGifItem(it) ? 'gif' : it.kind === 'doc' ? 'text' : (it.kind as ProjectType);
+    const type = projectTypeFor(it.file.name, it.kind, it.file.type);
+    if (!type) return; // only text-ish docs become projects
     const p = await createProjectWithAsset(it.file.name, it.kind, it.file, type);
     try { localStorage.setItem('morphkit-project', p.id); } catch { /* ignore */ }
     setStudioEnterId(p.id);
