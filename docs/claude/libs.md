@@ -3,13 +3,15 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. Update when structure changes.
 
-## lib/ffmpegClient.ts (446)
+## lib/ffmpegClient.ts (464)
 
 Exports: `isEngineReady()` · `convertMedia(file, target, settings, edit, onProgress, onDownload?, fit?: FitTarget)` ·
 `muxVideo(video, audioWav|null, trimStart, trimEnd, settings, onProgress, onDownload?)` ·
 `extractAudio(video, trimStart, trimEnd, onDownload?)` (trim-aligned 44.1k stereo WAV; throws when
 the video has no audio stream — header-only output is treated as failure) · `type DownloadProgress` ·
-`buildArgs` and `fitWithin` (exported for the unit tests in tests/ffmpegArgs.test.ts) ·
+`buildArgs` and `fitWithin` (exported for the unit tests in tests/ffmpegArgs.test.ts) · `noStreamInLog(lines)`
+(ffmpeg's "does not contain any stream" / "matches no streams": for an audio target that means the source
+has no sound → convertMedia throws `ConvertError('noAudioTrack')`; it collects the log via `ff.on('log')`) ·
 size target: `FitTarget {maxBytes, duration?}` (only the converter passes one; Studio never does) ·
 `AV_TARGETS` (mp4/webm: outputs with picture AND sound — audio replacement and the size target) ·
 `VIDEO_AUDIO_KBPS` (128, AAC in MP4 and the budget set aside for sound) · `mediaSeconds(duration, edit)`
@@ -26,7 +28,7 @@ aac/m4a always `-b:a` (native AAC VBR is experimental) · `audioOpts` (`-ar`/`-a
 `trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → one `fitWithin` size cap: GIF width × videoMaxH, downscale-only) · `afChain` (volume → atempo) ·
 `videoRate(codec, s, kbps?)` (CRF normally; `-b:v` + x264 `-maxrate`/`-bufsize` with a size target) ·
 `buildArgs(target, input, output, s, e?, {input2, hasArt, videoKbps}: BuildOpts)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
-`sniffCoverArt` (first 64KiB latin1: APIC | covr | fLaC+image/).
+`sniffCoverArt` (first 64KiB latin1: APIC | covr | fLaC+image/) — only called for AUDIO sources (`detectKind`).
 
 Gotchas: art skipped whenever trim present (desync); convertMedia retries exec ONCE without art, and
 with a size target re-encodes ONCE at a lower rate when the output is still too big — every exec passes
@@ -57,14 +59,18 @@ alpha GIF path = `quantize(rgba4444)` + `applyPalette rgba4444` + `{transparent:
 `encodeGIFBlob` yields to event loop every 6th frame and composites through a tmp canvas (direct
 putImageData would wipe the matte — keep).
 
-## lib/imageConvert.ts (92)
+## lib/imageConvert.ts (183)
 
 `convertImage(file, 'png'|'jpeg'|'webp', quality, maxDim=0, maxBytes=0)` — createImageBitmap → optional
 longest-edge downscale (never upscales) → toBlob; with `maxBytes` the encode goes through `fitToSize`.
 `fitToSize(encode: Encoder, maxBytes, maxQuality, minQuality = MIN_QUALITY)`: highest quality that fits
 (binary search, 0.02 steps); when even `minQuality` is too big, scale by √(target/size) × 0.9 and search
 again (≤ 6 shrinks, then `ConvertError('fitTooSmall')`). PNG passes `minQuality = maxQuality`, so only
-its size moves. `MIN_QUALITY` (0.4) is also the minimum of both quality sliders. jpeg pre-fills `#ffffff`. Throws sentinel strings
+its size moves. `MIN_QUALITY` (0.4) is also the minimum of both quality sliders.
+ICO: `ICO_SIZES` [16 24 32 48 64 128 256] · `icoSizesFor(w, h)` (sizes ≤ the longest side, at least 16) ·
+`encodeIco(images)` (ICONDIR + 16-byte entries + PNG data; 256 written as 0) · `convertToIco(file)` (halves
+the source down to the largest icon, then draws each smaller size from the previous one — never > 2× per
+step; contain-fit, centred on a transparent square). jpeg pre-fills `#ffffff`. Throws sentinel strings
 `'decode' | 'canvas' | 'encode'`. Animated inputs collapse to frame 1 (animated targets → animImage).
 
 ## lib/metadata.ts (280)
@@ -79,18 +85,19 @@ video thumb = 180px JPEG dataURL @ seek min(0.5, 10%)) · `readAudioTags` (first
 syn-safe size, size sanity ≤400; MP4 atoms ©nam/©ART/©alb; hasCover = APIC|covr|fLaC+image/).
 Never throws — missing fields are the failure mode.
 
-## lib/formats.ts (153)
+## lib/formats.ts (164)
 
-Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf]` · `PDF_OUTPUTS` ·
+Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf ico]` · `PDF_OUTPUTS` ·
 `DOC_TEXT_EXT`/`DOC_SHEET_EXT` · `DocType` + `docTypeOf(file)` (docx|pptx|text|md|html|sheet|json) · `isTextDoc`
-(md/text/html/json — the docs that can be Studio text projects) · `docOutputs(file)`
-(per sub-type list; sheets/json lead with xlsx/csv) · `outputsFor(kind, file?)` (file REQUIRED for docs) · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
-`VIDEO_OUTPUTS [mp4 webm gif mp3]` · `LARGE_FILE_BYTES 200MB` · `HUGE_FILE_BYTES 1.8GB` · `extOf` ·
+(md/text/html/json — the docs that can be Studio text projects) · `DOC_OUTPUTS` (record per sub-type; first
+entry = default; sheets/json lead with xlsx/csv) + `docOutputs(file)` · `outputsFor(kind, file?)` (file REQUIRED for docs) · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
+`VIDEO_OUTPUTS [mp4 webm gif ...AUDIO_OUTPUTS]` · `LARGE_FILE_BYTES 200MB` · `HUGE_FILE_BYTES 1.8GB` · `extOf` ·
 `detectKind` (MIME prefix then ext allow-lists; null = unsupported) · `ACCEPT` (file-picker list built from
 the same lists) · `outputsFor` · `defaultTarget`
-(gif→apng / apng→gif FIRST, else webp/mp3/mp4 preference, jpg≡jpeg) · `outputFileName` (jpeg→.jpg) ·
+(gif→apng / apng→gif FIRST, else webp/mp3/mp4 preference, jpg≡jpeg) · `formatLabel` (jpeg→JPG, else upper
+case; FormatMatrix chips) · `outputFileName` (jpeg→.jpg) ·
 `mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
-`apng` has NO ffmpeg path — must route to convertAnimImage.
+`apng` has NO ffmpeg path — must route to convertAnimImage; `ico` has none either — App routes it to `convertToIco`.
 
 ## lib/settings.ts (85)
 

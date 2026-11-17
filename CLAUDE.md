@@ -68,7 +68,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `components/DropZone.tsx` | Accepts every extension `detectKind` knows (`ACCEPT`), multi-file; optional blank-note link |
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings, ConvertError message |
 | `components/SettingsPanel.tsx` | Controlled Settings form (7 sections), single `set(key,val)` mutator; only ever mounted inside the drawer |
-| `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
+| `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes; output chips come from lib/formats, input chips are a short curated pick |
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
 | `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
@@ -81,11 +81,11 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 
 | File | Role |
 |---|---|
-| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists (image outs include `pdf`; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
+| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists — the single registry the UI derives from (image outs include `pdf` and `ico`; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
-| `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only); `fitToSize` squeezes an output under the image size target (quality first, then dimensions); `MIN_QUALITY` is the floor of every quality slider |
+| `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only); `fitToSize` squeezes an output under the image size target (quality first, then dimensions); `MIN_QUALITY` is the floor of every quality slider; `convertToIco` makes a multi-size favicon (`ICO_SIZES` up to the source size, `encodeIco` packs the PNGs) |
 | `lib/animImage.ts` | GIF/APNG/static → RGBA frames (`decodeAnim`), `encodeAPNG` (upng-js, lossless alpha), `encodeGIFBlob(anim, matte\|null)` — `null` keeps binary alpha via gifenc `rgba4444` + `transparent+dispose:2`; `writeGifFrame` shared with GifEditor |
 | `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) + the video size target (`videoKbpsFor` → average bitrate in place of CRF, one lower retry when the output overshoots) |
 | `lib/metadata.ts` | Per-kind file info: dims/duration/EXIF-GPS (exifr)/bitrate estimate, PDF pages/author/encryption, document words/chars/lines/sheets/slides, QR codes found in images + `preview` (object URL for images — owned by `useBlobUrlOwner` once in state; dataURL frame-grab for video) |
@@ -170,7 +170,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     offset) so pixels dragged off-canvas survive later moves; the layer canvas stays the
     canvas-clipped view (export/copy unchanged). Every OTHER pixel edit, undo, or geometry op
     must invalidate that store or moves resurrect stale pixels.
-19. **Metadata**: tags need `-map_metadata 0`; MP3 additionally needs `-id3v2_version 3` (v2.4 breaks Windows/older players) + `-write_id3v1 1`. Cover art is a single-frame video stream — it requires an explicit `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic` and must NOT be attempted for WAV/OGG (unplayable output) or when trimming (stream desync). `convertMedia` retries once without art if the mapped run fails.
+19. **Metadata**: tags need `-map_metadata 0`; MP3 additionally needs `-id3v2_version 3` (v2.4 breaks Windows/older players) + `-write_id3v1 1`. Cover art is a single-frame video stream — it requires an explicit `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic` and must NOT be attempted for WAV/OGG (unplayable output), when trimming (stream desync), or from a VIDEO source (its first video stream is the film, not a cover — an iTunes-tagged video still contains `covr`). `convertMedia` retries once without art if the mapped run fails.
 20. **Audio bitrate mode**: `rateOpts` owns the CBR/VBR split. `-q:a` scales are
     encoder-specific and point opposite ways — libmp3lame 0(best)…9, libvorbis
     0…10(best) — so `audioQuality` is mirrored for vorbis. Native AAC VBR is

@@ -1,8 +1,10 @@
 export type Kind = 'image' | 'audio' | 'video' | 'pdf' | 'doc';
 
-export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif', 'pdf'] as const;
+/** `ico` = a multi-size icon (favicon), see `convertToIco`. */
+export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif', 'pdf', 'ico'] as const;
 export const AUDIO_OUTPUTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a'] as const;
-export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', 'mp3'] as const;
+/** A video can become any audio format: the sound track goes through the same ffmpeg branches. */
+export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', ...AUDIO_OUTPUTS] as const;
 /** PDF: rasterize pages (multi-page → ZIP), extract text, or re-save (after editing). */
 export const PDF_OUTPUTS = ['png', 'jpeg', 'webp', 'txt', 'docx', 'md', 'html', 'pdf'] as const;
 
@@ -31,23 +33,26 @@ export function docTypeOf(file: File): DocType {
   if ((DOC_SHEET_EXT as readonly string[]).includes(ext)) return 'sheet';
   return 'text';
 }
-/** Output list for a document, by its sub-type. */
 /** documents that edit as text/markdown — the only ones Studio text projects accept */
 export function isTextDoc(file: File): boolean {
   const t = docTypeOf(file);
   return t === 'md' || t === 'text' || t === 'html' || t === 'json';
 }
 
+/** Output list per document sub-type; the first entry is the default target. */
+export const DOC_OUTPUTS: Readonly<Record<DocType, readonly string[]>> = {
+  docx: ['pdf', 'html', 'md', 'txt', 'pptx', 'png'],
+  pptx: ['pdf', 'docx', 'md', 'html', 'txt', 'png'],
+  md: ['pdf', 'html', 'docx', 'pptx', 'txt', 'png'],
+  html: ['pdf', 'md', 'docx', 'pptx', 'txt', 'png'],
+  sheet: ['xlsx', 'csv', 'json', 'html', 'md', 'pdf'],
+  json: ['csv', 'xlsx', 'md', 'html', 'pdf'],
+  text: ['pdf', 'docx', 'md', 'html', 'pptx', 'png'],
+};
+
+/** Output list for a document, by its sub-type. */
 export function docOutputs(file: File): readonly string[] {
-  switch (docTypeOf(file)) {
-    case 'docx': return ['pdf', 'html', 'md', 'txt', 'pptx', 'png'];
-    case 'pptx': return ['pdf', 'docx', 'md', 'html', 'txt', 'png'];
-    case 'md': return ['pdf', 'html', 'docx', 'pptx', 'txt', 'png'];
-    case 'html': return ['pdf', 'md', 'docx', 'pptx', 'txt', 'png'];
-    case 'sheet': return ['xlsx', 'csv', 'json', 'html', 'md', 'pdf'];
-    case 'json': return ['csv', 'xlsx', 'md', 'html', 'pdf'];
-    default: return ['pdf', 'docx', 'md', 'html', 'pptx', 'png'];
-  }
+  return DOC_OUTPUTS[docTypeOf(file)];
 }
 
 const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'apng', 'avif', 'ico', 'svg'];
@@ -112,6 +117,11 @@ export function defaultTarget(kind: Kind, file: File): string {
   return outs.find((o) => !same(o)) ?? preferred;
 }
 
+/** How a format is written for people: upper case, and jpeg as the familiar JPG. */
+export function formatLabel(format: string): string {
+  return format === 'jpeg' ? 'JPG' : format.toUpperCase();
+}
+
 export function outputFileName(inputName: string, target: string): string {
   const base = inputName.replace(/\.[^.]+$/, '');
   const ext = target === 'jpeg' ? 'jpg' : target;
@@ -124,6 +134,7 @@ export function mimeFor(target: string): string {
     jpeg: 'image/jpeg',
     webp: 'image/webp',
     apng: 'image/apng',
+    ico: 'image/x-icon',
     mp3: 'audio/mpeg',
     wav: 'audio/wav',
     ogg: 'audio/ogg',

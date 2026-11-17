@@ -32,9 +32,12 @@ installed as an app (PWA).
   (every image and PDF in the list becomes one PDF).
 - Images through the Canvas API with a quality slider; GIF ⇄ APNG keeps every frame, APNG keeps
   full transparency, GIF output keeps 1-bit transparency or flattens onto a colour.
+- Any image to an ICO icon (favicon) holding 16 – 256 px versions, each no bigger than the original,
+  centred on a transparent square.
 - Audio and video through [ffmpeg.wasm](https://ffmpegwasm.netlify.app/) (single-thread core, so no
   special server headers are needed), with 1–4 parallel workers. Tags and cover art are carried over
-  where the target format supports them.
+  where the target format supports them. A video can also become any of the audio formats (MP3, WAV,
+  OGG, FLAC, M4A); one without a sound track says so instead of failing vaguely.
 - PDF pages to PNG / JPG / WEBP (one ZIP for multi-page files), PDF text to TXT / DOCX / Markdown / HTML,
   password-protected PDFs unlocked in memory.
 - Documents through one sanitised-HTML pipeline: Word, PowerPoint, Markdown, HTML, text, CSV / TSV,

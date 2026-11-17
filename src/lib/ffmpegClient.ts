@@ -1,7 +1,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { ConvertError } from './errors';
-import { extOf, mimeFor } from './formats';
+import { AUDIO_OUTPUTS, detectKind, extOf, mimeFor } from './formats';
 import type { Settings } from './settings';
 import type { MediaEdit } from '../types';
 
@@ -270,6 +270,15 @@ export function buildArgs(
   }
 }
 
+/**
+ * ffmpeg's way of saying the output would be empty: "Output file #0 does not contain any stream"
+ * (with -vn) or "Stream map '0:a' matches no streams" (with the cover-art map). For an audio output
+ * that means the source has no sound track.
+ */
+export function noStreamInLog(lines: readonly string[]): boolean {
+  return lines.some((l) => /does not contain any stream|matches no streams/.test(l));
+}
+
 /** Does this file carry an embedded cover image? (cheap sniff, no decode) */
 async function sniffCoverArt(file: File): Promise<boolean> {
   try {
@@ -409,12 +418,17 @@ export async function convertMedia(
   const handler = ({ progress }: { progress: number }) => {
     if (Number.isFinite(progress)) onProgress(Math.min(1, Math.max(0, progress)));
   };
+  const log: string[] = [];
+  const onLog = ({ message }: { message: string }) => { log.push(message); };
 
   try {
     await ff.writeFile(inName, await fetchFile(file));
     if (in2Name) await ff.writeFile(in2Name, await fetchFile(edit!.audioTrack!));
-    const hasArt = settings.keepCoverArt ? await sniffCoverArt(file) : false;
+    // only audio files have cover art: an iTunes-tagged video also carries 'covr', but its first
+    // video stream is the film, which must not be copied into an audio file as the "cover"
+    const hasArt = settings.keepCoverArt && detectKind(file) === 'audio' ? await sniffCoverArt(file) : false;
     ff.on('progress', handler);
+    ff.on('log', onLog);
     // every run writes the same output name; -y overwrites instead of asking (no stdin here)
     const run = async (kbps?: number) => {
       let code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, hasArt, videoKbps: kbps })]);
@@ -422,7 +436,10 @@ export async function convertMedia(
       if (code !== 0 && hasArt) {
         code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, videoKbps: kbps })]);
       }
-      if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
+      if (code !== 0) {
+        if ((AUDIO_OUTPUTS as readonly string[]).includes(target) && noStreamInLog(log)) throw new ConvertError('noAudioTrack');
+        throw new Error(`ffmpeg exited with ${code}`);
+      }
       const data = await ff.readFile(outName);
       if (typeof data === 'string') throw new Error('unexpected output');
       return data;
@@ -438,6 +455,7 @@ export async function convertMedia(
     return new Blob([data.slice()], { type: mimeFor(target) });
   } finally {
     ff.off('progress', handler);
+    ff.off('log', onLog);
     try { await ff.deleteFile(inName); } catch { /* ignore */ }
     if (in2Name) { try { await ff.deleteFile(in2Name); } catch { /* ignore */ } }
     try { await ff.deleteFile(outName); } catch { /* ignore */ }

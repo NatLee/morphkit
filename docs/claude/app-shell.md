@@ -6,7 +6,7 @@
 > `FileCard`, `SettingsPanel`, `FormatMatrix`, `DualRange`, `Overlay`, `FramePicker`, `InfoTip`,
 > `InstallPrompt`.
 
-## App.tsx (779 lines) — owns ALL convert-mode state
+## App.tsx (781 lines) — owns ALL convert-mode state
 
 **State**: `items: Item[]` · `engine: 'idle'|'loading'|'ready'|'error'` · `engineDl {received,total}` ·
 `skipped` (rejected names, 6s auto-clear) · `settings` (persisted via saveSettings) · `showSettings` ·
@@ -150,8 +150,11 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 - **Overlay.tsx (14)**: `createPortal(div.editor-overlay, document.body)` — invariant 17 lives here.
   Children must stopPropagation. Page scroll behind overlays is locked via `body:has(.editor-overlay)` CSS
   (plus `html:has(.editor-overlay)` with `overflow-y: clip`).
-- **FormatMatrix.tsx (73)**: static 5 cards (image/audio/video/pdf/doc — `.mx-pdf` violet, `.mx-doc` accent) from module const `MATRIX` (chips are hardcoded uppercase
-  strings, NOT derived from lib/formats — update both when adding formats).
+- **FormatMatrix.tsx (78)**: static 5 cards (image/audio/video/pdf/doc — `.mx-pdf` violet, `.mx-doc` accent) from module const `MATRIX`.
+  OUT chips are derived (`outs(IMAGE_OUTPUTS)` … `formatLabel`, documents = the union of `DOC_OUTPUTS`), so a new
+  output appears by itself; IN chips are a short hand-picked list (detectKind accepts more).
+  The README picture `docs/images/formats-*.webp` comes from `docs/images/formats.html`, whose OUT lists are
+  checked against lib/formats by tests/formatsPicture.test.ts.
 - **InfoTip.tsx (47)**: `span.info-i` + portal `.tip-pop` (fixed-position tooltip, never clipped).
 - **InstallPrompt.tsx (98)**: `.install-card > .install-icon + .install-text + .install-btns`.
   Captures `beforeinstallprompt` (Android/desktop → real install button) or shows the iOS
