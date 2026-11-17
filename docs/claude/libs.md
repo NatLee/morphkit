@@ -7,7 +7,7 @@
 
 Engine pool: `acquireEngine`/`releaseEngine(ff, broken)` are internal; jobs call `withEngine(job, onDownload)` (invariant 38: an
 `isEngineFault` — wasm trap text — terminates and drops the instance, the job runs once more on a fresh one; tests/ffmpegEngine.test.ts).
-Exports: `isEngineReady()` · `isEngineFault(e)` · `convertMedia(file, target, settings, edit, onProgress, onDownload?, fit?: FitTarget)` ·
+Exports: `isEngineReady()` · `isEngineFault(e)` · `H264_TARGETS` (mp4/mov/mkv share one `buildArgs` branch: libx264 + aac) · `AV_TARGETS` (H264_TARGETS + webm) · `convertMedia(file, target, settings, edit, onProgress, onDownload?, fit?: FitTarget)` ·
 `muxVideo(video, audioWav|null, trimStart, trimEnd, settings, onProgress, onDownload?)` ·
 `extractAudio(video, trimStart, trimEnd, onDownload?)` (trim-aligned 44.1k stereo WAV; throws when
 the video has no audio stream — header-only output is treated as failure) · `type DownloadProgress` ·
@@ -110,7 +110,7 @@ Exports: `Kind` (image|audio|video|pdf|doc) · `KINDS` (each kind's name key and
 `DOC_TEXT_EXT`/`DOC_SHEET_EXT` · `DocType` + `docTypeOf(file)` (docx|pptx|text|md|html|sheet|json) · `isTextDoc`
 (md/text/html/json — the docs that can be Studio text projects) · `DOC_OUTPUTS` (record per sub-type; first
 entry = default; sheets/json lead with xlsx/csv) + `docOutputs(file)` · `outputsFor(kind, file?)` (file REQUIRED for docs) · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
-`VIDEO_OUTPUTS [mp4 webm gif ...AUDIO_OUTPUTS]` · `LARGE_FILE_BYTES 200MB` · `HUGE_FILE_BYTES 1.8GB` · `extOf` ·
+`VIDEO_OUTPUTS [mp4 webm mov mkv gif ...AUDIO_OUTPUTS]` · `LARGE_FILE_BYTES 200MB` · `HUGE_FILE_BYTES 1.8GB` · `extOf` ·
 `detectKind` (MIME prefix then ext allow-lists; null = unsupported) · `ACCEPT` (file-picker list built from
 the same lists) · `outputsFor` · `defaultTarget`
 (gif→apng / apng→gif FIRST, else webp/mp3/mp4 preference, jpg≡jpeg) · `formatLabel` (jpeg→JPG, else upper
