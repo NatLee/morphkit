@@ -32,6 +32,18 @@ import {
   type Watermark,
 } from '../lib/pdf';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import {
+  BLANK_INK_SHARE,
+  DEFAULT_PAGE_NUMBERS,
+  inkShare,
+  PAGE_NUMBER_FORMATS,
+  PAGE_NUMBER_POSITIONS,
+  pageNumberLabel,
+  SQUEEZE_PRESETS,
+  type PageNumberPos,
+  type PageNumbers,
+  type SqueezeLevel,
+} from '../lib/pdfTools';
 import type { Item } from '../types';
 
 /**
@@ -98,7 +110,15 @@ interface ExportOpts {
   encrypt: boolean;
   userPw: string;
   ownerPw: string;
+  numbers: boolean;
+  pn: PageNumbers;
+  squeeze: 'off' | SqueezeLevel;
 }
+
+/** Render width (px) the blank-page finder looks at: enough to see one short line of body text. */
+const BLANK_SCAN_W = 300;
+/** Font sizes offered for page numbers, in points. */
+const PAGE_NUMBER_SIZES = [8, 9, 10, 11, 12, 14];
 
 const THUMB_W = 168;
 /** rasterized page edits / previews: longest edge in px */
@@ -153,7 +173,11 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
   const [wmOpen, setWmOpen] = useState(false);
   // export
   const [exportOpen, setExportOpen] = useState(false);
-  const [xo, setXo] = useState<ExportOpts>({ scope: 'all', split: false, title: '', author: '', encrypt: false, userPw: '', ownerPw: '' });
+  const [xo, setXo] = useState<ExportOpts>({
+    scope: 'all', split: false, title: '', author: '', encrypt: false, userPw: '', ownerPw: '',
+    numbers: false, pn: DEFAULT_PAGE_NUMBERS, squeeze: 'off',
+  });
+  const setPn = (patch: Partial<PageNumbers>) => setXo((x) => ({ ...x, pn: { ...x.pn, ...patch } }));
   // password prompts (one at a time)
   const [pwAsk, setPwAsk] = useState<{ file: File; resolve: (pw: string | null) => void } | null>(null);
   // history (page-list snapshots)
@@ -437,6 +461,27 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
     });
   };
   const reverseAll = () => commit((prev) => [...prev].reverse());
+
+  /** Select every page with (almost) no ink, as it exports — the user reviews, then deletes. */
+  const selectBlank = async () => {
+    setBusy(true);
+    setProg(0);
+    try {
+      const blank = new Set<number>();
+      const list = pagesRef.current;
+      for (let i = 0; i < list.length; i++) {
+        const c = await renderDisplay(list[i], { width: BLANK_SCAN_W, decorate: true });
+        const px = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+        if (inkShare(px) < BLANK_INK_SHARE) blank.add(list[i].id);
+        c.width = c.height = 0;
+        setProg((i + 1) / list.length);
+      }
+      setSel(blank);
+      flash(blank.size ? t('pdfBlankFound', { n: String(blank.size) }) : t('pdfBlankNone'));
+    } finally {
+      setBusy(false);
+    }
+  };
   const addBlank = () => {
     const ref = focusPage ?? pages[0];
     const [w, h] = ref ? [ref.w, ref.h] : A4;
@@ -677,12 +722,15 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
         author: xo.author || undefined,
         watermark: list.some((p) => p.watermark) ? wm : null,
         encrypt: xo.encrypt ? { user: xo.userPw, owner: xo.ownerPw } : null,
+        pageNumbers: xo.numbers ? xo.pn : null,
+        squeeze: xo.squeeze === 'off' ? null : SQUEEZE_PRESETS[xo.squeeze],
       };
       const base = item.file.name.replace(/\.pdf$/i, '');
       if (xo.split && !inline) {
         const entries: Record<string, Uint8Array> = {};
         for (let i = 0; i < specs.length; i++) {
-          const blob = await buildPdf([specs[i]], opts);
+          // numbered as in the whole document, not "1 of 1" in every file
+          const blob = await buildPdf([specs[i]], { ...opts, pageOffset: i, pageCount: specs.length });
           entries[`${base}_p${String(i + 1).padStart(3, '0')}.pdf`] = new Uint8Array(await blob.arrayBuffer());
           setProg((i + 1) / specs.length);
         }
@@ -774,6 +822,9 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
           </button>
           <button className={`btn btn-ghost btn-sm${wmOpen ? ' active' : ''}`} disabled={busy || !loaded} onClick={() => setWmOpen((v) => !v)} title={t('pdfWatermarkTip')}>
             <Icon d="M4 20 20 4M7 4h13v13" />{t('pdfWatermark')}
+          </button>
+          <button className="btn btn-ghost btn-sm" disabled={busy || !pages.length} onClick={() => void selectBlank()} title={t('pdfFindBlankTip')}>
+            <Icon d="M6 3h8l5 5v13H6zM14 3v5h5M9 13l2 2 4-4" />{t('pdfFindBlank')}
           </button>
           <button className="btn btn-ghost btn-sm pdf-del" disabled={busy || !nSel} onClick={deleteSel} title={t('pdfDelete')}><Icon d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13" /></button>
           <span className="opt-spacer" />
@@ -996,6 +1047,43 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
           </div>
         )}
         {anyEncrypted && !xo.encrypt && <p className="ed-hint">{t('pdfDecryptNote')}</p>}
+        <label className="sp-field sp-check"><input type="checkbox" checked={xo.numbers} onChange={(e) => setXo({ ...xo, numbers: e.target.checked })} /><span>{t('pdfPageNumbers')}</span></label>
+        {xo.numbers && (
+          <div className="pdf-x-pn">
+            <label className="pdf-x-row"><span className="sp-label">{t('pdfPnPos')}</span>
+              <select className="ed-input" value={xo.pn.pos} onChange={(e) => setPn({ pos: e.target.value as PageNumberPos })}>
+                {PAGE_NUMBER_POSITIONS.map((p) => <option key={p} value={p}>{t(`pdfPnPos_${p}`)}</option>)}
+              </select>
+            </label>
+            <label className="pdf-x-row"><span className="sp-label">{t('pdfPnFormat')}</span>
+              <select className="ed-input" value={xo.pn.format} onChange={(e) => setPn({ format: e.target.value })}>
+                {PAGE_NUMBER_FORMATS.map((f) => (
+                  <option key={f} value={f}>{pageNumberLabel(0, 12, { ...xo.pn, format: f, start: 1, skip: 0 })}</option>
+                ))}
+              </select>
+            </label>
+            <label className="pdf-x-row"><span className="sp-label">{t('pdfPnStart')}</span>
+              <input className="ed-input" type="number" min={0} value={xo.pn.start} onChange={(e) => setPn({ start: Math.max(0, Math.round(Number(e.target.value) || 0)) })} />
+            </label>
+            <label className="pdf-x-row"><span className="sp-label">{t('pdfPnSkip')}</span>
+              <input className="ed-input" type="number" min={0} max={Math.max(0, pages.length - 1)} value={xo.pn.skip} onChange={(e) => setPn({ skip: Math.max(0, Math.round(Number(e.target.value) || 0)) })} />
+            </label>
+            <label className="pdf-x-row"><span className="sp-label">{t('pdfPnSize')}</span>
+              <select className="ed-input" value={xo.pn.size} onChange={(e) => setPn({ size: Number(e.target.value) })}>
+                {PAGE_NUMBER_SIZES.map((n) => <option key={n} value={n}>{n} pt</option>)}
+              </select>
+            </label>
+            <p className="ed-hint">{t('pdfPnHint')}</p>
+          </div>
+        )}
+        <label className="pdf-x-row"><span className="sp-label">{t('pdfSqueeze')}</span>
+          <select className="ed-input" value={xo.squeeze} onChange={(e) => setXo({ ...xo, squeeze: e.target.value as ExportOpts['squeeze'] })}>
+            <option value="off">{t('pdfSqueezeOff')}</option>
+            <option value="light">{t('pdfSqueezeLight')}</option>
+            <option value="strong">{t('pdfSqueezeStrong')}</option>
+          </select>
+        </label>
+        {xo.squeeze !== 'off' && <p className="ed-hint">{t('pdfSqueezeHint')}</p>}
         <div className="ed-foot">
           <span />
           <div className="ed-foot-main">

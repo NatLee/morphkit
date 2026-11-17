@@ -9,6 +9,7 @@
 import { zipSync } from 'fflate';
 import { extOf } from './formats';
 import { ConvertError } from './errors';
+import { pageNumberLabel, pageNumberSpot, squeezeImages, type ImageSqueeze, type PageNumbers } from './pdfTools';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 // ---------- pdf.js loader ----------
@@ -379,6 +380,13 @@ export interface BuildOpts {
   watermark?: Watermark | null;
   /** AES-256 encrypt the result (qpdf-wasm). `user` may be '' for permissions-only. */
   encrypt?: { user: string; owner: string } | null;
+  /** print page numbers (lib/pdfTools) */
+  pageNumbers?: PageNumbers | null;
+  /** where `pages` sit in the whole document: a split export builds one page at a time */
+  pageOffset?: number;
+  pageCount?: number;
+  /** re-encode JPEG images smaller (lib/pdfTools `squeezeImages`) */
+  squeeze?: ImageSqueeze | null;
   onProgress?: (p: number) => void;
 }
 
@@ -505,7 +513,7 @@ export async function imageForPdf(
  */
 export async function buildPdf(pages: PageSpec[], opts: BuildOpts = {}): Promise<Blob> {
   const lib = await pdfLib();
-  const { PDFDocument, degrees, PDFName, PDFArray, PDFDict, PDFHexString, PDFNumber } = lib;
+  const { PDFDocument, degrees, PDFName, PDFArray, PDFDict, PDFHexString, PDFNumber, StandardFonts, rgb } = lib;
   const out = await PDFDocument.create();
   out.setProducer('MorphKit');
   out.setCreator('MorphKit');
@@ -581,6 +589,7 @@ export async function buildPdf(pages: PageSpec[], opts: BuildOpts = {}): Promise
   };
 
   let wmArt: HTMLCanvasElement | ImageBitmap | null = null;
+  let numberFont: Awaited<ReturnType<typeof out.embedFont>> | null = null;
   for (let i = 0; i < pages.length; i++) {
     const p = pages[i];
     let page: Page;
@@ -626,9 +635,30 @@ export async function buildPdf(pages: PageSpec[], opts: BuildOpts = {}): Promise
       await drawUserPng(await watermarkOverlay(wm, wmArt, side ? H : W, side ? W : H, totalRot, !!p.flipH, !!p.flipV));
     }
     if (p.notes?.length) addNotes(page, p.notes);
+    const pn = opts.pageNumbers;
+    const label = pn && pageNumberLabel((opts.pageOffset ?? 0) + i, opts.pageCount ?? pages.length, pn);
+    if (pn && label) {
+      // placed on the page AS SHOWN (rotation applied), drawn upright in its user space
+      numberFont ??= await out.embedFont(StandardFonts.Helvetica);
+      const rot = ((page.getRotation().angle % 360) + 360) % 360;
+      const box = page.getCropBox();
+      const side = rot === 90 || rot === 270;
+      const [w, h] = side ? [box.height, box.width] : [box.width, box.height];
+      const [nx, ny] = pageNumberSpot(pn.pos, w, h, numberFont.widthOfTextAtSize(label, pn.size), pn.size);
+      const [ux, uy] = displayToUser(nx, ny, rot);
+      page.drawText(label, {
+        x: box.x + ux * box.width,
+        y: box.y + (1 - uy) * box.height,
+        size: pn.size,
+        font: numberFont,
+        color: rgb(0, 0, 0),
+        rotate: degrees(rot),
+      });
+    }
     out.addPage(page);
     opts.onProgress?.((i + 1) / pages.length);
   }
+  if (opts.squeeze) await squeezeImages(out, lib, opts.squeeze);
   let bytes: Uint8Array = await out.save({ useObjectStreams: true });
   if (opts.encrypt && (opts.encrypt.user || opts.encrypt.owner)) {
     const { encryptPdf } = await import('./qpdf');
