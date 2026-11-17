@@ -48,7 +48,8 @@ of file, and its own options.
   centred on a transparent square.
 - Audio and video through [ffmpeg.wasm](https://ffmpegwasm.netlify.app/) (single-thread core, so no
   special server headers are needed), with 1–4 parallel workers. Tags and cover art are carried over
-  where the target format supports them. A video can also become any of the audio formats (MP3, WAV,
+  where the target format supports them. Video goes to MP4, WEBM, MOV (what Apple's editors expect) or MKV
+  — MP4, MOV and MKV all as H.264 + AAC. A video can also become any of the audio formats (MP3, WAV,
   OGG, FLAC, M4A); one without a sound track says so instead of failing vaguely.
 - PDF pages to PNG / JPG / WEBP (one ZIP for multi-page files), PDF text to TXT / DOCX / Markdown / HTML,
   password-protected PDFs unlocked in memory.

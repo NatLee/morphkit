@@ -14,7 +14,7 @@ export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif', 'pdf', 'ico'
 export const SLOW_IMAGE_OUTPUTS: ReadonlySet<string> = new Set(['pdf', 'txt']);
 export const AUDIO_OUTPUTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a'] as const;
 /** A video can become any audio format: the sound track goes through the same ffmpeg branches. */
-export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', ...AUDIO_OUTPUTS] as const;
+export const VIDEO_OUTPUTS = ['mp4', 'webm', 'mov', 'mkv', 'gif', ...AUDIO_OUTPUTS] as const;
 /** The outputs drawn on a canvas — the ones a pixel cap, a size target or a render scale can change. */
 export const RASTER_OUTPUTS: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp']);
 /** PDF outputs made from the page text (read by OCR where a page has none). */
@@ -166,6 +166,8 @@ export function mimeFor(target: string): string {
     flac: 'audio/flac',
     m4a: 'audio/mp4',
     mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    mkv: 'video/x-matroska',
     webm: 'video/webm',
     gif: 'image/gif',
     pdf: 'application/pdf',

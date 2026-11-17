@@ -67,6 +67,17 @@ describe('buildArgs — video', () => {
     expect(after(a, '-pix_fmt')).toBe('yuv420p');
   });
 
+  it('writes MOV and MKV as H.264 video + AAC sound, exactly like MP4', () => {
+    const mp4 = buildArgs('mp4', 'in.webm', 'o.mp4', S({ videoPreset: 'fast', videoCrf: 26 }));
+    for (const t of ['mov', 'mkv']) {
+      const a = buildArgs(t, 'in.webm', `o.${t}`, S({ videoPreset: 'fast', videoCrf: 26 }));
+      expect(a.slice(0, -1), t).toEqual(mp4.slice(0, -1));
+      expect(a[a.length - 1]).toBe(`o.${t}`);
+    }
+    expect(mp4.join(' ')).toContain('-c:v libx264 -preset fast');
+    expect(mp4).toContain('aac');
+  });
+
   it('chains rotate, speed and the height cap into one -vf', () => {
     const a = buildArgs('mp4', 'i', 'o.mp4', S({ videoMaxH: 720 }), { rotate: 90, speed: 2 });
     expect(after(a, '-vf')).toBe(`transpose=1,setpts=PTS/2,${fitWithin(0, 720)}`);

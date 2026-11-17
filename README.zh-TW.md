@@ -37,7 +37,7 @@ MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小�
 - 圖片用 Canvas API 轉，附品質滑桿。GIF ⇄ APNG 會保留每一格；APNG 保留完整透明度；GIF 可以保留一位元透明，或壓在指定的底色上。
 - iPhone 照片（HEIC / HEIF）和一般圖片一樣能開：轉成 JPG（預設）、PNG、WEBP 或 PDF，辨識文字或編輯都可以。瀏覽器本身解不開 HEIC，所以第一次加入時會從本站載入解碼器（libheif，約 1.5 MB）。
 - 任何圖片都能轉成 ICO 圖示（網站的 favicon），一個檔案裡有 16～256 px 幾種尺寸，都不會比原圖大，圖片置中、四周透明。
-- 音訊和影片用 [ffmpeg.wasm](https://ffmpegwasm.netlify.app/)（瀏覽器版 ffmpeg）轉。用的是單執行緒版本，伺服器不需要特別設定；可以同時開 1–4 個轉換引擎。目標格式支援時，標籤和專輯封面會一起保留。影片也能直接轉成任何一種音訊格式（MP3、WAV、OGG、FLAC、M4A）；影片沒有音軌時會直接說明，不會只顯示「轉換失敗」。
+- 音訊和影片用 [ffmpeg.wasm](https://ffmpegwasm.netlify.app/)（瀏覽器版 ffmpeg）轉。用的是單執行緒版本，伺服器不需要特別設定；可以同時開 1–4 個轉換引擎。目標格式支援時，標籤和專輯封面會一起保留。影片可以轉成 MP4、WEBM、MOV（Apple 剪輯軟體常用）或 MKV，其中 MP4、MOV、MKV 都是 H.264 加 AAC。影片也能直接轉成任何一種音訊格式（MP3、WAV、OGG、FLAC、M4A）；影片沒有音軌時會直接說明，不會只顯示「轉換失敗」。
 - PDF 頁面轉成 PNG / JPG / WEBP（多頁時打包成 ZIP）；PDF 文字可以轉成 TXT / DOCX / Markdown / HTML。有密碼的 PDF 在記憶體裡解鎖，密碼不會被存起來。
 - 文件統一先轉成清理過的 HTML，再轉成目標格式：支援 Word、PowerPoint、Markdown、HTML、純文字、CSV / TSV、Excel / ODS 和 JSON。輸出 PDF 時會嵌入 Noto 字型，文字可以選取，中日韓文也沒問題。
 - 依檔案類型顯示資訊：尺寸、長度、位元率、頁數、字數，照片的 EXIF 和 GPS（附地圖連結），以及圖片裡的 QR Code。

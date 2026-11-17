@@ -111,7 +111,7 @@ describe('buildArgs with a size target', () => {
   });
 
   it('applies only to outputs with both picture and sound', () => {
-    expect([...AV_TARGETS].sort()).toEqual(['mp4', 'webm']);
+    expect([...AV_TARGETS].sort()).toEqual(['mkv', 'mov', 'mp4', 'webm']);
     // GIF and audio outputs ignore a bitrate meant for video
     expect(buildArgs('gif', 'i', 'o.gif', S(), undefined, { videoKbps: 400 })).not.toContain('-b:v');
     expect(buildArgs('mp3', 'i', 'o.mp3', S(), undefined, { videoKbps: 400 })).not.toContain('-b:v');

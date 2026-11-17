@@ -86,7 +86,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 
 | File | Role |
 |---|---|
-| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`; images include heic/heif), `SOURCE_TARGET` (a source's natural first output: gif↔apng, heic→jpeg), `EXTENSIONS` (every accepted extension by kind; `ACCEPT` and the home panel read it) + `SAME_FORMAT` (jpeg→jpg …), output lists — the single registry the UI derives from (image outs include `pdf`, `ico` and `txt` = OCR, `SLOW_IMAGE_OUTPUTS` queue like media; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
+| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`; images include heic/heif), `SOURCE_TARGET` (a source's natural first output: gif↔apng, heic→jpeg), `EXTENSIONS` (every accepted extension by kind; `ACCEPT` and the home panel read it) + `SAME_FORMAT` (jpeg→jpg …), output lists — the single registry the UI derives from (image outs include `pdf`, `ico` and `txt` = OCR, `SLOW_IMAGE_OUTPUTS` queue like media; `VIDEO_OUTPUTS` = mp4/webm/mov/mkv/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) — the defaults for new files |
 | `lib/settingFields.ts` | The ONE description of every setting: label, control, hint and `applies(kind, target)` = the conversions it changes. `fieldsFor`, `effectiveSettings(defaults, item.opts)`, `withOption` (an override equal to the default is dropped), `activeOverrides`, `showValue`. Invariant 33 |
 | `lib/formatMap.ts` | What the home panel shows, derived from the registries: `formatRows` (one row per kind, per document sub-type `DOC_TYPES`; inputs from `EXTENSIONS` with `SAME_FORMAT` merged), `inputsOf`/`outputsOf`/`allOutputs`, `needsFor` (browser / engine / ocr / ocrScans / fonts — mirrors runConvert), `describeKey` (`fmt_<target>` or a kind-specific key), `optionsFor` (= `fieldsFor` label keys), `tasksFor`, `searchFormats` |
@@ -281,7 +281,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     reads `effectiveSettings(settingsRef.current, item.opts)` — inside `runConvert` never read
     `settingsRef.current` directly (only the worker count is app-wide). A field's `applies(kind, target)`
     in lib/settingFields MUST say the same as the conversion code that reads the setting (it uses the
-    same constants: `AUDIO_OUTPUTS`, `AV_TARGETS`, `ART_CAPABLE`, `RASTER_OUTPUTS`, `PDF_TEXT_OUTPUTS`),
+    same constants: `AUDIO_OUTPUTS`, `AV_TARGETS`, `H264_TARGETS` (mp4/mov/mkv: one H.264 + AAC encode, the encoder speed applies), `ART_CAPABLE`, `RASTER_OUTPUTS`, `PDF_TEXT_OUTPUTS`),
     or a card offers an option that does nothing. Changing an option of a finished file sends it back
     to ready (`staleResult`), like changing the target. Overrides live in memory with the item; the
     drawer's values are never changed from a card.
