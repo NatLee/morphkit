@@ -73,6 +73,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `components/SizeViz.tsx` | The size pictures: `SizeCompare` (source vs result on one scale, size target as a tick), `StackBar` (one total split into coloured parts + a legend with the numbers), `Meter` (one quantity against its limit). Numbers come from `lib/sizeStats` |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes; output chips come from lib/formats, input chips are a short curated pick |
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
+| `components/MoreMenu.tsx` | The "⋯" button + menu for less-used actions (`MoreMenuItem`: label, hint, disabled, onSelect); closes on a pick, a click elsewhere and Escape. Used by FileCard and the project cards; styled by `.fc-more`/`.fc-menu` |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
 | `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
 | `components/ConfirmDialog.tsx` | Second step before an action the user must agree to: Studio project and asset deletes (`tone` danger, the default) and the OCR download (`tone` accent). Overlay + alertdialog, Cancel holds the focus, Escape cancels |
@@ -143,10 +144,11 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
 | `lib/studioTypes.ts` | `ProjectType` (6 types), `Clip`/`Track`/`MixerDoc`/`ImageDoc`/`VideoDoc`/`ProjectRec` (+ `deletedAt`, `exportedAt`)/`AssetRec`, `empty*` factories, trash rules (`TRASH_DAYS`, `isTrashed`, `trashDaysLeft`, `trashExpired`), `backupState`, `INLINE_SAVE_EVT`, `uid()` |
-| `lib/projectList.ts` | What the Projects page lists: `ProjectFilter` (all / a type / `unsaved` / `trash`), `matchesFilter`, `liveFilter` (an emptied choice falls back to all), `filterCounts` (the rail numbers), and `projectTypeFor(name, kind, mime)` — the ONE rule for which project a file starts (invariant 36) |
+| `lib/projectList.ts` | What the Projects page lists: `ProjectFilter` (all / a type / `unsaved` / `trash`), `matchesFilter`, `liveFilter` (an emptied choice falls back to all), `filterCounts` (the rail numbers), `matchesQuery` (search box: every word in the name), `ageGroup`/`groupByAge` (today · 7 days · 30 days · older), and `projectTypeFor(name, kind, mime)` — the ONE rule for which project a file starts (invariant 36) |
 | `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
 | `lib/audioEngine.ts` | AudioBuffer decode cache (assetId-keyed), `playMix` live graph (solo/mute logic), `renderMixWav` OfflineAudioContext, `peaks` for waveforms |
 | `lib/wav.ts` | AudioBuffer → 16-bit PCM WAV |
+| `lib/useMediaQuery.ts` | `useMediaQuery(query)`: whether a media query matches, live (the launcher uses rows on phones) |
 | `lib/useSplitter.ts` | Draggable panel-size hook (localStorage-persisted, dblclick reset) behind every `.split-gutter`/`.ie-gutter` |
 
 ## Invariants & gotchas (violating these causes regressions)

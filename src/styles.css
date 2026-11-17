@@ -4179,16 +4179,16 @@ kbd {
 
 .pj-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
   margin-top: 6px;
 }
 
 .pj-card {
+  position: relative; /* anchors the "⋯" button and its menu (the menu must not be clipped) */
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   animation: panelIn 0.4s ease backwards;
@@ -4221,7 +4221,7 @@ kbd {
 
 .pj-name {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 17px;
   color: var(--ink);
   overflow: hidden;
   white-space: nowrap;
@@ -4234,11 +4234,13 @@ kbd {
   color: var(--ink-faint);
 }
 
-.pj-actions {
-  display: flex;
-  gap: 8px;
-  padding: 0 14px 12px;
-}
+/* the badge and the backup mark share one line */
+.pj-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+
+/* the "⋯" menu (info, export, delete) sits on the thumbnail's corner; in rows it ends the row */
+.pj-card > .fc-more { position: absolute; top: 8px; right: 8px; }
+.pj-card > .fc-more > .btn { background: var(--bg-raised); }
+.pj-list .pj-card > .fc-more { position: static; margin: 0 10px 0 auto; flex: none; }
 
 /* what a project is (first visit) / the one-line facts (later) */
 .pj-explain {
@@ -4360,8 +4362,37 @@ kbd {
 .ut-pdf { --c: var(--paint-violet); }
 .ut-text { --c: var(--accent); }
 
-/* "New project" sits next to the title, however long the list gets */
+/* "New project" sits next to the title, however long the list gets; the search box follows it */
 .pj-new { display: inline-flex; align-items: center; gap: 6px; }
+
+.pj-search {
+  flex: 1 1 180px;
+  max-width: 300px;
+  min-width: 0;
+  padding: 7px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.pj-search:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
+
+/* the list in date sections (sorted by "last changed") */
+.pj-group + .pj-group { margin-top: 18px; }
+.pj-group-h {
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-dim);
+}
+.pj-group-h span { color: var(--ink-faint); margin-left: 6px; }
+.pj-empty { margin: 8px 0; font-size: 14px; color: var(--ink-dim); }
 
 /* filters + storage on the left, the list on the right */
 .pj-layout {
@@ -4652,7 +4683,7 @@ kbd {
 /* ---- launcher v2: thumbs, list mode, modals ---- */
 
 .pj-thumb {
-  height: 96px;
+  height: 88px;
   width: 100%;
   background:
     repeating-conic-gradient(var(--bg-sunken) 0% 25%, var(--bg-raised) 0% 50%) 0 0 / 14px 14px;
@@ -4710,7 +4741,6 @@ kbd {
 
 .pj-list .pj-name { font-size: 16px; }
 
-.pj-list .pj-actions { padding: 0 12px 0 0; }
 
 .mini-modal {
   width: min(380px, 94vw);
@@ -5135,7 +5165,16 @@ html:has(.drawer-overlay) { overflow-y: clip; }
   /* NOTE: .trk-head width must stay 172px — it mirrors HEAD_W in Mixer.tsx
      (tl-inner width, fit(), playhead offset); shrinking one side desyncs them */
   .media-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .pj-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  /* rows on phones: two lines (name + backup mark, then date · files · size); the type is the
+     thumbnail's coloured edge and the size bar is left out (the size is in the text) */
+  .pj-list .pj-thumb { width: 56px; height: 42px; box-shadow: inset 3px 0 0 var(--c); }
+  .pj-list .pj-open { gap: 11px; padding: 7px 10px; min-width: 0; }
+  .pj-list .pj-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; min-width: 0; }
+  .pj-list .pj-name { grid-row: 1; grid-column: 1; font-size: 15px; }
+  .pj-list .pj-tags { grid-row: 1; grid-column: 2; }
+  .pj-list .pj-tags .type-badge, .pj-list .pj-body .meter { display: none; }
+  .pj-list .pj-meta { grid-row: 2; grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pj-search { flex-basis: 100%; max-width: none; font-size: 16px; } /* 16px: no iOS focus zoom */
   .vw-preview { height: 26vh; }
   .gif-preview canvas { max-height: 40vh; } /* ignore persisted desktop px on phones */
   .picker-panel { padding: 18px 16px; }

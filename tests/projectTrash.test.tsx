@@ -122,7 +122,8 @@ describe('backups', () => {
     db.projects = [rec({ id: 'c', name: 'Never saved', updatedAt: 1000 })];
     open();
     const card = (await screen.findByText('Never saved')).closest('.pj-card') as HTMLElement;
-    await user.click(within(card).getByRole('button', { name: 'Export project' }));
+    await user.click(within(card).getByRole('button', { name: 'More for “Never saved”' }));
+    await user.click(screen.getByRole('menuitem', { name: /^Export project/ }));
     await waitFor(() => expect(card.textContent).toContain('Backed up'));
     // written through the project's debounced save (500 ms)
     await waitFor(() => expect(idb.putProject).toHaveBeenCalled(), { timeout: 2000 });

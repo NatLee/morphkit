@@ -158,6 +158,42 @@ describe('Projects page', () => {
     expect(screen.getByRole('status').textContent).toContain('budget.xlsx');
   });
 
+  it('finds projects by name and says so when nothing matches', async () => {
+    const user = userEvent.setup();
+    db.projects = [project, { ...project, id: 'p2', name: 'Trail guide', type: 'pdf' }];
+    open();
+    await screen.findByText('Trail guide');
+    const search = screen.getByRole('searchbox', { name: 'Search projects' });
+    await user.type(search, 'trail');
+    expect(screen.queryByText('Episode 12')).toBeNull();
+    expect(screen.getByText('Trail guide')).toBeTruthy();
+    await user.clear(search);
+    await user.type(search, 'zebra');
+    expect(screen.getByText('No project name contains “zebra”')).toBeTruthy();
+  });
+
+  it('splits the list by date when it is sorted by the last change', async () => {
+    const now = Date.now();
+    db.projects = [
+      { ...project, id: 'p1', name: 'Fresh', updatedAt: now },
+      { ...project, id: 'p2', name: 'Last month', updatedAt: now - 20 * 86_400_000 },
+    ];
+    open();
+    await screen.findByText('Last month');
+    expect([...document.querySelectorAll('.pj-group-h')].map((h) => h.textContent)).toEqual(['Today 1', 'Last 30 days 1']);
+    expect(screen.getByRole('region', { name: 'Today' }).textContent).toContain('Fresh');
+  });
+
+  it('shows rows, not cards, on a phone and hides the grid/list switch there', async () => {
+    window.matchMedia = vi.fn((q: string) => ({ matches: q === '(max-width: 640px)', addEventListener() {}, removeEventListener() {} })) as never;
+    db.projects = [project];
+    open();
+    await screen.findByText('Episode 12');
+    expect(document.querySelector('.pj-list .pj-card')).toBeTruthy();
+    expect(document.querySelector('.pj-grid')).toBeNull();
+    expect(screen.queryByTitle('Grid')).toBeNull();
+  });
+
   it('leaves the storage limit out when the browser does not report one', async () => {
     Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined });
     db.projects = [project];

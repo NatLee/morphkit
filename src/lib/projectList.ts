@@ -50,3 +50,32 @@ export function projectTypeFor(name: string, kind: string, mime = ''): ProjectTy
   if (kind === 'doc') return isTextDoc({ name }) ? 'text' : null;
   return null;
 }
+
+/** Does a project's name hold every word typed in the search box? (case-insensitive) */
+export function matchesQuery(p: ProjectRec, query: string): boolean {
+  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const name = p.name.toLocaleLowerCase();
+  return words.every((w) => name.includes(w));
+}
+
+/** The date sections of a list sorted by "last changed": today, the 7 and 30 days before, older. */
+export type AgeGroup = 'today' | 'week' | 'month' | 'older';
+const DAY_MS = 86_400_000;
+
+export function ageGroup(updatedAt: number, now: number): AgeGroup {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  if (updatedAt >= midnight.getTime()) return 'today';
+  const age = now - updatedAt;
+  if (age < 7 * DAY_MS) return 'week';
+  if (age < 30 * DAY_MS) return 'month';
+  return 'older';
+}
+
+/** Split a list (already in the order it is shown) into its date sections; empty sections are left out. */
+export function groupByAge(list: readonly ProjectRec[], now: number): { key: AgeGroup; items: ProjectRec[] }[] {
+  const order: AgeGroup[] = ['today', 'week', 'month', 'older'];
+  const groups = new Map<AgeGroup, ProjectRec[]>(order.map((k) => [k, []]));
+  for (const p of list) groups.get(ageGroup(p.updatedAt, now))!.push(p);
+  return order.filter((k) => groups.get(k)!.length).map((k) => ({ key: k, items: groups.get(k)! }));
+}

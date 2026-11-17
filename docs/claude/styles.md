@@ -115,10 +115,10 @@
     .clip(**touch-action:none**; tracks cycle pigments via .tl-row:nth-child — row 1 is the ruler)
     .clip-wave .clip-name .clip-edge(8px; 14 touch) .mix-empty(padding-left
     192 = HEAD_W+20) .playhead(top:-30px) · themed scrollbars group · `project launcher`: .st-launcher
-    .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-explain .pj-note(.pj-warn) .pj-backup(.bk-never/.bk-stale/.bk-fresh)
+    .launcher-title .pj-grid(minmax 200px) .pj-card(relative: anchors the "⋯") .pj-open .pj-name .pj-meta .pj-tags .pj-card > .fc-more (thumbnail corner; ends the row in .pj-list) .pj-explain .pj-note(.pj-warn) .pj-backup(.bk-never/.bk-stale/.bk-fresh)
     .pj-trash(.pj-trash-head h3 .pj-trash-list .pj-trash-name .pj-purge — a page of its own under the Trash filter) .pj-undo(restore toast)
     .pj-uses-head .pj-uses(3 cols → 2 ≤900 → 1 ≤560, so six cards never leave an orphan) .pj-use(.ut-{type} sets --c)
-    .pj-use-title .pj-use-desc · .pj-new (top-bar "New project") · .pj-layout(220px rail | list; ≤760 one column) .pj-side(sticky)
+    .pj-use-title .pj-use-desc · .pj-new (top-bar "New project") .pj-search (≤640 full row, 16px) .pj-group .pj-group-h .pj-empty · .pj-layout(220px rail | list; ≤760 one column) .pj-side(sticky)
     .pj-rail .pj-rail-h .pj-f(.on .warn; --c = type colour) .pj-f-dot .pj-f-name .pj-f-n .pj-f-size (≤760: the rail is one scrolling row
     of chips, headings/bars/sizes hidden) .pj-store .pj-main · .np .np-drop(.hot) .np-msg .mini-modal.np-modal (820px dialog; beats the 380px .mini-modal) ·
     `typed projects`: .type-badge .tb-audio/image/gif/video/pdf/text .picker-panel .picker-list ·

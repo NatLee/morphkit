@@ -95,7 +95,7 @@ through `onOption(id, key, settings[key])`), an Adjust/Done toggle (`optsOpen`) 
 the panel renders `<SettingControl>` for each field with `eff`, so `visible`/`disabled` rules follow the FILE's values.
 No row at all when nothing applies (image → ICO).
 
-State: `showDetails`, `copied` (1.5s), `optsOpen`, `menuOpen` (+ `menuRef`; closes on pointerdown elsewhere and Escape).
+State: `showDetails`, `copied` (1.5s), `optsOpen`. The "⋯" menu is `<MoreMenu>` (components/MoreMenu.tsx, shared with the project cards: its own open state, closes on a pick, pointerdown elsewhere and Escape).
 `copyResult()` fetches outUrl → canvas → ClipboardItem PNG.
 Props: `{item, settings, onOption, onResetOptions, onTask, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr}`.
 
@@ -108,7 +108,7 @@ article.file-card.kind-*.status-*
       · div.fc-chips (.fc-chips-label + button.fc-chip×n — phone-only target picker; ≤640 CSS hides
         .fc-target and shows the chips: the native select's popup covered the card's controls)
       · a|button.btn-accent (download/convert) · btn copy
-      · div.fc-more > button (⋯, aria-haspopup=menu) + div.fc-menu[role=menu] > button[role=menuitem]×≤2
+      · <MoreMenu> = div.fc-more > button (⋯, aria-haspopup=menu) + div.fc-menu[role=menu] > button[role=menuitem]×≤2
         (save as project · file details; ≤640 the menu spans the card: .fc-more goes static, .fc-controls relative)
       · btn.fc-remove
   dl.fc-details (grid; 1 col ≤640) > div.fc-detail-row > dt/dd  (+GPS → Google Maps link)
