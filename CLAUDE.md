@@ -96,7 +96,8 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
 | `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only); `fitToSize` squeezes an output under the image size target (quality first, then dimensions); `MIN_QUALITY` is the floor of every quality slider; `convertToIco` makes a multi-size favicon (`ICO_SIZES` up to the source size, `encodeIco` packs the PNGs) |
 | `lib/animImage.ts` | GIF/APNG/static → RGBA frames (`decodeAnim`), `encodeAPNG` (upng-js, lossless alpha), `encodeGIFBlob(anim, matte\|null)` — `null` keeps binary alpha via gifenc `rgba4444` + `transparent+dispose:2`; `writeGifFrame` shared with GifEditor |
-| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) + the video size target (`videoKbpsFor` → average bitrate in place of CRF, one lower retry when the output overshoots) + loudness normalisation (a measuring pass first, then one linear `loudnorm` gain, invariant 31) |
+| `lib/decodeImage.ts` | `decodeImage(blob)`: `createImageBitmap`, falling back to an `<img>` for what it refuses (SVG). Every decode of a person's image goes through it (invariant 37) |
+| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download; every job runs through `withEngine`, which throws away an instance that trapped and runs the job once more — `isEngineFault`, invariant 38), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) + the video size target (`videoKbpsFor` → average bitrate in place of CRF, one lower retry when the output overshoots) + loudness normalisation (a measuring pass first, then one linear `loudnorm` gain, invariant 31) |
 | `lib/metadata.ts` | Per-kind file info: dims/duration/EXIF-GPS (exifr)/bitrate estimate, PDF pages/author/encryption, document words/chars/lines/sheets/slides, QR codes found in images + `preview` (object URL for images — owned by `useBlobUrlOwner` once in state; dataURL frame-grab for video) |
 
 ### PDF
@@ -307,6 +308,17 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     `persistedRef` at once, or deleting it before any edit only hides it — it comes back on the next visit.
     The launcher's filter is `liveFilter(filter, …)`: never read `filter` directly, a choice that emptied out
     (last PDF deleted, trash emptied) must fall back to all.
+37. **Decode people's images with `decodeImage`** (lib/decodeImage.ts), never a bare `createImageBitmap`: Chrome and
+    Edge refuse SVG there (and .svg is an accepted image), so every SVG conversion failed. The helper falls back to an
+    <img>. This covers converting, file details, OCR, image → PDF, QR reading/logos, watermark images, images inside
+    documents, the image/PDF editors' imports and project thumbnails. Canvases and PNGs the app made itself may keep
+    `createImageBitmap`.
+38. **ffmpeg instances can die**: after a few dozen audio/video jobs in one visit the wasm core may trap
+    ("RuntimeError: memory access out of bounds"), and a dead instance fails every later job at once. Every job runs
+    through `withEngine` (lib/ffmpegClient): an engine fault (`isEngineFault`) terminates that instance, drops it
+    from the pool and runs the job ONCE more on a fresh one; an ordinary non-zero exit (bad input) keeps the instance.
+    New ffmpeg jobs must use `withEngine`, not `acquireEngine`/`releaseEngine` directly. Unexpected conversion
+    errors are also written to the console (`runConvert`), or "Conversion failed" is all a bug report gets.
 
 ## Design language ("Cyberdeck")
 

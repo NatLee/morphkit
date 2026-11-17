@@ -5,7 +5,9 @@
 
 ## lib/ffmpegClient.ts (464)
 
-Exports: `isEngineReady()` · `convertMedia(file, target, settings, edit, onProgress, onDownload?, fit?: FitTarget)` ·
+Engine pool: `acquireEngine`/`releaseEngine(ff, broken)` are internal; jobs call `withEngine(job, onDownload)` (invariant 38: an
+`isEngineFault` — wasm trap text — terminates and drops the instance, the job runs once more on a fresh one; tests/ffmpegEngine.test.ts).
+Exports: `isEngineReady()` · `isEngineFault(e)` · `convertMedia(file, target, settings, edit, onProgress, onDownload?, fit?: FitTarget)` ·
 `muxVideo(video, audioWav|null, trimStart, trimEnd, settings, onProgress, onDownload?)` ·
 `extractAudio(video, trimStart, trimEnd, onDownload?)` (trim-aligned 44.1k stereo WAV; throws when
 the video has no audio stream — header-only output is treated as failure) · `type DownloadProgress` ·
@@ -62,6 +64,12 @@ Internals: `FRAME_CAP = 300` (both decoders; frames past it are dropped without 
 alpha GIF path = `quantize(rgba4444)` + `applyPalette rgba4444` + `{transparent:true, dispose:2}` (invariant 4) ·
 `encodeGIFBlob` yields to event loop every 6th frame and composites through a tmp canvas (direct
 putImageData would wipe the matte — keep).
+
+## lib/decodeImage.ts (30)
+
+`decodeImage(blob)` → ImageBitmap: `createImageBitmap(blob)`, else an `<img>` (object URL, `img.decode()`, bitmap at the
+laid-out size — an SVG without width/height gets 300×150) and the FIRST error when neither works (tests/decodeImage.test.ts).
+Invariant 37 lists the callers.
 
 ## lib/imageConvert.ts (183)
 
