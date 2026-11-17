@@ -65,9 +65,16 @@ alpha GIF path = `quantize(rgba4444)` + `applyPalette rgba4444` + `{transparent:
 `encodeGIFBlob` yields to event loop every 6th frame and composites through a tmp canvas (direct
 putImageData would wipe the matte — keep).
 
+## lib/heic.ts (60)
+
+`isHeif(blob)` (HEIF MIME or .heic/.heif, else `ftyp` major brand heic/heix/heim/heis/hevc/hevx/mif1/msf1/heif — not avif) ·
+`heifPixels(blob)` → ImageData (primary image, `display` into a fresh ImageData, every decoded image `free`d). libheif-js is loaded once
+per visit: `libheif.js` + `libheif.wasm?url`, the wasm FETCHED and passed as `wasmBinary` (the build instantiates synchronously).
+tests/heic.test.ts mocks both modules.
+
 ## lib/decodeImage.ts (30)
 
-`decodeImage(blob)` → ImageBitmap: `createImageBitmap(blob)`, else an `<img>` (object URL, `img.decode()`, bitmap at the
+`decodeImage(blob)` → ImageBitmap: `createImageBitmap(blob)`, else HEIF → `heifPixels`, else an `<img>` (object URL, `img.decode()`, bitmap at the
 laid-out size — an SVG without width/height gets 300×150) and the FIRST error when neither works (tests/decodeImage.test.ts).
 Invariant 37 lists the callers.
 

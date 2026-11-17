@@ -69,7 +69,7 @@ export function docOutputs(file: File): readonly string[] {
   return DOC_OUTPUTS[docTypeOf(file)];
 }
 
-const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'apng', 'avif', 'ico', 'svg'];
+const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'apng', 'avif', 'ico', 'svg', 'heic', 'heif'];
 const AUDIO_EXT = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'wma', 'aiff', 'amr'];
 const VIDEO_EXT = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', '3gp'];
 const PDF_EXT = ['pdf'];
@@ -79,7 +79,7 @@ export const EXTENSIONS: Readonly<Record<Kind, readonly string[]>> = {
   image: IMAGE_EXT, audio: AUDIO_EXT, video: VIDEO_EXT, pdf: PDF_EXT, doc: DOC_EXT,
 };
 /** Extensions that are another spelling of the same format: shown once, under the usual name. */
-export const SAME_FORMAT: Readonly<Record<string, string>> = { jpeg: 'jpg', markdown: 'md', htm: 'html', mpeg: 'mpg', oga: 'ogg' };
+export const SAME_FORMAT: Readonly<Record<string, string>> = { jpeg: 'jpg', markdown: 'md', htm: 'html', mpeg: 'mpg', oga: 'ogg', heif: 'heic' };
 
 /** `accept` for every file picker that feeds `detectKind`: the MIME families it trusts plus every
     extension it recognises, so the picker never hides a file the app could open. */
@@ -122,14 +122,18 @@ export function outputsFor(kind: Kind, file?: File): readonly string[] {
   return VIDEO_OUTPUTS;
 }
 
+/**
+ * Image sources with a natural first choice: an animation keeps moving in its twin format, and an
+ * iPhone photo (HEIC) usually goes to JPG — what every site and app takes.
+ */
+const SOURCE_TARGET: Readonly<Record<string, string>> = { gif: 'apng', apng: 'gif', heic: 'jpeg', heif: 'jpeg' };
+
 /** Pick a sensible default target that differs from the source format. */
 export function defaultTarget(kind: Kind, file: File): string {
   const ext = extOf(file.name);
   const outs = outputsFor(kind, file);
   if (kind === 'doc') return outs[0];
-  // animated sources default to the animation-preserving twin format
-  if (kind === 'image' && ext === 'gif') return 'apng';
-  if (kind === 'image' && ext === 'apng') return 'gif';
+  if (kind === 'image' && SOURCE_TARGET[ext]) return SOURCE_TARGET[ext];
   const preferred =
     kind === 'image' ? 'webp' : kind === 'audio' ? 'mp3' : kind === 'pdf' ? 'png' : 'mp4';
   // (doc handled above)

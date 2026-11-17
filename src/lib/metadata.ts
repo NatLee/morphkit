@@ -1,6 +1,7 @@
 import exifr from 'exifr';
 import { extOf, type Kind } from './formats';
 import { decodeImage } from './decodeImage';
+import { isHeif } from './heic';
 
 export interface FileMeta {
   width?: number;
@@ -69,25 +70,46 @@ function commonMeta(file: File): FileMeta {
   };
 }
 
+/** Longest side of a drawn preview: the file card thumbnail is at most a few hundred px wide. */
+const PREVIEW_PX = 480;
+
+/** A small PNG of a decoded picture, as an object URL (owned by useBlobUrlOwner once in state). */
+async function previewUrl(bmp: ImageBitmap): Promise<string> {
+  const s = Math.min(1, PREVIEW_PX / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * s));
+  c.height = Math.max(1, Math.round(bmp.height * s));
+  c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+  if (!blob) throw new Error('preview');
+  return URL.createObjectURL(blob);
+}
+
 async function imageMeta(file: File): Promise<FileMeta> {
   const meta = commonMeta(file);
-  meta.preview = URL.createObjectURL(file);
+  // decoded ONCE here: the size, the QR check and (for HEIC) the preview all read this bitmap
+  let bmp: ImageBitmap | null = null;
   try {
-    const bmp = await decodeImage(file);
+    bmp = await decodeImage(file);
     meta.width = bmp.width;
     meta.height = bmp.height;
     meta.mp = `${(bmp.width * bmp.height / 1e6).toFixed(1)} MP`;
     meta.aspect = aspectOf(bmp.width, bmp.height);
-    bmp.close();
   } catch { /* undecodable in this browser — skip dims */ }
+  try {
+    // an <img> shows the file itself, except a HEIC photo: its preview is drawn from the pixels
+    meta.preview = bmp && (await isHeif(file)) ? await previewUrl(bmp) : URL.createObjectURL(file);
 
-  // QR payload (jsQR, lazy) — screenshots / photos of codes get a chip + the QR tool shortcut
-  if (file.size < 25 * 1024 * 1024 && !/gif|apng/.test(file.type)) {
-    try {
-      const { decodeQr } = await import('./qr');
-      const hit = await decodeQr(file);
-      if (hit) meta.qr = hit.text;
-    } catch { /* not a QR */ }
+    // QR payload (jsQR, lazy) — screenshots / photos of codes get a chip + the QR tool shortcut
+    if (bmp && file.size < 25 * 1024 * 1024 && !/gif|apng/.test(file.type)) {
+      try {
+        const { decodeQr } = await import('./qr');
+        const hit = await decodeQr(bmp);
+        if (hit) meta.qr = hit.text;
+      } catch { /* not a QR */ }
+    }
+  } finally {
+    bmp?.close();
   }
 
   // EXIF / GPS (JPEG, TIFF, HEIC…) — mature fixed format, parsed by exifr

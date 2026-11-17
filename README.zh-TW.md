@@ -35,6 +35,7 @@ MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小�
 
 - 批次轉換：顯示整體進度，可以「全部轉換」、「全部下載（ZIP）」，也能把清單裡的圖片和 PDF「合併成 PDF」。
 - 圖片用 Canvas API 轉，附品質滑桿。GIF ⇄ APNG 會保留每一格；APNG 保留完整透明度；GIF 可以保留一位元透明，或壓在指定的底色上。
+- iPhone 照片（HEIC / HEIF）和一般圖片一樣能開：轉成 JPG（預設）、PNG、WEBP 或 PDF，辨識文字或編輯都可以。瀏覽器本身解不開 HEIC，所以第一次加入時會從本站載入解碼器（libheif，約 1.5 MB）。
 - 任何圖片都能轉成 ICO 圖示（網站的 favicon），一個檔案裡有 16～256 px 幾種尺寸，都不會比原圖大，圖片置中、四周透明。
 - 音訊和影片用 [ffmpeg.wasm](https://ffmpegwasm.netlify.app/)（瀏覽器版 ffmpeg）轉。用的是單執行緒版本，伺服器不需要特別設定；可以同時開 1–4 個轉換引擎。目標格式支援時，標籤和專輯封面會一起保留。影片也能直接轉成任何一種音訊格式（MP3、WAV、OGG、FLAC、M4A）；影片沒有音軌時會直接說明，不會只顯示「轉換失敗」。
 - PDF 頁面轉成 PNG / JPG / WEBP（多頁時打包成 ZIP）；PDF 文字可以轉成 TXT / DOCX / Markdown / HTML。有密碼的 PDF 在記憶體裡解鎖，密碼不會被存起來。
@@ -114,6 +115,8 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 - 第一次辨識圖片或掃描 PDF 裡的文字時，從 jsDelivr 下載辨識引擎和語言資料（約 4～8 MB）；會先跳出對話框，你同意才下載。
 - 介面字型（Chakra Petch、IBM Plex）來自 Google Fonts。
 
+第一次加入 iPhone 照片（HEIC）時，會從本站下載 HEIC 解碼器（約 1.5 MB）。
+
 ## 已知限制
 
 - 瀏覽器記憶體上限約 1.8–2 GB，更大的檔案會失敗；加入檔案時 App 會先提醒。
@@ -147,3 +150,5 @@ README 用到的圖片在 [`docs/images/`](docs/images/)。截圖是用腳本在
 ## 授權
 
 [MIT](LICENSE)。可以自由使用、修改，也可以架一份自己的；保留版權聲明就好。
+
+HEIC 解碼器是 [libheif](https://github.com/strukturag/libheif)（由 [libheif-js](https://github.com/catdad-experiments/libheif-js) 編譯），授權是 LGPL-3.0。它是獨立的檔案（`assets/libheif-*.js` 和 `.wasm`），只有處理 HEIC 照片時才載入，可以換成自己編譯的版本。

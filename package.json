@@ -22,6 +22,7 @@
     "gifenc": "^1.0.3",
     "gifuct-js": "^2.1.2",
     "jsqr": "^1.4.0",
+    "libheif-js": "^1.23.5",
     "mammoth": "^1.13.0",
     "marked": "^18.1.1",
     "pdf-lib": "^1.17.1",
