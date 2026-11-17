@@ -575,6 +575,8 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   const newFromAsset = async (a: AssetRec) => {
     if (a.kind === 'doc' && !isTextDoc(new File([a.blob], a.name, { type: a.blob.type }))) { flash(t('typeTextOnly')); return; }
     const p = await createProjectWithAsset(a.name, a.kind, a.blob, projectTypeFor(a));
+    // it is in IndexedDB already: a delete must move it to the trash, not just drop it from the list
+    persistedRef.current.add(p.id);
     setProjects((prev) => [p, ...prev]);
     setCurId(p.id);
     setEntered(true);
