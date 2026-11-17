@@ -13,7 +13,7 @@ interface Props {
 /**
  * Spreadsheet grid editor for csv/tsv/xlsx/xls/ods items. One tab per sheet; cells are plain
  * inputs (Enter/Tab/arrows move, Esc reverts), rows/columns can be inserted, deleted, and moved;
- * header row toggle only affects how the first row is styled. Large sheets render in windows of
+ * the first row is always styled as the header (display only). Large sheets render in windows of
  * `PAGE` rows (no virtualisation library — the page shows a "show more" bar). Save writes the
  * original container back: xlsx/ods → xlsx (all sheets), csv/tsv → text of the active sheet.
  */
