@@ -7,6 +7,7 @@
 [![Deploy to GitHub Pages](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml)
 [![線上版](https://img.shields.io/badge/live-natlee.github.io%2Fmorphkit-38dfff)](https://natlee.github.io/morphkit/)
 ![Vite + React + TypeScript](https://img.shields.io/badge/Vite%20%2B%20React%2018%20%2B%20TypeScript-0a0e1c)
+[![授權：MIT](https://img.shields.io/badge/license-MIT-a3e635)](LICENSE)
 
 MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小型編輯器。把圖片、音訊、影片、PDF 或文件丟進來，選好輸出格式就能下載。檔案不會上傳，因為根本沒有伺服器。整個網站都是靜態檔案，直接放在 GitHub Pages 就能用，也可以安裝成 App（PWA）。
 
@@ -125,3 +126,7 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 地圖裡寫到的檔案、函式或 CSS class 已經不存在、`src/` 裡有檔案在 `CLAUDE.md` 沒有對應的一行，或三種介面語言的字串鍵不一致時，`npm run check:context` 都會失敗。改程式時，請在同一個 commit 更新對應的地圖。
 
 README 用到的圖片在 [`docs/images/`](docs/images/)。封面的原始檔是 [`cover.html`](docs/images/cover.html)，檔頭寫了怎麼重新產生。
+
+## 授權
+
+[MIT](LICENSE)。可以自由使用、修改，也可以架一份自己的；保留版權聲明就好。

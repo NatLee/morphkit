@@ -7,6 +7,7 @@
 [![Deploy to GitHub Pages](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml/badge.svg)](https://github.com/NatLee/morphkit/actions/workflows/deploy.yml)
 [![Live site](https://img.shields.io/badge/live-natlee.github.io%2Fmorphkit-38dfff)](https://natlee.github.io/morphkit/)
 ![Vite + React + TypeScript](https://img.shields.io/badge/Vite%20%2B%20React%2018%20%2B%20TypeScript-0a0e1c)
+[![License: MIT](https://img.shields.io/badge/license-MIT-a3e635)](LICENSE)
 
 MorphKit is a file converter and a set of small editors that run entirely in your browser. Drop in
 images, audio, video, PDFs or documents, pick an output format, and download the result — nothing is
@@ -155,3 +156,7 @@ different keys. Update a map in the same commit as the code it describes.
 
 The README pictures are in [`docs/images/`](docs/images/). [`cover.html`](docs/images/cover.html) is
 the source of the cover and says how to render it again.
+
+## License
+
+[MIT](LICENSE). Use it, change it, host your own copy; keep the copyright notice.
