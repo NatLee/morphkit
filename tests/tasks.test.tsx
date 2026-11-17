@@ -3,11 +3,11 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nProvider } from '../src/i18n';
 import { FileCard } from '../src/components/FileCard';
-import { TaskList } from '../src/components/TaskList';
+import { useI18n } from '../src/i18n';
 import { outputsFor, type Kind } from '../src/lib/formats';
 import { fieldsFor } from '../src/lib/settingFields';
 import { DEFAULT_SETTINGS } from '../src/lib/settings';
-import { applyTask, CARD_SUGGESTIONS, filterTasks, suggestionsFor, taskActive, taskById, taskFits, TASKS } from '../src/lib/tasks';
+import { applyTask, CARD_SUGGESTIONS, filterTasks, formatTask, isFormatTask, suggestionsFor, taskActive, taskById, taskFits, taskName, TASKS } from '../src/lib/tasks';
 import type { Item } from '../src/types';
 
 /** One ordinary file per kind, as the app would see it. */
@@ -45,11 +45,11 @@ describe('task registry', () => {
   it('has a name and a description in every language', () => {
     for (const lang of ['zh', 'en', 'ja']) {
       localStorage.setItem('morphkit-lang', lang);
-      const { container, unmount } = render(<I18nProvider><TaskList chosen={null} onPick={() => {}} /></I18nProvider>);
-      const cards = [...container.querySelectorAll('.task')];
-      expect(cards).toHaveLength(TASKS.length);
+      const { container, unmount } = render(<I18nProvider><Strings /></I18nProvider>);
+      const rows = [...container.querySelectorAll('li')];
+      expect(rows).toHaveLength(TASKS.length);
       // a missing string would render as its raw key
-      for (const c of cards) expect(c.textContent, lang).not.toMatch(/task(Run)?_/);
+      for (const r of rows) expect(r.textContent, lang).not.toMatch(/task(Run)?_/);
       unmount();
     }
   });
@@ -112,25 +112,28 @@ describe('home task list', () => {
     expect(filterTasks('nothing like this', 'all', text)).toEqual([]);
   });
 
-  it('narrows as you type, says so when nothing matches, and reports the pick', async () => {
-    const user = userEvent.setup();
-    const onPick = vi.fn();
-    render(<I18nProvider><TaskList chosen="pnum" onPick={onPick} /></I18nProvider>);
-    expect(screen.getByRole('button', { name: /Add page numbers to a PDF/ }).getAttribute('aria-pressed')).toBe('true');
-    await user.type(screen.getByRole('searchbox'), 'compress');
-    expect(screen.getByRole('button', { name: /Compress a PDF/ })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Video to GIF/ })).toBeNull();
-    await user.click(screen.getByRole('button', { name: /Compress a PDF/ }));
-    expect(onPick).toHaveBeenCalledWith(task('psqueeze'));
-    await user.type(screen.getByRole('searchbox'), ' zzz');
-    expect(screen.getByText(/^Nothing matches/)).toBeTruthy();
+});
+
+describe('format picks ("convert to …" on the home page)', () => {
+  it('are convert tasks with only a target, found again from their id', () => {
+    const pick = formatTask('video', 'mp3');
+    expect(pick).toEqual({ id: 'to-video-mp3', kind: 'video', run: 'convert', target: 'mp3' });
+    expect(taskById('to-video-mp3')).toEqual(pick);
+    expect(isFormatTask(pick)).toBe(true);
+    expect(isFormatTask(task('v2mp3'))).toBe(false);
+    expect(taskById('to-nothing-mp3')).toBeUndefined();
   });
 
-  it('filters by file type', async () => {
-    const user = userEvent.setup();
-    render(<I18nProvider><TaskList chosen={null} onPick={() => {}} /></I18nProvider>);
-    await user.click(screen.getByRole('button', { name: 'Video' }));
-    expect(document.querySelectorAll('.task')).toHaveLength(TASKS.filter((t) => t.kind === 'video').length);
+  it('fit only the files that can become that format', () => {
+    expect(taskFits(formatTask('doc', 'csv'), 'doc', SHEET)).toBe(true);
+    expect(taskFits(formatTask('doc', 'csv'), 'doc', SAMPLE.doc)).toBe(false); // markdown has no CSV output
+    expect(applyTask(formatTask('image', 'ico'), { target: 'webp', opts: undefined }, DEFAULT_SETTINGS)).toEqual({ target: 'ico', opts: undefined });
+  });
+
+  it('are named by their format', () => {
+    const t = (key: string, vars?: Record<string, string>) => (key === 'taskToFormat' ? `Convert to ${vars!.fmt}` : key);
+    expect(taskName(formatTask('image', 'jpeg'), t)).toBe('Convert to JPG');
+    expect(taskName(task('pnum'), t)).toBe('task_pnum');
   });
 });
 
@@ -154,3 +157,9 @@ describe('file card suggestions', () => {
     expect(onTask).toHaveBeenCalledWith('f1', 'v2gif');
   });
 });
+
+/** Every task's two strings, as the app shows them. */
+function Strings() {
+  const { t } = useI18n();
+  return <ul>{TASKS.map((x) => <li key={x.id}>{t(`task_${x.id}`)} · {t(`task_${x.id}_d`)} · {t(`taskRun_${x.run}`)}</li>)}</ul>;
+}
