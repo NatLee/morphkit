@@ -64,9 +64,46 @@ async function acquireEngine(onDownload?: DownloadProgress): Promise<FFmpeg> {
   return entry.ff;
 }
 
-function releaseEngine(ff: FFmpeg): void {
-  const entry = pool.find((p) => p.ff === ff);
-  if (entry) entry.busy = false;
+/** Back to the pool — or, when it broke, terminated and gone, so no later job lands on it. */
+function releaseEngine(ff: FFmpeg, broken = false): void {
+  const i = pool.findIndex((p) => p.ff === ff);
+  if (i < 0) return;
+  if (!broken) {
+    pool[i].busy = false;
+    return;
+  }
+  pool.splice(i, 1);
+  try { ff.terminate(); } catch { /* already gone */ }
+}
+
+/**
+ * A wasm trap inside the core ("memory access out of bounds", "unreachable", an abort) kills the
+ * instance: every later job on it fails at once. Seen after a few dozen conversions in one visit.
+ * An ffmpeg run that merely exits with an error code (a bad input) is NOT this — the instance is fine.
+ */
+export function isEngineFault(e: unknown): boolean {
+  const text = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  return /RuntimeError|memory access out of bounds|unreachable|Aborted\(|ErrnoError/i.test(text);
+}
+
+/**
+ * Run one job on a pooled instance. If the instance breaks during the job it is thrown away and
+ * the job runs once more on a fresh one (the user sees a slower conversion, not "Conversion
+ * failed" for this file and every file after it). Every ffmpeg job goes through here.
+ */
+async function withEngine<T>(job: (ff: FFmpeg) => Promise<T>, onDownload?: DownloadProgress): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const ff = await acquireEngine(onDownload);
+    let broken = false;
+    try {
+      return await job(ff);
+    } catch (e) {
+      broken = isEngineFault(e);
+      if (!broken || attempt > 0) throw e;
+    } finally {
+      releaseEngine(ff, broken);
+    }
+  }
 }
 
 /**
@@ -405,43 +442,43 @@ export async function muxVideo(
   onProgress: (p: number) => void,
   onDownload?: DownloadProgress
 ): Promise<Blob> {
-  const ff = await acquireEngine(onDownload);
-  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const vName = `v_${stamp}.${extOf(video.name) || 'mp4'}`;
-  const aName = `a_${stamp}.wav`;
-  const outName = `out_${stamp}.mp4`;
-  const trim: string[] = [];
-  if (trimStart > 0.01) trim.push('-ss', trimStart.toFixed(3));
-  if (trimEnd > trimStart + 0.01) trim.push('-t', (trimEnd - trimStart).toFixed(3));
+  return withEngine(async (ff) => {
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const vName = `v_${stamp}.${extOf(video.name) || 'mp4'}`;
+    const aName = `a_${stamp}.wav`;
+    const outName = `out_${stamp}.mp4`;
+    const trim: string[] = [];
+    if (trimStart > 0.01) trim.push('-ss', trimStart.toFixed(3));
+    if (trimEnd > trimStart + 0.01) trim.push('-t', (trimEnd - trimStart).toFixed(3));
 
-  const handler = ({ progress }: { progress: number }) => {
-    if (Number.isFinite(progress)) onProgress(Math.min(1, Math.max(0, progress)));
-  };
+    const handler = ({ progress }: { progress: number }) => {
+      if (Number.isFinite(progress)) onProgress(Math.min(1, Math.max(0, progress)));
+    };
 
-  try {
-    await ff.writeFile(vName, await fetchFile(video));
-    if (audioWav) await ff.writeFile(aName, new Uint8Array(await audioWav.arrayBuffer()));
-    ff.on('progress', handler);
-    const args = [
-      ...trim, '-i', vName,
-      ...(audioWav ? ['-i', aName, '-map', '0:v:0', '-map', '1:a:0', '-shortest'] : []),
-      '-c:v', 'libx264', '-preset', settings.videoPreset, '-crf', String(settings.videoCrf), '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac', '-b:a', '192k',
-      ...(settings.keepMetadata ? ['-map_metadata', '0'] : ['-map_metadata', '-1']),
-      outName,
-    ];
-    const code = await ff.exec(args);
-    if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
-    const data = await ff.readFile(outName);
-    if (typeof data === 'string') throw new Error('unexpected output');
-    return new Blob([data.slice()], { type: 'video/mp4' });
-  } finally {
-    ff.off('progress', handler);
-    try { await ff.deleteFile(vName); } catch { /* ignore */ }
-    if (audioWav) { try { await ff.deleteFile(aName); } catch { /* ignore */ } }
-    try { await ff.deleteFile(outName); } catch { /* ignore */ }
-    releaseEngine(ff);
-  }
+    try {
+      await ff.writeFile(vName, await fetchFile(video));
+      if (audioWav) await ff.writeFile(aName, new Uint8Array(await audioWav.arrayBuffer()));
+      ff.on('progress', handler);
+      const args = [
+        ...trim, '-i', vName,
+        ...(audioWav ? ['-i', aName, '-map', '0:v:0', '-map', '1:a:0', '-shortest'] : []),
+        '-c:v', 'libx264', '-preset', settings.videoPreset, '-crf', String(settings.videoCrf), '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', '-b:a', '192k',
+        ...(settings.keepMetadata ? ['-map_metadata', '0'] : ['-map_metadata', '-1']),
+        outName,
+      ];
+      const code = await ff.exec(args);
+      if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
+      const data = await ff.readFile(outName);
+      if (typeof data === 'string') throw new Error('unexpected output');
+      return new Blob([data.slice()], { type: 'video/mp4' });
+    } finally {
+      ff.off('progress', handler);
+      try { await ff.deleteFile(vName); } catch { /* ignore */ }
+      if (audioWav) { try { await ff.deleteFile(aName); } catch { /* ignore */ } }
+      try { await ff.deleteFile(outName); } catch { /* ignore */ }
+    }
+  }, onDownload);
 }
 
 /**
@@ -455,26 +492,26 @@ export async function extractAudio(
   trimEnd: number,
   onDownload?: DownloadProgress
 ): Promise<Blob> {
-  const ff = await acquireEngine(onDownload);
-  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const inName = `v_${stamp}.${extOf(video.name) || 'mp4'}`;
-  const outName = `a_${stamp}.wav`;
-  const trim: string[] = [];
-  if (trimStart > 0.01) trim.push('-ss', trimStart.toFixed(3));
-  if (trimEnd > trimStart + 0.01) trim.push('-t', (trimEnd - trimStart).toFixed(3));
-  try {
-    await ff.writeFile(inName, await fetchFile(video));
-    const code = await ff.exec([...trim, '-i', inName, '-vn', '-ac', '2', '-ar', '44100', outName]);
-    if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
-    const data = await ff.readFile(outName);
-    // a header-only WAV means ffmpeg found no decodable audio
-    if (typeof data === 'string' || data.length < 128) throw new Error('no audio stream');
-    return new Blob([data.slice()], { type: 'audio/wav' });
-  } finally {
-    try { await ff.deleteFile(inName); } catch { /* ignore */ }
-    try { await ff.deleteFile(outName); } catch { /* ignore */ }
-    releaseEngine(ff);
-  }
+  return withEngine(async (ff) => {
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const inName = `v_${stamp}.${extOf(video.name) || 'mp4'}`;
+    const outName = `a_${stamp}.wav`;
+    const trim: string[] = [];
+    if (trimStart > 0.01) trim.push('-ss', trimStart.toFixed(3));
+    if (trimEnd > trimStart + 0.01) trim.push('-t', (trimEnd - trimStart).toFixed(3));
+    try {
+      await ff.writeFile(inName, await fetchFile(video));
+      const code = await ff.exec([...trim, '-i', inName, '-vn', '-ac', '2', '-ar', '44100', outName]);
+      if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
+      const data = await ff.readFile(outName);
+      // a header-only WAV means ffmpeg found no decodable audio
+      if (typeof data === 'string' || data.length < 128) throw new Error('no audio stream');
+      return new Blob([data.slice()], { type: 'audio/wav' });
+    } finally {
+      try { await ff.deleteFile(inName); } catch { /* ignore */ }
+      try { await ff.deleteFile(outName); } catch { /* ignore */ }
+    }
+  }, onDownload);
 }
 
 /** Size target for one conversion: the converter passes it; Studio's own conversions do not. */
@@ -504,82 +541,82 @@ export async function convertMedia(
     videoKbps = videoKbpsFor(maxBytes, mediaSeconds(fit!.duration!, edit), audioKbps);
   }
 
-  const ff = await acquireEngine(onDownload);
-  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const inName = `in_${stamp}.${extOf(file.name) || 'bin'}`;
-  const outName = `out_${stamp}.${target}`;
-  const replaceAudio = edit?.audioTrack && AV_TARGETS.has(target);
-  const in2Name = replaceAudio
-    ? `in2_${stamp}.${extOf(edit!.audioTrack!.name) || 'bin'}`
-    : undefined;
+  return withEngine(async (ff) => {
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const inName = `in_${stamp}.${extOf(file.name) || 'bin'}`;
+    const outName = `out_${stamp}.${target}`;
+    const replaceAudio = edit?.audioTrack && AV_TARGETS.has(target);
+    const in2Name = replaceAudio
+      ? `in2_${stamp}.${extOf(edit!.audioTrack!.name) || 'bin'}`
+      : undefined;
 
-  const isAudioTarget = (AUDIO_OUTPUTS as readonly string[]).includes(target);
-  // the bar covers every pass: [from, to] is the stretch the current ffmpeg run fills
-  let span: [number, number] = [0, 1];
-  const handler = ({ progress }: { progress: number }) => {
-    if (Number.isFinite(progress)) onProgress(span[0] + (span[1] - span[0]) * Math.min(1, Math.max(0, progress)));
-  };
-  const log: string[] = [];
-  const onLog = ({ message }: { message: string }) => { log.push(message); };
-
-  try {
-    await ff.writeFile(inName, await fetchFile(file));
-    if (in2Name) await ff.writeFile(in2Name, await fetchFile(edit!.audioTrack!));
-    // only audio files have cover art: an iTunes-tagged video also carries 'covr', but its first
-    // video stream is the film, which must not be copied into an audio file as the "cover"
-    const hasArt = settings.keepCoverArt && detectKind(file) === 'audio' ? await sniffCoverArt(file) : false;
-    ff.on('progress', handler);
-    ff.on('log', onLog);
-
-    // loudness target: measure the sound first, then every encode below applies one linear gain
-    let loudnorm: string | undefined;
-    const hasSound = isAudioTarget || (AV_TARGETS.has(target) && !settings.videoMute && !edit?.mute);
-    if (settings.audioLoudness < 0 && hasSound) {
-      span = [0, LOUDNESS_PROBE_SHARE];
-      // the sound comes from the replacement track when there is one (the trim only cuts input 0)
-      const code = await ff.exec(loudnessProbeArgs(in2Name ?? inName, settings.audioLoudness, in2Name ? [] : trimOpts(edit)));
-      if (code !== 0) {
-        if (!noStreamInLog(log)) throw new Error(`ffmpeg exited with ${code}`);
-        if (isAudioTarget) throw new ConvertError('noAudioTrack');
-        // a video without sound: nothing to normalise
-      } else {
-        const m = parseLoudness(log);
-        if (m) loudnorm = loudnormFor(settings.audioLoudness, m, audioFormatInLog(log));
-      }
-      log.length = 0;
-      span = [LOUDNESS_PROBE_SHARE, 1];
-    }
-
-    // every run writes the same output name; -y overwrites instead of asking (no stdin here)
-    const run = async (kbps?: number) => {
-      let code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, hasArt, videoKbps: kbps, loudnorm })]);
-      // cover-art mapping is best-effort: retry once without it rather than fail
-      if (code !== 0 && hasArt) {
-        code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, videoKbps: kbps, loudnorm })]);
-      }
-      if (code !== 0) {
-        if (isAudioTarget && noStreamInLog(log)) throw new ConvertError('noAudioTrack');
-        throw new Error(`ffmpeg exited with ${code}`);
-      }
-      const data = await ff.readFile(outName);
-      if (typeof data === 'string') throw new Error('unexpected output');
-      return data;
+    const isAudioTarget = (AUDIO_OUTPUTS as readonly string[]).includes(target);
+    // the bar covers every pass: [from, to] is the stretch the current ffmpeg run fills
+    let span: [number, number] = [0, 1];
+    const handler = ({ progress }: { progress: number }) => {
+      if (Number.isFinite(progress)) onProgress(span[0] + (span[1] - span[0]) * Math.min(1, Math.max(0, progress)));
     };
-    let data = await run(videoKbps);
-    if (videoKbps && data.length > maxBytes) {
-      // one-pass rate control can overshoot: aim lower by the overshoot ratio, once
-      const lower = Math.floor(videoKbps * (maxBytes / data.length) * SIZE_MARGIN);
-      if (lower < MIN_VIDEO_KBPS) throw new ConvertError('fitTooSmall');
-      data = await run(lower);
-      if (data.length > maxBytes) throw new ConvertError('fitTooSmall');
+    const log: string[] = [];
+    const onLog = ({ message }: { message: string }) => { log.push(message); };
+
+    try {
+      await ff.writeFile(inName, await fetchFile(file));
+      if (in2Name) await ff.writeFile(in2Name, await fetchFile(edit!.audioTrack!));
+      // only audio files have cover art: an iTunes-tagged video also carries 'covr', but its first
+      // video stream is the film, which must not be copied into an audio file as the "cover"
+      const hasArt = settings.keepCoverArt && detectKind(file) === 'audio' ? await sniffCoverArt(file) : false;
+      ff.on('progress', handler);
+      ff.on('log', onLog);
+
+      // loudness target: measure the sound first, then every encode below applies one linear gain
+      let loudnorm: string | undefined;
+      const hasSound = isAudioTarget || (AV_TARGETS.has(target) && !settings.videoMute && !edit?.mute);
+      if (settings.audioLoudness < 0 && hasSound) {
+        span = [0, LOUDNESS_PROBE_SHARE];
+        // the sound comes from the replacement track when there is one (the trim only cuts input 0)
+        const code = await ff.exec(loudnessProbeArgs(in2Name ?? inName, settings.audioLoudness, in2Name ? [] : trimOpts(edit)));
+        if (code !== 0) {
+          if (!noStreamInLog(log)) throw new Error(`ffmpeg exited with ${code}`);
+          if (isAudioTarget) throw new ConvertError('noAudioTrack');
+          // a video without sound: nothing to normalise
+        } else {
+          const m = parseLoudness(log);
+          if (m) loudnorm = loudnormFor(settings.audioLoudness, m, audioFormatInLog(log));
+        }
+        log.length = 0;
+        span = [LOUDNESS_PROBE_SHARE, 1];
+      }
+
+      // every run writes the same output name; -y overwrites instead of asking (no stdin here)
+      const run = async (kbps?: number) => {
+        let code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, hasArt, videoKbps: kbps, loudnorm })]);
+        // cover-art mapping is best-effort: retry once without it rather than fail
+        if (code !== 0 && hasArt) {
+          code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, videoKbps: kbps, loudnorm })]);
+        }
+        if (code !== 0) {
+          if (isAudioTarget && noStreamInLog(log)) throw new ConvertError('noAudioTrack');
+          throw new Error(`ffmpeg exited with ${code}`);
+        }
+        const data = await ff.readFile(outName);
+        if (typeof data === 'string') throw new Error('unexpected output');
+        return data;
+      };
+      let data = await run(videoKbps);
+      if (videoKbps && data.length > maxBytes) {
+        // one-pass rate control can overshoot: aim lower by the overshoot ratio, once
+        const lower = Math.floor(videoKbps * (maxBytes / data.length) * SIZE_MARGIN);
+        if (lower < MIN_VIDEO_KBPS) throw new ConvertError('fitTooSmall');
+        data = await run(lower);
+        if (data.length > maxBytes) throw new ConvertError('fitTooSmall');
+      }
+      return new Blob([data.slice()], { type: mimeFor(target) });
+    } finally {
+      ff.off('progress', handler);
+      ff.off('log', onLog);
+      try { await ff.deleteFile(inName); } catch { /* ignore */ }
+      if (in2Name) { try { await ff.deleteFile(in2Name); } catch { /* ignore */ } }
+      try { await ff.deleteFile(outName); } catch { /* ignore */ }
     }
-    return new Blob([data.slice()], { type: mimeFor(target) });
-  } finally {
-    ff.off('progress', handler);
-    ff.off('log', onLog);
-    try { await ff.deleteFile(inName); } catch { /* ignore */ }
-    if (in2Name) { try { await ff.deleteFile(in2Name); } catch { /* ignore */ } }
-    try { await ff.deleteFile(outName); } catch { /* ignore */ }
-    releaseEngine(ff);
-  }
+  }, onDownload);
 }

@@ -46,6 +46,7 @@ import {
 } from '../lib/pdfTools';
 import type { Item } from '../types';
 import type { PdfExportPreset } from '../lib/tasks';
+import { decodeImage } from '../lib/decodeImage';
 
 /**
  * PDF page editor — page strip + live preview for documents.
@@ -276,7 +277,7 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
   }, []);
 
   const imagePages = useCallback(async (file: File): Promise<PPage[]> => {
-    const bmp = await createImageBitmap(file);
+    const bmp = await decodeImage(file);
     const [w, h] = imagePageSize(bmp.width, bmp.height);
     bmp.close();
     return [{ id: ++pageUid, src: { kind: 'image', blob: file }, intrinsic: 0, rotate: 0, flipH: false, flipV: false, w, h, notes: [], watermark: false }];
@@ -318,7 +319,7 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
   const wmArt = async (): Promise<HTMLCanvasElement | ImageBitmap> => {
     const key = wm.image ? `img:${wm.image.size}:${wm.image.type}` : `txt:${wm.text}:${wm.color}`;
     if (wmArtRef.current?.key === key) return wmArtRef.current.art;
-    const art = wm.image ? await createImageBitmap(wm.image) : watermarkCanvas(wm);
+    const art = wm.image ? await decodeImage(wm.image) : watermarkCanvas(wm);
     wmArtRef.current = { key, art };
     return art;
   };
@@ -1156,7 +1157,7 @@ function blankCanvas(w: number, h: number, scale = THUMB_W / w): HTMLCanvasEleme
 }
 
 async function drawImageTo(blob: Blob, width: number, maxDim?: number): Promise<HTMLCanvasElement> {
-  const bmp = await createImageBitmap(blob);
+  const bmp = await decodeImage(blob);
   let s = width ? width / bmp.width : 1;
   if (!width && maxDim) s = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');

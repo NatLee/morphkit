@@ -9,6 +9,7 @@
 import type { Block, Run } from './docs';
 import { A4 } from './pdf';
 import { loadCjkFontSet } from './cjkFont';
+import { decodeImage } from './decodeImage';
 
 export interface PageStyle {
   /** page size in points */
@@ -104,7 +105,7 @@ function fitText(p: Painter, text: string, f: FontSpec, maxW: number): string {
 async function imageDims(src: string): Promise<{ w: number; h: number } | null> {
   try {
     const blob = await (await fetch(src)).blob();
-    const bmp = await createImageBitmap(blob);
+    const bmp = await decodeImage(blob);
     const d = { w: bmp.width, h: bmp.height };
     bmp.close();
     return d;
@@ -270,7 +271,7 @@ class CanvasPainter implements Painter {
   }
   async image(src: string, x: number, y: number, w: number, h: number): Promise<void> {
     try {
-      const bmp = await createImageBitmap(await (await fetch(src)).blob());
+      const bmp = await decodeImage(await (await fetch(src)).blob());
       this.ctx.drawImage(bmp, x, y, w, h);
       bmp.close();
     } catch { /* skip */ }
@@ -341,7 +342,7 @@ class PdfPainter implements Painter {
       if (blob.type === 'image/jpeg') img = await this.doc.embedJpg(await blob.arrayBuffer());
       else if (blob.type === 'image/png') img = await this.doc.embedPng(await blob.arrayBuffer());
       else {
-        const bmp = await createImageBitmap(blob);
+        const bmp = await decodeImage(blob);
         const c = document.createElement('canvas');
         c.width = bmp.width;
         c.height = bmp.height;

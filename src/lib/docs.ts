@@ -10,6 +10,7 @@
 import { zipSync } from 'fflate';
 import { docTypeOf, type DocType } from './formats';
 import { A4, buildPdf, type PageSpec } from './pdf';
+import { decodeImage } from './decodeImage';
 
 /** US Letter in points. */
 export const LETTER: [number, number] = [612, 792];
@@ -361,7 +362,7 @@ export async function htmlToPngs(html: string, base: string, onProgress?: (p: nu
 async function dataUrlToImage(src: string): Promise<{ data: Uint8Array; type: 'png' | 'jpg'; width: number; height: number } | null> {
   try {
     const blob = await (await fetch(src)).blob();
-    const bmp = await createImageBitmap(blob);
+    const bmp = await decodeImage(blob);
     let { width, height } = bmp;
     bmp.close();
     let data: Uint8Array;
@@ -371,7 +372,7 @@ async function dataUrlToImage(src: string): Promise<{ data: Uint8Array; type: 'p
     else {
       const c = document.createElement('canvas');
       c.width = width; c.height = height;
-      c.getContext('2d')!.drawImage(await createImageBitmap(blob), 0, 0);
+      c.getContext('2d')!.drawImage(await decodeImage(blob), 0, 0);
       data = new Uint8Array(await (await toBlob(c, 'image/png')).arrayBuffer());
       type = 'png';
     }

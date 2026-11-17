@@ -1,3 +1,4 @@
+import { decodeImage } from './decodeImage';
 /**
  * QR codes — encode (node-qrcode) and decode (jsQR), both lazy-imported.
  * Decoding downsamples large images (QR finder patterns survive 800px fine) and retries
@@ -33,7 +34,7 @@ export async function qrToCanvas(text: string, st: QrStyle): Promise<HTMLCanvasE
     color: { dark: st.fg, light: st.bg ? st.bg : '#0000' },
   });
   if (st.logo) {
-    const bmp = await createImageBitmap(st.logo);
+    const bmp = await decodeImage(st.logo);
     const ctx = c.getContext('2d')!;
     const side = Math.round(st.size * 0.22);
     const x = (st.size - side) / 2;
@@ -90,7 +91,7 @@ function toImageData(src: ImageBitmap, maxDim: number, invert = false, boost = f
 /** Decode the first QR found in an image blob (or null). */
 export async function decodeQr(blob: Blob): Promise<QrHit | null> {
   const J = await jsqr();
-  const bmp = await createImageBitmap(blob);
+  const bmp = await decodeImage(blob);
   try {
     const attempts: [number, boolean, boolean][] = [[1000, false, false], [1600, false, false], [1000, false, true], [1000, true, false], [600, false, false]];
     for (const [dim, inv, boost] of attempts) {

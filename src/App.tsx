@@ -318,6 +318,9 @@ export default function App() {
         setPwFor(id);
         return;
       }
+      // a failure the user can act on has its own message; anything else goes to the console too,
+      // or "Conversion failed" is all anyone (a bug report included) ever gets to see
+      if (!(e instanceof ConvertError)) console.error(`Conversion failed: ${item.file.name} → ${item.target}`, e);
       patch(id, { status: 'error', error: e instanceof ConvertError ? e.key : undefined });
     }
   };

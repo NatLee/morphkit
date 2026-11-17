@@ -1,5 +1,6 @@
 import type { Lang } from '../i18n';
 import { ConvertError } from './errors';
+import { decodeImage } from './decodeImage';
 
 /**
  * Text recognition (OCR) with tesseract.js, imported lazily. Nothing is fetched until a file
@@ -128,7 +129,7 @@ export async function imageToText(
   consent: OcrConsent,
   onProgress?: (p: number) => void
 ): Promise<Blob> {
-  const bitmap = await createImageBitmap(file).catch(() => {
+  const bitmap = await decodeImage(file).catch(() => {
     throw new Error('decode');
   });
   const canvas = document.createElement('canvas');
