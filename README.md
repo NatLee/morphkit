@@ -50,7 +50,10 @@ installed as an app (PWA).
   video) and each image is squeezed under it (quality first, then dimensions), while MP4 / WebM get
   the bitrate that lands the clip under it. Sizes are decimal, so "500 KB" means 500,000 bytes and the
   result passes the limit however the site counts.
-- A settings drawer for image size caps and size targets, audio bitrate / VBR / sample rate / channels,
+- **Even loudness**: make every file land at the same level, −14 LUFS for streaming, −16 for podcasts
+  or −23 for broadcast. It measures the sound first and then moves the whole level once, so nothing
+  gets squashed; the sound of MP4 / WebM output is levelled too.
+- A settings drawer for image size caps and size targets, audio bitrate / VBR / sample rate / channels / loudness,
   video CRF / size target / preset / resolution / frame rate, GIF frame rate and width, PDF render
   resolution and document page size.
 
