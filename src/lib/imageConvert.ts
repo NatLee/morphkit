@@ -90,3 +90,94 @@ export async function convertImage(
     bitmap.close();
   }
 }
+
+// ---------- ICO (favicons) ----------
+
+/** Sizes an .ico carries; Windows and browsers pick the closest. 256 is the format's maximum. */
+export const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256] as const;
+
+/** The icon sizes worth storing for a source: never enlarged, except that the smallest is always there. */
+export function icoSizesFor(width: number, height: number): number[] {
+  const longest = Math.max(width, height);
+  const fit = ICO_SIZES.filter((s) => s <= longest);
+  return fit.length ? fit : [ICO_SIZES[0]];
+}
+
+/**
+ * Pack PNG images into an .ico file: a 6-byte header, one 16-byte entry per image, then the PNG data.
+ * PNG-compressed entries are what every browser and Windows since Vista read; width/height 0 means 256.
+ */
+export function encodeIco(images: ReadonlyArray<{ size: number; png: Uint8Array }>): Uint8Array<ArrayBuffer> {
+  const HEADER = 6;
+  const ENTRY = 16;
+  let offset = HEADER + ENTRY * images.length;
+  const out = new Uint8Array(new ArrayBuffer(offset + images.reduce((n, i) => n + i.png.length, 0)));
+  const dv = new DataView(out.buffer);
+  dv.setUint16(2, 1, true); // type 1 = icon
+  dv.setUint16(4, images.length, true);
+  images.forEach((img, i) => {
+    const e = HEADER + ENTRY * i;
+    out[e] = img.size >= 256 ? 0 : img.size;
+    out[e + 1] = img.size >= 256 ? 0 : img.size;
+    dv.setUint16(e + 4, 1, true); // colour planes
+    dv.setUint16(e + 6, 32, true); // bits per pixel
+    dv.setUint32(e + 8, img.png.length, true);
+    dv.setUint32(e + 12, offset, true);
+    out.set(img.png, offset);
+    offset += img.png.length;
+  });
+  return out;
+}
+
+function canvasOf(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('canvas');
+  ctx.imageSmoothingQuality = 'high';
+  return [c, ctx];
+}
+
+/**
+ * Image → multi-size .ico. Each size holds the whole picture centred in a transparent square.
+ * Sizes are drawn largest first and each from the one before (never more than 2× at a time), and
+ * the first one is reached by halving the source, so a 4000 px photo still makes a clean 16 px icon.
+ */
+export async function convertToIco(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file).catch(() => {
+    throw new Error('decode');
+  });
+  try {
+    const sizes = icoSizesFor(bitmap.width, bitmap.height).sort((a, b) => b - a);
+    // halve the source until one more halving would go below the largest icon
+    let src: CanvasImageSource = bitmap;
+    let w = bitmap.width;
+    let h = bitmap.height;
+    while (Math.max(w, h) / 2 >= sizes[0]) {
+      const [c, ctx] = canvasOf(Math.round(w / 2), Math.round(h / 2));
+      ctx.drawImage(src, 0, 0, c.width, c.height);
+      [src, w, h] = [c, c.width, c.height];
+    }
+    const images: Array<{ size: number; png: Uint8Array }> = [];
+    let prev: HTMLCanvasElement | null = null;
+    for (const size of sizes) {
+      const [c, ctx] = canvasOf(size, size);
+      if (prev) {
+        ctx.drawImage(prev, 0, 0, size, size);
+      } else {
+        const k = size / Math.max(w, h);
+        const dw = Math.max(1, Math.round(w * k));
+        const dh = Math.max(1, Math.round(h * k));
+        ctx.drawImage(src, Math.round((size - dw) / 2), Math.round((size - dh) / 2), dw, dh);
+      }
+      const blob = await new Promise<Blob | null>((resolve) => c.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('encode');
+      images.unshift({ size, png: new Uint8Array(await blob.arrayBuffer()) }); // smallest first in the file
+      prev = c;
+    }
+    return new Blob([encodeIco(images)], { type: 'image/x-icon' });
+  } finally {
+    bitmap.close();
+  }
+}

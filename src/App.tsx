@@ -18,7 +18,7 @@ import { QrTool } from './components/QrTool';
 import { SheetEditor } from './components/SheetEditor';
 import { LANGS, useI18n } from './i18n';
 import { defaultTarget, detectKind, docTypeOf, extOf, formatBytes, isTextDoc, outputFileName } from './lib/formats';
-import { convertImage } from './lib/imageConvert';
+import { convertImage, convertToIco } from './lib/imageConvert';
 import { convertAnimImage } from './lib/animImage';
 import { convertMedia, isEngineReady } from './lib/ffmpegClient';
 import { extractMeta } from './lib/metadata';
@@ -228,6 +228,8 @@ export default function App() {
         } else if (item.target === 'apng' || item.target === 'gif') {
           // animated pipeline — keeps every frame; APNG preserves alpha
           blob = await convertAnimImage(item.file, item.target);
+        } else if (item.target === 'ico') {
+          blob = await convertToIco(item.file);
         } else {
           blob = await convertImage(
             item.file,
