@@ -45,6 +45,7 @@ import {
   type SqueezeLevel,
 } from '../lib/pdfTools';
 import type { Item } from '../types';
+import type { PdfExportPreset } from '../lib/tasks';
 
 /**
  * PDF page editor — page strip + live preview for documents.
@@ -100,6 +101,8 @@ interface Props {
   /** files pushed in by the Studio asset panel */
   importFiles?: File[] | null;
   onImportDone?: () => void;
+  /** open the export dialog with these options on as soon as the pages are loaded (lib/tasks) */
+  exportPreset?: PdfExportPreset | null;
 }
 
 interface ExportOpts {
@@ -141,7 +144,7 @@ function noteFromDisplay(p: PPage, nx: number, ny: number): [number, number] {
   return displayToUser(p.flipH ? 1 - nx : nx, p.flipV ? 1 - ny : ny, p.intrinsic + p.rotate);
 }
 
-export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImportDone }: Props) {
+export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImportDone, exportPreset }: Props) {
   const { t } = useI18n();
   const docsRef = useRef<Map<string, SrcDoc>>(new Map());
   const [pages, setPages] = useState<PPage[]>([]);
@@ -178,6 +181,14 @@ export function PdfEditor({ item, onSave, onClose, inline, importFiles, onImport
     numbers: false, pn: DEFAULT_PAGE_NUMBERS, squeeze: 'off',
   });
   const setPn = (patch: Partial<PageNumbers>) => setXo((x) => ({ ...x, pn: { ...x.pn, ...patch } }));
+  // a task ("add page numbers", "compress") lands on the export dialog with its option switched on
+  const presetDone = useRef(false);
+  useEffect(() => {
+    if (!exportPreset || !loaded || presetDone.current) return;
+    presetDone.current = true;
+    setXo((x) => ({ ...x, ...exportPreset }));
+    setExportOpen(true);
+  }, [exportPreset, loaded]);
   // password prompts (one at a time)
   const [pwAsk, setPwAsk] = useState<{ file: File; resolve: (pw: string | null) => void } | null>(null);
   // history (page-list snapshots)

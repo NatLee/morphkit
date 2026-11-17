@@ -85,13 +85,13 @@ describe('per-file overrides', () => {
 });
 
 describe('file card options', () => {
-  const calls = { option: vi.fn(), reset: vi.fn(), project: vi.fn() };
+  const calls = { option: vi.fn(), reset: vi.fn(), project: vi.fn(), task: vi.fn() };
   const noop = () => {};
   const card = (item: Partial<Item> = {}, settings: Settings = DEFAULT_SETTINGS) => {
     const it: Item = { id: 'f1', file: new File(['x'], 'clip.mp4', { type: 'video/mp4' }), kind: 'video', target: 'mp4', quality: 0.9, status: 'ready', progress: 0, meta: { mime: 'video/mp4' } as Item['meta'], ...item };
     return render(
       <I18nProvider>
-        <FileCard item={it} settings={settings} onOption={calls.option} onResetOptions={calls.reset} onTarget={noop} onQuality={noop} onConvert={noop} onRemove={noop} onEdit={noop} onToProject={calls.project} onUnlock={noop} onQr={noop} />
+        <FileCard item={it} settings={settings} onOption={calls.option} onResetOptions={calls.reset} onTask={calls.task} onTarget={noop} onQuality={noop} onConvert={noop} onRemove={noop} onEdit={noop} onToProject={calls.project} onUnlock={noop} onQr={noop} />
       </I18nProvider>
     );
   };
