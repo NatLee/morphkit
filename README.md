@@ -67,7 +67,7 @@ installed as an app (PWA).
 |---|---|
 | Image | Raster layers with opacity, blend modes and masks; pen / marker / highlighter, eraser, line, rectangle, ellipse, arrow, text, fill; crop, rotate, flip, resize; magic wand, rectangle and lasso selections; a full undo timeline |
 | GIF / APNG | Film strip, play and step, per-frame delete / duplicate / reorder / delay, merge duplicate frames, trim, speed, reverse, boomerang, draggable captions, flatten transparency |
-| PDF | Page grid with live preview; add pages from PDFs or images, blank pages, reorder, rotate, flip, draw on a page, sticky notes, watermark, export all or some pages, split to ZIP, AES-256 encryption |
+| PDF | Page grid with live preview; add pages from PDFs or images, blank pages, reorder, rotate, flip, draw on a page, sticky notes, watermark, find blank pages; export all or some pages with page numbers and smaller images, split to ZIP, AES-256 encryption |
 | Document | Markdown with a formatting toolbar and live preview; Word and PowerPoint files edit as Markdown and are rebuilt on save |
 | Spreadsheet | Grid editor for CSV / TSV / XLSX / XLS / ODS with sheet tabs, row and column insert / move / delete and sorting |
 | Audio / video | Trim with a two-handle timeline, volume, speed, rotate, mute or replace the audio track |

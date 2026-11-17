@@ -160,7 +160,7 @@ pdfPagesN{n} pdfSummary{n,sel} pdfScopeAll{n} pdfScopeSel{n} docWordsN{n} docSta
 shShowMore{n} shStats{rows,cols,sheets} docSlidesN{n} (gifTooLong and objectsCount are no longer shown anywhere).
 `t`/`setLang` are recreated every render (context identity changes each provider render).
 
-## lib/pdf.ts (685)
+## lib/pdf.ts (734)
 
 pdf.js + pdf-lib are BOTH lazy `import()`s (`pdfjs()` memo resets on failure; worker via
 `pdf.worker.min.mjs?url`). **Read side** (pdf.js): `openPdf(bytes, password?)` (copies the buffer — pdf.js
@@ -174,7 +174,7 @@ transfers it; `onPassword` is intercepted and surfaced as `PdfPasswordError('nee
 `PdfPasswordError('wrong')` when qpdf's log mentions the password.
 **Write side** (pdf-lib): `PageSpec` union (pdf bytes+index | image blob+size | blank) × `PageCommon {rotate,
 flipH, flipV, notes, overlay, watermark}` · `buildPdf(specs, BuildOpts {title, author, watermark, encrypt,
-onProgress})`: one `PDFDocument.load` per distinct PLAIN buffer, one bulk `copyPages` per source (repeats copy
+pageNumbers, pageOffset, pageCount, squeeze, onProgress})`: one `PDFDocument.load` per distinct PLAIN buffer, one bulk `copyPages` per source (repeats copy
 singly), `stripTextAnnots` then `addNotes` (UTF-16 /Contents so CJK survives), `flipPage` (embedPage redrawn
 with negative scale — drops links/forms), overlay + watermark drawn as user-space PNGs over the media box,
 `setRotation`, then optional qpdf `encryptPdf`. Watermark helpers shared with the editor preview:
@@ -236,6 +236,23 @@ registerFontkit + `embedFont(ttf, {subset:true})`; throws when fonts can't load 
 (TC always, JP on kana, KR on hangul), css2 `unicode-range` blocks filtered to the doc's
 codepoints, per-cp `pick` cache, woff2→TTF via `loadWawoff` (classic-script injection +
 decompress poll — see CLAUDE.md invariant 28), `segment(text, bold)` for mixed-font runs.
+
+## lib/pdfTools.ts (177)
+
+Tools behind the PdfEditor export + toolbar; buildPdf (lib/pdf) calls them, pdf-lib arrives as a parameter
+(lazy, invariant 25). **Page numbers**: `PageNumbers {pos, format, start, skip, size}` + `DEFAULT_PAGE_NUMBERS` ·
+`PAGE_NUMBER_POSITIONS` (tl tc tr bl bc br) · `PAGE_NUMBER_FORMATS` (`{n}` / `{total}`, ASCII only — Helvetica,
+a standard font, nothing embedded) · `pageNumberLabel(index, count, pn)` (null for skipped pages; total = last
+number) · `pageNumberSpot(pos, w, h, textW, size)` → baseline-left as DISPLAY fractions, margin 2.5 em. buildPdf
+maps it with `displayToUser(…, rotation)` onto the crop box and draws with `rotate: degrees(rotation)` so the
+number reads upright on turned pages (on /Rotate 90 the bottom of the screen is the page's RIGHT edge).
+`BuildOpts.pageOffset/pageCount` number split exports as part of the whole. **Compression**: `SQUEEZE_PRESETS`
+light ≈200 dpi q0.8 / strong ≈110 dpi q0.6 (long side as if the image filled A4) · `squeezeImages(doc, lib, sq)`
+(after `doc.flush()`; only single-filter DCTDecode, 8-bit, DeviceRGB/DeviceGray/ICCBased N1|3, no Decode/ImageMask;
+`createImageBitmap` → canvas → JPEG; replaced via `context.assign` with DeviceRGB when it saves ≥ 10%; SMask kept).
+**Blank pages**: `inkShare(rgba)` (share of pixels ≥ 48 luma steps darker than the most common brightness;
+transparent = white) < `BLANK_INK_SHARE` 0.2%. Tests: tests/pdfTools.test.ts (real pdf-lib output: text matrices
+on 0/90/180° pages).
 
 ## lib/qpdf.ts (67)
 

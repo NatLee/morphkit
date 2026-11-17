@@ -135,7 +135,7 @@ App: onSave=saveEditedGif. Studio inline: key={id+blob.size} (remount on blob ch
 saving rewrites the asset blob via replaceAssetBlob). lib: decodeAnim, writeGifFrame, extOf, GIFEncoder,
 UPNG. Output `${base}_edited.gif|apng`. Nothing persists between sessions (captions discarded on unmount).
 
-## PdfEditor.tsx (1072) — page-list editor (modal AND Studio inline)
+## PdfEditor.tsx (1160) — page-list editor (modal AND Studio inline)
 
 **Model**: `PPage = {id, src: PageSrc, intrinsic, rotate, flipH, flipV, w, h, overlay?, notes, watermark, thumb?}` —
 `src` is a tagged union `{kind:'pdf', doc, index}` (doc = key into `docsRef: Map<string, SrcDoc{file, proxy,
@@ -161,13 +161,13 @@ preview `{id, url, w, h}` (of `focusPage` = last selected) · prevSplit (useSpli
 `--pdf-prev-w` on .pdf-body, dragged via .split-gutter.pdf-gutter, hidden ≤760) · zoomed (full-screen
 `.pdf-zoom` lightbox: non-note click on the preview page opens it, Esc/click closes — Esc handler checks
 zoomed FIRST) · noteMode · activeNote ·
-wm/wmOpen · exportOpen · xo `ExportOpts {scope, split, title, author, encrypt, userPw, ownerPw}` ·
+wm/wmOpen · exportOpen · xo `ExportOpts {scope, split, title, author, encrypt, userPw, ownerPw, numbers, pn, squeeze}` (`setPn` patches pn) ·
 pwAsk `{file, resolve}` (promise-backed password prompt).
 
 **Functions**: `askPassword`/`openWithPrompt` (retry loop over `PdfPasswordError`) · `loadPdfPages(file,
 password?)` (pageInfo + readNotes per page; null = user cancelled) · `imagePages` · `wmArt` (memo canvas/bitmap)
 · `renderDisplay` · selection `clickPage togglePage` · ops `rotateSel flipSel deleteSel duplicateSel moveSel
-reverseAll addBlank pickFiles onFiles` (also fed by the `importFiles` prop) · notes `addNoteAt setNoteText
+reverseAll addBlank pickFiles onFiles` · `selectBlank` (renders every page at `BLANK_SCAN_W` as it exports, selects the ones under `BLANK_INK_SHARE`, flashes the count — the user deletes) (also fed by the `importFiles` prop) · notes `addNoteAt setNoteText
 deleteNote onPreviewClick` · `applyWm(on, scope)` · `editPage` (render undecorated base + shown-with-overlay
 file → ImageEditor) → `onPageEdited` (same size ⇒ pixel diff → `displayToUserCanvas` → `overlay`; size changed
 ⇒ raster image page + `pdfRasterized` flash) · `onThumbDown` (mouse-only drag reorder) · `toSpecs`
