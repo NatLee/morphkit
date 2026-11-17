@@ -16,6 +16,7 @@ import { PDF_ICON } from './FormatMatrix';
 import { SettingControl } from './SettingControl';
 import { activeOverrides, effectiveSettings, fieldsFor, showValue, type SettingValue } from '../lib/settingFields';
 import type { Settings } from '../lib/settings';
+import { suggestionsFor, taskActive } from '../lib/tasks';
 
 const KIND_ICONS: Record<Kind, string> = {
   image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6zm2.5-7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z',
@@ -31,6 +32,8 @@ interface Props {
   settings: Settings;
   onOption: (id: string, key: keyof Settings, value: SettingValue) => void;
   onResetOptions: (id: string) => void;
+  /** one of the suggested tasks was picked (lib/tasks) */
+  onTask: (id: string, taskId: string) => void;
   onTarget: (id: string, target: string) => void;
   onQuality: (id: string, q: number) => void;
   onConvert: (id: string) => void;
@@ -53,7 +56,7 @@ const EDIT_ICONS = {
   sheet: 'M4 5h16v14H4zM4 10h16M4 15h16M10 5v14M16 5v14',
 };
 
-export function FileCard({ item, settings, onOption, onResetOptions, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr }: Props) {
+export function FileCard({ item, settings, onOption, onResetOptions, onTask, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr }: Props) {
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
   const [optsOpen, setOptsOpen] = useState(false);
@@ -73,6 +76,8 @@ export function FileCard({ item, settings, onOption, onResetOptions, onTarget, o
   const fields = fieldsFor(item.kind, item.target);
   const eff = effectiveSettings(settings, item.opts);
   const overrides = activeOverrides(settings, item.opts, item.kind, item.target);
+  // the jobs most often done with this kind of file
+  const suggestions = suggestionsFor(item.kind, item.file);
   const [copied, setCopied] = useState(false);
 
   const copyResult = async () => {
@@ -346,6 +351,24 @@ export function FileCard({ item, settings, onOption, onResetOptions, onTarget, o
             </div>
           )}
         </dl>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="fc-tasks">
+          <span className="fc-optrow-label">{t('tasksOften')}</span>
+          {suggestions.map((task) => (
+            <button
+              key={task.id}
+              className={`fc-task${taskActive(task, item, settings) ? ' active' : ''}`}
+              aria-pressed={task.run === 'convert' ? taskActive(task, item, settings) : undefined}
+              disabled={busy}
+              title={t(`task_${task.id}_d`)}
+              onClick={() => onTask(item.id, task.id)}
+            >
+              {t(`task_${task.id}`)}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* options of THIS file: what it overrides, and the controls to change them */}

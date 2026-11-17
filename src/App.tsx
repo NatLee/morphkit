@@ -6,6 +6,7 @@ import { DropZone } from './components/DropZone';
 import { FileCard } from './components/FileCard';
 import { SettingsPanel } from './components/SettingsPanel';
 import { FormatMatrix } from './components/FormatMatrix';
+import { TaskList } from './components/TaskList';
 import { MediaEditor } from './components/MediaEditor';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Studio } from './components/Studio';
@@ -28,6 +29,7 @@ import { imageToText, OCR_HOST, OCR_LANGS, ocrLangs, withOcr, type OcrConsent, t
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { effectiveSettings, withOption, type SettingValue } from './lib/settingFields';
+import { applyTask, taskById, taskFits, type PdfExportPreset, type Task } from './lib/tasks';
 import { createProjectWithAsset, listProjects } from './lib/idb';
 import { ConvertError } from './lib/errors';
 import { useBlobUrlOwner } from './lib/useBlobUrlOwner';
@@ -35,6 +37,8 @@ import type { ProjectType } from './lib/studioTypes';
 import type { Item, MediaEdit } from './types';
 
 let uid = 0;
+/** i18n keys of the file-kind names (the kind a task waits for). */
+const KIND_NAME: Record<string, string> = { image: 'kindImage', audio: 'kindAudio', video: 'kindVideo', pdf: 'kindPdf', doc: 'kindDoc', other: 'taskOther' };
 type EngineState = 'idle' | 'loading' | 'ready' | 'error';
 
 /** 'auto' follows the OS (app-like default); light/dark are manual overrides. */
@@ -103,6 +107,13 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // a task picked on the home page, waiting for the files it will be applied to (lib/tasks)
+  const [preset, setPreset] = useState<string | null>(null);
+  const presetRef = useRef<string | null>(null);
+  useEffect(() => { presetRef.current = preset; }, [preset]);
+  // PDF editor: open on this export option (set by an editor task, cleared when the editor closes)
+  const [pdfExport, setPdfExport] = useState<PdfExportPreset | null>(null);
+  const closeEditor = () => { setEditingId(null); setPdfExport(null); };
   const [mode, setMode] = useState<'convert' | 'studio'>('convert');
   // set by "open as project" so Studio skips its launcher and opens the new project
   const [studioEnterId, setStudioEnterId] = useState<string | null>(null);
@@ -163,15 +174,18 @@ export default function App() {
   const addFiles = (files: File[]) => {
     const bad: string[] = [];
     const good: Item[] = [];
+    // a task chosen on the home page is applied to every file it fits
+    const task = taskById(presetRef.current);
     for (const f of files) {
       const kind = detectKind(f);
       if (!kind) { bad.push(f.name); continue; }
-      const target = defaultTarget(kind, f);
+      const base = { target: defaultTarget(kind, f), opts: undefined };
+      const fits = task?.run === 'convert' && taskFits(task, kind, f);
       good.push({
         id: `f${++uid}`,
         file: f,
         kind,
-        target,
+        ...(fits ? applyTask(task, base, settingsRef.current) : base),
         quality: settingsRef.current.defaultQuality,
         status: 'ready',
         progress: 0,
@@ -179,6 +193,13 @@ export default function App() {
     }
     if (good.length) {
       setItems((prev) => [...prev, ...good]);
+      if (task?.run === 'editor') {
+        // an editor task opens the first file it fits, at its step
+        const first = good.find((it) => taskFits(task, it.kind, it.file));
+        if (first) openEditorFor(first, task);
+      }
+      // a batch task (merge) stays chosen: its hint shows above the list until it is done
+      if (task && task.run !== 'batch') setPreset(null);
       // extract metadata (dims / duration / EXIF / GPS) in the background
       for (const it of good) {
         extractMeta(it.file, it.kind).then((meta) => patch(it.id, { meta }));
@@ -305,6 +326,31 @@ export default function App() {
     patch(id, { target, status: 'ready', outUrl: undefined });
   };
 
+  /** Open a file's editor for an editor task; an encrypted PDF asks for its password first. */
+  const openEditorFor = (it: Item, task?: Task) => {
+    setPdfExport(task?.pdfExport ?? null);
+    setEditingId(it.id);
+  };
+
+  /** A suggestion on a file card: set the format/options, or open the editor at that step. */
+  const runTask = (id: string, taskId: string) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    const task = taskById(taskId);
+    if (!it || !task || !taskFits(task, it.kind, it.file)) return;
+    if (task.run === 'editor') {
+      if (it.kind === 'pdf' && it.meta?.encrypted && !it.pdfPassword) { setPwFor(id); return; }
+      openEditorFor(it, task);
+    } else if (task.run === 'convert') {
+      patch(id, { ...applyTask(task, it, settingsRef.current), ...staleResult(it) });
+    }
+  };
+
+  /** A task picked on the home page: tools open at once, the rest wait for files. */
+  const pickTask = (task: Task) => {
+    if (task.run === 'tool') { setQrOpen(''); return; }
+    setPreset((cur) => (cur === task.id ? null : task.id));
+  };
+
   /** A result made with other options no longer matches: drop it and go back to ready. */
   const staleResult = (it: Item): Partial<Item> =>
     it.status === 'done' || it.status === 'error' ? { status: 'ready', outUrl: undefined, error: undefined } : {};
@@ -354,6 +400,7 @@ export default function App() {
 
   const clearAll = () => {
     setItems([]);
+    setPreset(null);
   };
 
   /** Every PDF + image in list order → one PDF download (images become full-bleed pages). */
@@ -457,20 +504,20 @@ export default function App() {
 
   const saveMediaEdit = (id: string, edit: MediaEdit | undefined) => {
     patch(id, { edit, status: 'ready', outUrl: undefined, progress: 0 });
-    setEditingId(null);
+    closeEditor();
   };
 
   const saveEditedImage = (id: string, file: File) => {
     patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
     extractMeta(file, 'image').then((meta) => patch(id, { meta }));
-    setEditingId(null);
+    closeEditor();
   };
 
   /** Edited document replaces the source file (same format), like saveEditedImage. */
   const saveEditedDoc = (id: string, file: File) => {
     patch(id, { file, edited: true, status: 'ready', outUrl: undefined, progress: 0 });
     extractMeta(file, 'doc').then((meta) => patch(id, { meta }));
-    setEditingId(null);
+    closeEditor();
   };
 
   /** Edited PDF is itself the deliverable — mirrors saveEditedGif. */
@@ -487,7 +534,7 @@ export default function App() {
     // the export is plain (or freshly encrypted with a NEW password) — the old password is void
     patch(id, { pdfPassword: undefined });
     extractMeta(file, 'pdf').then((meta) => patch(id, { meta }));
-    setEditingId(null);
+    closeEditor();
   };
 
   /** Verify the password with pdf.js, then remember it on the item and re-probe metadata. */
@@ -518,9 +565,10 @@ export default function App() {
       outSize: file.size,
     });
     extractMeta(file, 'image').then((meta) => patch(id, { meta }));
-    setEditingId(null);
+    closeEditor();
   };
 
+  const presetTask = taskById(preset);
   const hasVideo = items.some((i) => i.kind === 'video');
   const mergeable = items.filter((i) => i.kind === 'pdf' || i.kind === 'image').length;
   const pending = items.filter((i) => i.status === 'ready' || i.status === 'error').length;
@@ -626,7 +674,20 @@ export default function App() {
         <Hero compact={items.length > 0} />
 
         <section className="workbench">
+          {presetTask && (
+            <div className="banner info task-banner" role="status">
+              <div>
+                <b>{t('taskChosen', { name: t(`task_${presetTask.id}`) })}</b>
+                <span>{t(`taskWait_${presetTask.run}`, { kind: t(KIND_NAME[presetTask.kind]) })}</span>
+              </div>
+              {presetTask.run === 'batch' && mergeable > 1 && (
+                <button className="btn btn-accent btn-sm" onClick={() => { void mergeAll(); setPreset(null); }} disabled={merging}>{t('mergePdf')}</button>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={() => setPreset(null)}>{t('cancel')}</button>
+            </div>
+          )}
           <DropZone onFiles={addFiles} compact={items.length > 0} onNewNote={() => addNote()} />
+          {items.length === 0 && <TaskList chosen={preset} onPick={pickTask} />}
 
           {engine === 'loading' && (
             <div className="banner info engine-banner">
@@ -695,6 +756,7 @@ export default function App() {
                     settings={settings}
                     onOption={setOption}
                     onResetOptions={resetOptions}
+                    onTask={runTask}
                     onTarget={changeTarget}
                     onQuality={(id, quality) => patch(id, { quality })}
                     onConvert={schedule}
@@ -716,17 +778,17 @@ export default function App() {
 
       {editingItem && (
         isGifItem(editingItem) ? (
-          <GifEditor item={editingItem} onSave={saveEditedGif} onClose={() => setEditingId(null)} />
+          <GifEditor item={editingItem} onSave={saveEditedGif} onClose={closeEditor} />
         ) : editingItem.kind === 'image' ? (
-          <ImageEditor item={editingItem} onSave={saveEditedImage} onClose={() => setEditingId(null)} />
+          <ImageEditor item={editingItem} onSave={saveEditedImage} onClose={closeEditor} />
         ) : editingItem.kind === 'pdf' ? (
-          <PdfEditor item={editingItem} onSave={saveEditedPdf} onClose={() => setEditingId(null)} />
+          <PdfEditor item={editingItem} onSave={saveEditedPdf} onClose={closeEditor} exportPreset={pdfExport} />
         ) : editingItem.kind === 'doc' && docTypeOf(editingItem.file) === 'sheet' ? (
-          <SheetEditor item={editingItem} onSave={saveEditedDoc} onClose={() => setEditingId(null)} />
+          <SheetEditor item={editingItem} onSave={saveEditedDoc} onClose={closeEditor} />
         ) : editingItem.kind === 'doc' ? (
-          <DocEditor item={editingItem} onSave={saveEditedDoc} onClose={() => setEditingId(null)} />
+          <DocEditor item={editingItem} onSave={saveEditedDoc} onClose={closeEditor} />
         ) : (
-          <MediaEditor item={editingItem} onSave={saveMediaEdit} onClose={() => setEditingId(null)} />
+          <MediaEditor item={editingItem} onSave={saveMediaEdit} onClose={closeEditor} />
         )
       )}
 
@@ -778,6 +840,14 @@ export default function App() {
                 <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
               </button>
             </div>
+            <div className="drawer-lang" role="group" aria-label={t('language')}>
+              <span>{t('language')}</span>
+              <div className="lang-switch">
+                {LANGS.map((l) => (
+                  <button key={l.code} className={lang === l.code ? 'active' : ''} onClick={() => setLang(l.code)}>{l.label}</button>
+                ))}
+              </div>
+            </div>
             <SettingsPanel settings={settings} onChange={updateSettings} />
             <button className="btn btn-ghost drawer-bottom-close" onClick={() => setShowSettings(false)}>
               {t('close')}
@@ -813,10 +883,6 @@ export default function App() {
         >
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span>{t('navProjects')}</span>
-        </button>
-        <button className={qrOpen != null ? 'active' : ''} onClick={() => { setShowSettings(false); setQrOpen((v) => (v == null ? '' : null)); }}>
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2zM14 20h1M20 18v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
-          <span>QR</span>
         </button>
         {/* tabs are mutually exclusive: every tab closes the other surfaces —
             the QR sheet is body-portaled (z90) and would cover the settings

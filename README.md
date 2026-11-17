@@ -45,6 +45,9 @@ installed as an app (PWA).
   Excel / ODS and JSON. PDF output embeds Noto fonts so the text stays selectable, including CJK.
 - File details per type: dimensions, duration, bitrate, page count, word count, photo EXIF with GPS
   and a map link, and QR codes found inside images.
+- **"I want to…"** on the home page: 23 common jobs you can search or filter by file type, such as
+  "Add page numbers to a PDF", "Shrink a video under 25 MB" or "Image to text". Pick one and add the
+  file, or add the file first: each card suggests the three jobs most often done with that kind of file.
 - Paste with Ctrl+V: a file or screenshot joins the list, plain text becomes a new Markdown note.
 - **Fit to a file size** for upload limits: pick a target (100 KB – 5 MB for images, 10 – 100 MB for
   video) and each image is squeezed under it (quality first, then dimensions), while MP4 / WebM get

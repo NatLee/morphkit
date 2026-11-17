@@ -3,14 +3,14 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. If structure changed since this
 > was written, trust the code and update this file. Covers: `App.tsx`, `Hero`, `DropZone`,
-> `FileCard`, `SettingsPanel`, `SettingControl`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
+> `FileCard`, `TaskList`, `SettingsPanel`, `SettingControl`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
 > `InstallPrompt`.
 
 ## App.tsx (781 lines) — owns ALL convert-mode state
 
 **State**: `items: Item[]` · `engine: 'idle'|'loading'|'ready'|'error'` · `engineDl {received,total}` ·
 `skipped` (rejected names, 6s auto-clear) · `settings` (persisted via saveSettings) · `showSettings` ·
-`editingId` · `mode: 'convert'|'studio'` · `studioEnterId` (Studio skips launcher; cleared on manual
+`editingId` · `preset` (+`presetRef`: id of the task picked on the home page, waiting for files) · `pdfExport` (PdfEditor `exportPreset` of the open editor; `closeEditor()` clears it with `editingId`) · `mode: 'convert'|'studio'` · `studioEnterId` (Studio skips launcher; cleared on manual
 toggle). Refs: `itemsRef`, `settingsRef` (stale-closure mirrors),
 `runningRef` + `waitersRef` (counting semaphore, cap = `settings.concurrency`). Module `let uid = 0`.
 Local `useTheme()` hook: 3-state `pref` auto|light|dark (cycled by `toggle`; persisted to
@@ -18,12 +18,12 @@ Local `useTheme()` hook: 3-state `pref` auto|light|dark (cycled by `toggle`; per
 LIVE via a matchMedia listener; `applyTheme` writes `dataset.theme` + the `theme-color` meta.
 
 **Functions** (greppable): `acquireSlot`/`releaseSlot` · `updateSettings` · `patch(id, partial)` ·
-`addFiles` (detectKind → defaultTarget → extractMeta per file) · `runConvert(id)` (doc→`convertDoc` (multi → .zip) / pdf→pdfToImages|pdfToText|pdf→docx/md/html via text→convertDoc|
+`addFiles` (detectKind → defaultTarget → extractMeta per file; a convert `preset` is applied to every file it fits via `applyTask`, an editor preset opens the first fitting file, and the preset clears unless it is a batch task) · `pickTask` (tool → QR at once; else toggles `preset`) · `runTask(id, taskId)` (card suggestion: convert → `applyTask` + `staleResult`; editor → `openEditorFor`, a locked PDF asks for its password first) · `setOption`/`resetOptions` (per-file overrides, invariant 33) · `runConvert(id)` (doc→`convertDoc` (multi → .zip) / pdf→pdfToImages|pdfToText|pdf→docx/md/html via text→convertDoc|
 mergeToPdf re-save, multi-page raster swaps `outName` to .zip / image→pdf→imageToPdf / image→convertImage /
 apng|gif→convertAnimImage / else convertMedia) · `changeTarget` (no-op when unchanged — re-tapping the active phone chip keeps the result; else drops `outUrl`) · `schedule(id)` (images run immediately EXCEPT image→pdf; a/v + pdf
 queue through semaphore) · `addNote(text)` (Ctrl+V plain text or the DropZone `.dz-note` link → note-N.md doc item, editor opens) ·
 `qrOpen` state (null closed / '' maker / text reader) renders `<QrTool>` (its .qr-overlay sits at z90 ≤640 so the z95 tab bar stays usable and the QR tab
-toggles it closed; sticky head + .qr-foot close as fallbacks) · topbar `.qr-btn` + 4-tab phone bar + FileCard chip open it ·
+toggles it closed; sticky head + .qr-foot close as fallbacks) · topbar `.qr-btn` + the home task `qr` + FileCard chip open it (phones have no QR tab any more; the sheet closes with its own buttons or any tab) ·
 `mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
 shown when `mergeable` > 1) · `convertAll` · `remove`/`clearAll` (only drop items — `useBlobUrlOwner` revokes `outUrl` + `meta.preview` after commit) ·
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
@@ -48,7 +48,9 @@ div.app (+ .studio-mode)
     div.topbar-actions > button.theme-toggle.qr-btn (QR tool) + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(auto half-circle/sun/moon cycle)
   main → <Studio/>  |  <Hero compact={items.length>0}/> + section.workbench + <FormatMatrix/>
     section.workbench
+      div.banner.info.task-banner (preset chosen: name + what to add; batch → mergePdf button; cancel)
       <DropZone onFiles=addFiles compact={items.length>0}/>
+      <TaskList chosen={preset} onPick={pickTask}/>   (only while the list is empty)
       div.banner.info.engine-banner (loading: .spinner + .engine-dl > .fc-progress > .fc-bar + .fc-pct)
       div.banner.danger|warn|note (engine error / skipped / hasVideo)
       div.batch-bar > div.bb-info (.bb-count, .bb-progress-wrap > .bb-progress > .bb-bar, .bb-done)
@@ -58,9 +60,9 @@ div.app (+ .studio-mode)
   {ocrAsk && <ConfirmDialog tone=accent/>}   (OCR download question)
   {pwFor && <PdfPasswordModal/>}
   {qrOpen !== null && <QrTool/>}
-  div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
+  div.drawer-overlay > aside.drawer > .drawer-head + div.drawer-lang (language buttons — shown ≤640 only, where the top bar hides its own) + <SettingsPanel/>   (showSettings)
   <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
-  nav.m-tabbar > button×4 home/projects/QR/settings (phone-only bottom tabs, hidden >640 via CSS;
+  nav.m-tabbar > button×3 home/projects/settings (phone-only bottom tabs, hidden >640 via CSS;
     mirrors the topbar nav + settings drawer — topbar .mode-nav hides ≤640;
     PORTALED to <body>: .app is a stacking context (z-index:1), so the bar's z95 was trapped
     under body-portaled overlays like the QR sheet — z comparisons must happen at body level.
@@ -93,7 +95,7 @@ No row at all when nothing applies (image → ICO).
 
 State: `showDetails`, `copied` (1.5s), `optsOpen`, `menuOpen` (+ `menuRef`; closes on pointerdown elsewhere and Escape).
 `copyResult()` fetches outUrl → canvas → ClipboardItem PNG.
-Props: `{item, settings, onOption, onResetOptions, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr}`.
+Props: `{item, settings, onOption, onResetOptions, onTask, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr}`.
 
 ```
 article.file-card.kind-*.status-*
@@ -108,6 +110,7 @@ article.file-card.kind-*.status-*
         (save as project · file details; ≤640 the menu spans the card: .fc-more goes static, .fc-controls relative)
       · btn.fc-remove
   dl.fc-details (grid; 1 col ≤640) > div.fc-detail-row > dt/dd  (+GPS → Google Maps link)
+  div.fc-tasks > .fc-optrow-label + button.fc-task(.active)×≤3   (`suggestionsFor(kind, file)`; click → `onTask(id, taskId)`)
   div.fc-optrow > .fc-optrow-label + (.fc-opt-default | span.fc-opt-chip×n > button ×) + button.fc-opt-toggle×1–2
   div.fc-opts.sp-grid > <SettingControl/>×n   (optsOpen)
   div.fc-quality (image jpeg|webp) > input[range .4–1]
@@ -148,11 +151,15 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 
 ## Small components
 
-- **Hero.tsx (47)**: prop `compact` (App passes `items.length > 0`) — `.hero(+.hero-compact) >
-  div.hero-fold > div.hero-fold-inner (p.hero-tagline + h1.hero-title>span.hero-accent) + div.feat-row>span.feat×6`.
-  Compact folds tagline+title away (grid-template-rows 1fr→0fr transition on `.hero-fold`) and shrinks
-  hero padding; feat chips stay. Chips: featTrim/featPaint/featGif/featPdf/featDoc/featQr, coloured
-  by `.feat:nth-child(n)` — new chips must extend both the i18n keys (×3) and the nth-child CSS.
+- **Hero.tsx (20)**: prop `compact` (App passes `items.length > 0`) — `.hero(+.hero-compact) >
+  div.hero-fold > div.hero-fold-inner (p.hero-tagline + h1.hero-title>span.hero-accent)`.
+  Compact folds it away (grid-template-rows 1fr→0fr transition on `.hero-fold`). The six feature chips
+  are gone: they looked like buttons and did nothing — the task list below the drop zone replaced them.
+- **TaskList.tsx (67)**: `section.tasks > .tasks-head (h2 + count hint) + .tasks-find (input[type=search] +
+  .tasks-kinds > button×7 from `KIND_FILTERS`) + .tasks-grid > button.task.tk-{kind}(.chosen) (b name, span
+  description, i how-it-runs) | p.tasks-empty`. Local state `query`/`kind`; the list is
+  `filterTasks(query, kind, text)` over the task's shown strings. Strings by convention: `task_<id>`,
+  `task_<id>_d`, `taskRun_<run>`. ≤640: two columns of names only.
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
 - **DropZone.tsx (71)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden

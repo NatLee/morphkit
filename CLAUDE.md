@@ -64,7 +64,8 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `types.ts` | `Item` (per-file state incl. `edit`, `edited`, `meta`, `outUrl`, `error` = ConvertError key, `pdfPassword`), `MediaEdit` (trim/volume/speed/rotate/mute/audioTrack), `Status` |
 | `i18n.tsx` | Custom context. THREE dicts: zh / en / ja — **every new UI string needs all 3 keys** |
 | `styles.css` | Design system "Cyberdeck": circuit-grid ground + scanlines, neon signal palette (`--paint-*`), `--glow`/`--accent-ink` tokens, synthwave hero, Chakra Petch display, IBM Plex Sans/Mono, light default theme. All editors' CSS lives here too |
-| `components/Hero.tsx` | Tagline + title + feature chips only (format pickers were removed on purpose — they misled users) |
+| `components/Hero.tsx` | Home headline (tagline + title) only; folds away once files are listed |
+| `components/TaskList.tsx` | Home "I want to…": every task from `lib/tasks` as a card, with a search box and a file-kind filter; picking one reports it to App (`pickTask`) |
 | `components/DropZone.tsx` | Accepts every extension `detectKind` knows (`ACCEPT`), multi-file; optional blank-note link |
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, the file's own options (override chips + the controls that apply to its conversion), a "more" menu (save as project, file details), warnings, ConvertError message |
 | `components/SettingsPanel.tsx` | The drawer: every setting as the DEFAULT for new files, drawn section by section from `lib/settingFields`; only ever mounted inside the drawer |
@@ -86,6 +87,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists — the single registry the UI derives from (image outs include `pdf`, `ico` and `txt` = OCR, `SLOW_IMAGE_OUTPUTS` queue like media; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) — the defaults for new files |
 | `lib/settingFields.ts` | The ONE description of every setting: label, control, hint and `applies(kind, target)` = the conversions it changes. `fieldsFor`, `effectiveSettings(defaults, item.opts)`, `withOption` (an override equal to the default is dropped), `activeOverrides`, `showValue`. Invariant 33 |
+| `lib/tasks.ts` | "I want to…" registry: each `Task` is a preset over what the app already does — convert (target and/or per-file opts), editor (optionally a PDF export option), batch (merge), tool (QR). `suggestionsFor` (card chips), `taskFits`, `taskActive` (derived, nothing stored), `applyTask`, `filterTasks`. Invariant 34 |
 | `lib/ocr.ts` | Text recognition (tesseract.js, lazy): `withOcr(langs, consent, fn)` hands `fn` a reader that starts the engine on its FIRST read — asking `consent` before a download (sizes in `ocrDownloadBytes`) — and closes it after; `imageToText`; `ocrLangs` (setting `auto` follows the UI language, English always added). Invariant 32 |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
@@ -129,7 +131,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | File | Role |
 |---|---|
 | `lib/qr.ts` | QR encode (node-qrcode) / decode (jsQR), both lazy: `qrToCanvas`/`qrToSvg` (QrStyle: colours, size, quiet zone, ECC, centre logo), `decodeQr` downsamples then retries inverted/contrast-boosted, `decodeFrame` (camera loop), `payloads` builders (wifi/vcard/mail → mailto:) + `classifyPayload`, `DEFAULT_QR` |
-| `components/QrTool.tsx` | QR modal, two tabs — MAKE: template (text/URL/Wi-Fi/vCard/mail) → styled live preview, download PNG/SVG, copy, push PNG into the converter list; READ: drop/pick/paste image or camera scan (getUserMedia + `decodeFrame`) → decoded payload w/ type-aware actions. Opened from topbar `.qr-btn`, the 4-tab phone bar, or a FileCard QR chip |
+| `components/QrTool.tsx` | QR modal, two tabs — MAKE: template (text/URL/Wi-Fi/vCard/mail) → styled live preview, download PNG/SVG, copy, push PNG into the converter list; READ: drop/pick/paste image or camera scan (getUserMedia + `decodeFrame`) → decoded payload w/ type-aware actions. Opened from topbar `.qr-btn`, the home task list (task `qr`, the only way on phones), or a FileCard QR chip |
 
 ### Studio
 
@@ -247,7 +249,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     md/txt/html/json) can open as Studio TEXT projects (`textAssetId` + inline DocEditor writing
     back via `replaceAssetBlob`); sheets/pptx cannot. Ctrl+V of plain TEXT (no files)
     creates a note-N.md doc item and opens the editor (`addNote`) — inputs/textareas excluded.
-30. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
+30. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` (home / projects / settings) owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
 31. **Loudness** (`settings.audioLoudness`, LUFS, 0 = off): two passes. `loudnessProbeArgs` measures
     with the SAME trim as the encode (the replacement track, untrimmed, when the sound comes from
     input 2), `parseLoudness` reads loudnorm's JSON block from the log, `loudnormFor` builds the
@@ -274,6 +276,16 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     or a card offers an option that does nothing. Changing an option of a finished file sends it back
     to ready (`staleResult`), like changing the target. Overrides live in memory with the item; the
     drawer's values are never changed from a card.
+34. **Tasks are presets, never new behaviour** (lib/tasks.ts). A convert task only sets `Item.target`
+    and `Item.opts` through `applyTask`; an editor task only opens the existing editor (PDF: with
+    `exportPreset`, applied ONCE per mount, when the pages are loaded); a batch task only points at
+    the batch bar. So everything a task does can also be done by hand, and a card shows it as an
+    ordinary format + option chips. Whether a task is "on" is derived (`taskActive`) — do not store
+    the chosen task on the item. A task picked on the home page (`preset`) applies to the files added
+    next that it fits (`taskFits`: same kind AND the output exists for that file); a convert or editor
+    preset clears after one add, a batch preset stays until merged or cancelled. tests/tasks.test.tsx
+    checks every task against `outputsFor` and `fieldsFor`, and that its two strings (`task_<id>`,
+    `task_<id>_d`) exist in all three languages. New user-facing job → one entry + six strings.
 
 ## Design language ("Cyberdeck")
 
@@ -299,6 +311,7 @@ the palette or the mark changes.
 - New converter feature → param in `settings.ts` + one entry in `lib/settingFields.ts` (the drawer and the cards draw themselves from it) + wire into `buildArgs` (recipe: `/add-setting`).
 - New editor capability → keep ImageEditor raster (paint into the active layer, invariant 18) and GifEditor frame-based; bake only geometry.
 - Structural change to a mapped file → update its `docs/claude/*.md` map in the same commit.
+- New thing people can do → add it to `lib/tasks.ts` so the home page and the file cards can offer it (invariant 34).
 - Bug fix → add a regression test in `tests/` next to the closest existing one.
 - Anything that deletes without an undo (IndexedDB records, user files) goes through `ConfirmDialog`; say in the message what goes with it.
 - Commits: conventional-ish (`feat:`, `fix:`, `design:`, `docs:`), one logical change each, always build and test first.

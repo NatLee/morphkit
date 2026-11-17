@@ -257,15 +257,14 @@ select optgroup {
 .hero {
   position: relative;
   text-align: center;
-  padding: 54px 0 44px;
+  padding: 34px 0 26px;
   /* the synthwave floor + orb pseudos are wider than the viewport on
      phones — clip them here so the page never gains a horizontal pan */
   overflow: hidden;
   transition: padding 0.5s ease;
 }
 
-/* tagline + title collapse (grid-rows fold) once files are in the list —
-   the feat chips stay as the compact "what this can do" strip */
+/* tagline + title collapse (grid-rows fold) once files are in the list */
 .hero-fold {
   display: grid;
   grid-template-rows: 1fr;
@@ -280,7 +279,7 @@ select optgroup {
   transition: opacity 0.35s ease, transform 0.5s ease;
 }
 
-.hero-compact { padding: 24px 0 22px; }
+.hero-compact { padding: 8px 0 0; }
 .hero-compact .hero-fold { grid-template-rows: 0fr; }
 
 .hero-compact .hero-fold-inner {
@@ -288,7 +287,6 @@ select optgroup {
   transform: translateY(-8px);
 }
 
-.hero-compact .feat-row { margin-top: 0; }
 
 /* synthwave floor: perspective grid scrolling toward the viewer */
 .hero::before {
@@ -350,10 +348,9 @@ select optgroup {
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
+  letter-spacing: 0.12em;
   color: var(--accent);
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   animation: rise 0.6s ease backwards;
 }
 
@@ -373,7 +370,7 @@ select optgroup {
 .hero-title {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(36px, 5.6vw, 54px);
+  font-size: clamp(30px, 4.4vw, 42px);
   line-height: 1.08;
   letter-spacing: 0.01em;
   margin: 0 0 8px;
@@ -1557,45 +1554,120 @@ select optgroup {
   margin: 10px 0;
 }
 
-/* ============ hero feature row ============ */
+/* ============ home task list ("I want to…") ============ */
 
-.feat-row {
+.tasks { margin-top: 26px; }
+
+.tasks-head {
   display: flex;
-  justify-content: center;
-  gap: 8px;
   flex-wrap: wrap;
-  margin-top: 22px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-bottom: 10px;
 }
 
-.feat {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  color: var(--ink-dim);
-  border: 1px solid var(--line);
-  border-radius: var(--wobble-sm);
-  padding: 4px 12px;
+.tasks-head h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 20px; }
+.tasks-head span { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); }
+
+.tasks-find { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+
+.tasks-find input {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
   background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 9px 12px;
 }
 
-.feat svg { color: var(--accent); }
+.tasks-find input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
+.tasks-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* each feature chip carries a different signal colour */
-.feat:nth-child(1) { border-color: var(--paint-blue); background: color-mix(in srgb, var(--paint-blue) 7%, var(--bg-raised)); }
-.feat:nth-child(1) svg { color: var(--paint-blue); }
-.feat:nth-child(2) { border-color: var(--paint-red); background: color-mix(in srgb, var(--paint-red) 7%, var(--bg-raised)); }
-.feat:nth-child(2) svg { color: var(--paint-red); }
-.feat:nth-child(3) { border-color: var(--paint-green); background: color-mix(in srgb, var(--paint-green) 7%, var(--bg-raised)); }
-.feat:nth-child(3) svg { color: var(--paint-green); }
-.feat:nth-child(4) { border-color: var(--paint-violet); background: color-mix(in srgb, var(--paint-violet) 7%, var(--bg-raised)); }
-.feat:nth-child(4) svg { color: var(--paint-violet); }
-.feat:nth-child(5) { border-color: var(--paint-yellow); background: color-mix(in srgb, var(--paint-yellow) 7%, var(--bg-raised)); }
-.feat:nth-child(5) svg { color: var(--paint-yellow); }
-.feat:nth-child(6) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--bg-raised)); }
-.feat:nth-child(6) svg { color: var(--accent); }
+.tasks-kinds button {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--ink-dim);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.tasks-kinds button:hover:not(.active) { color: var(--ink); border-color: var(--ink); }
+.tasks-kinds button.active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
+.tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)); gap: 9px; }
+
+.task {
+  --c: var(--accent);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  padding: 10px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.task:hover { border-color: var(--c); transform: translateY(-2px); box-shadow: var(--glow); }
+.task.chosen { border-color: var(--c); background: color-mix(in srgb, var(--c) 10%, var(--bg-raised)); box-shadow: 0 0 0 1px var(--c); }
+.task b { font-size: 14.5px; font-weight: 600; line-height: 1.4; }
+.task span { font-size: 12.5px; line-height: 1.5; color: var(--ink-dim); }
+.task i { font-style: normal; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; color: var(--c); margin-top: 3px; }
+.tk-image { --c: var(--paint-green); }
+.tk-audio { --c: var(--paint-blue); }
+.tk-video { --c: var(--paint-red); }
+.tk-pdf { --c: var(--paint-violet); }
+.tk-doc { --c: var(--accent); }
+.tk-other { --c: var(--paint-yellow); }
+
+.tasks-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+/* a task chosen on the home page, waiting for its files */
+.task-banner { align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.task-banner > div { flex: 1 1 260px; display: flex; flex-direction: column; gap: 2px; }
+.task-banner b { color: var(--ink); }
+
+/* the jobs most often done with this kind of file, on its card */
+.fc-tasks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 11px; color: var(--ink-faint); }
+
+.fc-task {
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-dim);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.fc-task:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.fc-task.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.fc-task:disabled { opacity: 0.5; cursor: not-allowed; }
+.fc-tasks + .fc-optrow { margin-top: 9px; }
 
 .mx-edit {
   font-family: var(--font-mono);
@@ -4719,6 +4791,19 @@ kbd {
 
 /* phone bottom tab bar — desktop hides it; shown ≤640 in the mobile layer */
 .m-tabbar { display: none; }
+/* language choice inside the settings drawer — phones only (the top bar has it elsewhere) */
+.drawer-lang {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
 
 /* ============ shared motion ============ */
 
@@ -4767,7 +4852,6 @@ html:has(.drawer-overlay) { overflow-y: clip; }
   .brand-name { font-size: 19px; }
   .lang-switch button { padding: 5px 9px; }
 
-  .feat { font-size: 10px; padding: 3px 10px; }
 
   .workbench { padding-top: 16px; }
   .dropzone { padding: 30px 16px; }
@@ -4896,12 +4980,20 @@ html:has(.drawer-overlay) { overflow-y: clip; }
 
   .footer { padding: 18px 0 26px; }
 
-  /* app-like bottom tab bar (home / projects / QR / settings) — the topbar
-     nav hides because the tab bar owns mode switching here */
+  /* app-like bottom tab bar (home / projects / settings) — the topbar nav hides because the
+     tab bar owns mode switching here; the language choice moves into the settings page */
   .mode-nav { display: none; }
+  .topbar .lang-switch { display: none; }
+  .drawer-lang { display: flex; }
+  /* 23 jobs on a phone: two columns of names (the description is the button title) */
+  .tasks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .task { padding: 9px 11px; }
+  .task span, .task i { display: none; }
+  .task b { font-size: 13.5px; }
+  .tasks-head span { display: none; }
   .m-tabbar {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     position: fixed;
     left: 0;
     right: 0;
