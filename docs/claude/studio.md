@@ -34,7 +34,7 @@ workspace, skipping the launcher; App clears it when the nav is used. Prop `onPr
 
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
-entered · quota · `confirmDel` ({project}|{asset}|{purge}|{emptyTrash}|null — the pending delete shown in ConfirmDialog) · `trash` (deleted projects, newest first) · trashOpen · trashStats · `justTrashed` (+ `trashToast` timer: the restore toast, `TRASH_TOAST_MS`) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
+entered · quota · `confirmDel` ({project}|{asset}|{purge}|{emptyTrash}|null — the pending delete shown in ConfirmDialog) · `trash` (deleted projects, newest first) · `filter` (ProjectFilter; read through `shown = liveFilter(...)`) · `npOpen`/`npMsg`/`npHot` (new-project dialog, its skipped-files message, drag highlight; `npFileRef`) · trashStats · `justTrashed` (+ `trashToast` timer: the restore toast, `TRASH_TOAST_MS`) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
 sortBy (`'mk-sort'`) · metaPj · metaFacts {id, name, meta: FileMeta} (info-modal probe, keyed by project
 id so a slow probe can't paint another project's rows) · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
 framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
@@ -61,17 +61,24 @@ idb `createProjectWithAsset`, then enters) · `blankCanvas`
 15MB cap `tooBigGif`) · `dropExternalToEditor` · `onFramesPicked` · `pseudoItem(a)` (**memoized** pseudo-Item
 for inline editors — invariant 15) · `persistBase`. Window `paste` listener while entered.
 
-**Launcher DOM** (two states by `projects.length`): `.studio.st-launcher > .st-bar (h2.launcher-title, .opt-spacer,
-[select.tb-select + .st-tabs grid|list — only with projects], import btn)` + first visit `p.pj-explain` | later `p.pj-note`
-(count · `totalBytes` from pjStats · `quota` from navigator.storage.estimate when the browser reports one · local-only reminder ·
-`.pj-warn` = how many projects are not `backupState === 'fresh'`) + `div.pj-storage` (when anything is stored: <StackBar> by project type from
-`typeBytes` + a hatched trash part from `trashBytes`; `p.pj-quota` = <Meter> + text of `storedBytes` against `quota`, when the browser reports one)
-+ `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body (.type-badge.tb-{type}, .pj-name, .pj-meta)) +
-.pj-actions (info/export/delete → confirm)` (`.pj-body` ends with a <Meter> of the project's size against `largestBytes` — with two projects or more — and `span.pj-backup.bk-{never|stale|fresh}`) + `.pj-uses-head` + `.pj-uses > button.pj-use.ut-{type}×6` (one per `TYPE_META`
-entry: `useKey` title = what people make with it, `descKey`, type badge; click = `createProject(type)` — there is no type
-modal any more) · `section.pj-trash` (only with trashed projects: `.pj-trash-head` > button.pj-trash-toggle + hint + "empty" btn,
-`ul.pj-trash-list > li` (type badge, name, <Meter> of days left out of `TRASH_DAYS` — warn tone from `TRASH_WARN_DAYS` — days left · files · size, restore, delete for good)) · portal `.banner.info.st-note.pj-undo`
-(restore toast) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
+**Launcher DOM**: `picker` (const, rendered in the page OR in the dialog, never both) = `.np > .pj-uses-head(h3#np-title) +
+.pj-uses > button.pj-use.ut-{type}×6` (one per `TYPE_META` entry: `useKey` title, `descKey`, type badge; click = `createProject(type)`)
++ `button.np-drop` (click → hidden multi-file input with `ACCEPT`; drag/drop → `startFromFiles`: each file → `projectTypeFor` →
+`createProjectWithAsset` + `persistedRef`; one file enters its workspace, files that cannot be projects → `p.np-msg`).
+`.studio.st-launcher > .st-bar (h2.launcher-title, button.pj-new "New project" — only with live projects, opens the dialog,
+.opt-spacer, [select.tb-select + .st-tabs grid|list — with projects, not on the trash], import btn)`, then:
+first visit (no projects, empty trash) `p.pj-explain` + picker; otherwise `.pj-layout > aside.pj-side + .pj-main`.
+`aside.pj-side > nav.pj-rail` (aria "Show projects"; `railRow(key, name, {color, bytes, warn})` = `button.pj-f[.on][.warn]` >
+.pj-f-dot + .pj-f-name + .pj-f-n (`counts` from `filterCounts`) [+ <Meter color> of the bytes against `largestType` + .pj-f-size];
+rows: all · `p.pj-rail-h` · one per type that has projects (bytes = `typeBytes`) · [state heading · `unsaved` (warn) · `trash` (bytes = `trashBytes`)])
++ `.pj-store > p.pj-note` (count · `totalBytes` · local-only reminder) + `p.pj-quota` (<Meter> + text of `storedBytes` against `quota`,
+when the browser reports one). `.pj-main` = `section.pj-trash` when `shown === 'trash'` (`.pj-trash-head` > h3 + hint + "empty" btn,
+`ul.pj-trash-list > li` (type badge, name, <Meter> of days left out of `TRASH_DAYS` — warn tone from `TRASH_WARN_DAYS` — days left · files · size,
+restore, delete for good)) | explain + picker when only the trash holds projects | `.pj-grid|.pj-list > .pj-card` over `sortedProjects`
+(already filtered by `shown`; button.pj-open > .pj-thumb + .pj-body (.type-badge.tb-{type}, .pj-name, .pj-meta, <Meter> against
+`largestBytes` with two projects or more, span.pj-backup.bk-{never|stale|fresh})) + .pj-actions (info/export/delete → confirm)).
+Overlay→`.editor.mini-modal.np-modal[role=dialog]` (picker + Close; Escape closes, focus starts on the first use card) ·
+portal `.banner.info.st-note.pj-undo` (restore toast) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
 **Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete → confirm)` +
 `.st-body (resizable assets | .split-gutter | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon

@@ -110,6 +110,14 @@ Pure arithmetic for components/SizeViz (tests/sizeViz.test.tsx). `sizeChange(bef
 beyond it is not drawn) · `shares(segments)` (drops empty parts) · `sumBy(items, keys, key, value)` (totals per kind / project type, in
 key order) · `usedPct(used, quota)` → the text before "%" ("<0.1" for tiny real use — never rounded UP to a bigger figure).
 
+## lib/projectList.ts (52)
+
+What the Projects launcher lists (tests/projectList.test.ts). `ProjectFilter` = 'all' | ProjectType | 'unsaved' | 'trash' ·
+`typeOf(p)` (legacy = audio) · `matchesFilter(p, f)` (live projects only; 'unsaved' = `backupState !== 'fresh'`) ·
+`liveFilter(f, projects, trashCount)` (an emptied choice → 'all') · `filterCounts` (rail numbers) ·
+`projectTypeFor(name, kind, mime)` (invariant 36: gif/apng → gif, `isTextDoc` docs → text, other docs → null).
+`docTypeOf`/`isTextDoc` in lib/formats take any `{ name }` (an AssetRec works), not only a File.
+
 ## lib/tasks.ts (120)
 
 The "I want to…" registry (invariant 34). `Task {id, kind: Kind|'other', run: convert|editor|batch|tool, target?, opts?,

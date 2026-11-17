@@ -139,10 +139,11 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 
 | File | Role |
 |---|---|
-| `components/Studio.tsx` | **Typed projects** — shown to users as 專案 / Projects, the code keeps the name Studio (App `mode==='studio'`): launcher (first visit explains what a project is, later the list comes first with a one-line storage note and a backup mark per card; six use cards start a project — type is immutable; deleting moves a project to a 30-day trash (restore / delete for good); zip import/export w/ id remap, export stamps the backup), workspace routing for the 6 types (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace, pdf→inline PdfEditor, text→inline DocEditor), primary-asset pickers (◎), blank canvas, new-project-from-asset |
+| `components/Studio.tsx` | **Typed projects** — shown to users as 專案 / Projects, the code keeps the name Studio (App `mode==='studio'`): launcher (first visit explains what a project is and shows the ways to start one in the page; later "New project" sits in the top bar and opens them as a dialog — six use cards + start from a file — and a rail of filters (type with its space, not backed up, trash) + the storage facts sit beside the list; type is immutable; deleting moves a project to a 30-day trash (restore / delete for good); zip import/export w/ id remap, export stamps the backup), workspace routing for the 6 types (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace, pdf→inline PdfEditor, text→inline DocEditor), primary-asset pickers (◎), blank canvas, new-project-from-asset |
 | `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
 | `lib/studioTypes.ts` | `ProjectType` (6 types), `Clip`/`Track`/`MixerDoc`/`ImageDoc`/`VideoDoc`/`ProjectRec` (+ `deletedAt`, `exportedAt`)/`AssetRec`, `empty*` factories, trash rules (`TRASH_DAYS`, `isTrashed`, `trashDaysLeft`, `trashExpired`), `backupState`, `INLINE_SAVE_EVT`, `uid()` |
+| `lib/projectList.ts` | What the Projects page lists: `ProjectFilter` (all / a type / `unsaved` / `trash`), `matchesFilter`, `liveFilter` (an emptied choice falls back to all), `filterCounts` (the rail numbers), and `projectTypeFor(name, kind, mime)` — the ONE rule for which project a file starts (invariant 36) |
 | `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
 | `lib/audioEngine.ts` | AudioBuffer decode cache (assetId-keyed), `playMix` live graph (solo/mute logic), `renderMixWav` OfflineAudioContext, `peaks` for waveforms |
 | `lib/wav.ts` | AudioBuffer → 16-bit PCM WAV |
@@ -297,6 +298,13 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     cannot write the project back live. `exportedAt` is stamped by `exportProjectZip` through
     `savePatch(patch, false)` — `touch: false` leaves `updatedAt` alone, or the backup would read as
     stale the moment it is made. The import must restore everything the export wrote (`...meta.imageDoc`).
+36. **One rule for the project a file starts**: `projectTypeFor(name, kind, mime)` in lib/projectList (GIF/APNG → gif,
+    text-like docs → text, sheets/slides/Word → null). Every way in uses it: the new-project dialog's "start from a
+    file" (`startFromFiles`), an asset spun off in the workspace (`newFromAsset`) and the converter's "save as project"
+    (App `openAsProject`). A project written straight to IndexedDB (`createProjectWithAsset`) MUST be added to
+    `persistedRef` at once, or deleting it before any edit only hides it — it comes back on the next visit.
+    The launcher's filter is `liveFilter(filter, …)`: never read `filter` directly, a choice that emptied out
+    (last PDF deleted, trash emptied) must fall back to all.
 
 ## Design language ("Cyberdeck")
 

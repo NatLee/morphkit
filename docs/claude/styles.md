@@ -116,9 +116,11 @@
     .clip-wave .clip-name .clip-edge(8px; 14 touch) .mix-empty(padding-left
     192 = HEAD_W+20) .playhead(top:-30px) · themed scrollbars group · `project launcher`: .st-launcher
     .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-explain .pj-note(.pj-warn) .pj-backup(.bk-never/.bk-stale/.bk-fresh)
-    .pj-trash(.pj-trash-head .pj-trash-toggle .pj-trash-n .pj-trash-list .pj-trash-name .pj-purge) .pj-undo(restore toast)
+    .pj-trash(.pj-trash-head h3 .pj-trash-list .pj-trash-name .pj-purge — a page of its own under the Trash filter) .pj-undo(restore toast)
     .pj-uses-head .pj-uses(3 cols → 2 ≤900 → 1 ≤560, so six cards never leave an orphan) .pj-use(.ut-{type} sets --c)
-    .pj-use-title .pj-use-desc ·
+    .pj-use-title .pj-use-desc · .pj-new (top-bar "New project") · .pj-layout(220px rail | list; ≤760 one column) .pj-side(sticky)
+    .pj-rail .pj-rail-h .pj-f(.on .warn; --c = type colour) .pj-f-dot .pj-f-name .pj-f-n .pj-f-size (≤760: the rail is one scrolling row
+    of chips, headings/bars/sizes hidden) .pj-store .pj-main · .np .np-drop(.hot) .np-msg .mini-modal.np-modal (820px dialog; beats the 380px .mini-modal) ·
     `typed projects`: .type-badge .tb-audio/image/gif/video/pdf/text .picker-panel .picker-list ·
     `inline editors`: .ie-inline-wrap .editor.ie-inline(flex column, overflow hidden, viewport fills) ·
     `video workspace`: .vw .vw-top(1fr|8px .split-gutter|min(--vw-side-w,44vw); 1fr ≤760)
@@ -138,7 +140,7 @@
 
 **Appended at the END of the file — `size pictures (SizeViz)`**: .size-compare(.sc-smaller/.sc-larger/.sc-same; .sc-label .sc-track
 .sc-bar.sc-before/.sc-after .sc-target .sc-num) · .stack(.stack-bar > span[--c](.muted hatched) .stack-legend .stack-note) · .meter(.mt-accent/.mt-warn)
-· placement: .bb-viz (full-width row of the batch bar) .pj-storage(.pj-storage-title .pj-quota) · ≤640: the compare numbers drop under the bars.
+· .meter span takes `--meter-c` (Meter `color`), else the accent · placement: .bb-viz (full-width row of the batch bar) .pj-quota · ≤640: the compare numbers drop under the bars.
 
 ## Responsive architecture (all breakpoints, why)
 
