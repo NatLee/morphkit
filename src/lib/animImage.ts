@@ -2,6 +2,7 @@ import { parseGIF, decompressFrames } from 'gifuct-js';
 import UPNG from 'upng-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { extOf } from './formats';
+import { decodeImage } from './decodeImage';
 
 /** Animated-image pipeline: GIF ⇄ APNG (alpha preserved) + static fallbacks. */
 
@@ -74,7 +75,7 @@ async function decodePng(file: File): Promise<Anim> {
 }
 
 async function decodeStatic(file: File): Promise<Anim> {
-  const bmp = await createImageBitmap(file);
+  const bmp = await decodeImage(file);
   const c = document.createElement('canvas');
   c.width = bmp.width;
   c.height = bmp.height;

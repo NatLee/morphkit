@@ -1,5 +1,6 @@
 import exifr from 'exifr';
 import { extOf, type Kind } from './formats';
+import { decodeImage } from './decodeImage';
 
 export interface FileMeta {
   width?: number;
@@ -72,7 +73,7 @@ async function imageMeta(file: File): Promise<FileMeta> {
   const meta = commonMeta(file);
   meta.preview = URL.createObjectURL(file);
   try {
-    const bmp = await createImageBitmap(file);
+    const bmp = await decodeImage(file);
     meta.width = bmp.width;
     meta.height = bmp.height;
     meta.mp = `${(bmp.width * bmp.height / 1e6).toFixed(1)} MP`;

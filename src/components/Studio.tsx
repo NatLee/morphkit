@@ -57,6 +57,7 @@ import { PDF_ICON } from './FormatMatrix';
 import { PdfEditor } from './PdfEditor';
 import { DocEditor } from './DocEditor';
 import { useBlobUrlOwner } from '../lib/useBlobUrlOwner';
+import { decodeImage } from '../lib/decodeImage';
 
 /** How long the "moved to the trash — restore" toast stays. */
 const TRASH_TOAST_MS = 8000;
@@ -132,7 +133,7 @@ async function noteThumb(blob: Blob): Promise<string> {
 
 /** Render an image project (bg + base + layers) to a small preview blob. */
 async function flattenImageProject(p: ProjectRec, base: AssetRec): Promise<Blob | null> {
-  const bmp = await createImageBitmap(base.blob);
+  const bmp = await decodeImage(base.blob);
   const TH = 320;
   const s = Math.min(1, TH / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
@@ -945,7 +946,7 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
         return;
       }
       // static image → a single appended frame
-      const bmp = await createImageBitmap(a.blob);
+      const bmp = await decodeImage(a.blob);
       const c = document.createElement('canvas');
       c.width = bmp.width;
       c.height = bmp.height;

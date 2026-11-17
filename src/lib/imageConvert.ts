@@ -1,4 +1,5 @@
 import { ConvertError } from './errors';
+import { decodeImage } from './decodeImage';
 
 /** Lowest quality anything goes to: the quality sliders' minimum and the floor of `fitToSize`. */
 export const MIN_QUALITY = 0.4;
@@ -56,7 +57,7 @@ export async function convertImage(
   /** Size target in bytes (see `fitToSize`); 0 = encode once at `quality`. */
   maxBytes = 0
 ): Promise<Blob> {
-  const bitmap = await createImageBitmap(file).catch(() => {
+  const bitmap = await decodeImage(file).catch(() => {
     throw new Error('decode');
   });
   try {
@@ -145,7 +146,7 @@ function canvasOf(w: number, h: number): [HTMLCanvasElement, CanvasRenderingCont
  * the first one is reached by halving the source, so a 4000 px photo still makes a clean 16 px icon.
  */
 export async function convertToIco(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file).catch(() => {
+  const bitmap = await decodeImage(file).catch(() => {
     throw new Error('decode');
   });
   try {

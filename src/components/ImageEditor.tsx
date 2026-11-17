@@ -6,6 +6,7 @@ import { INLINE_SAVE_EVT } from '../lib/studioTypes';
 import { Overlay } from './Overlay';
 import { ColorPicker } from './ColorPicker';
 import type { Item } from '../types';
+import { decodeImage } from '../lib/decodeImage';
 
 /* Raster layer model (Photoshop-style): a LAYER *is* the drawing surface.
    Every tool paints straight into the active layer's pixels — there are no
@@ -271,7 +272,7 @@ export function ImageEditor({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const bmp0 = await createImageBitmap(item.file);
+      const bmp0 = await decodeImage(item.file);
       const longest = Math.max(bmp0.width, bmp0.height);
       const scale = longest > MAX_DIM ? MAX_DIM / longest : 1;
       const c = document.createElement('canvas');
@@ -1219,7 +1220,7 @@ export function ImageEditor({
   // ---- imports ----
   const importImageBlob = async (blob: Blob) => {
     if (!ready || !baseRef.current) return;
-    const bmp = await createImageBitmap(blob);
+    const bmp = await decodeImage(blob);
     pushHist('importFiles');
     const l = newLayer(`Image ${layers.length + 1}`);
     const c = document.createElement('canvas');

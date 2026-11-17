@@ -11,6 +11,7 @@ import { extOf } from './formats';
 import { ConvertError } from './errors';
 import { pageNumberLabel, pageNumberSpot, squeezeImages, type ImageSqueeze, type PageNumbers } from './pdfTools';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { decodeImage } from './decodeImage';
 
 // ---------- pdf.js loader ----------
 
@@ -486,7 +487,7 @@ export function userToDisplayCanvas(c: HTMLCanvasElement | ImageBitmap, totalRot
 export async function imageForPdf(
   blob: Blob
 ): Promise<{ bytes: Uint8Array; width: number; height: number; jpeg: boolean }> {
-  const bmp = await createImageBitmap(blob);
+  const bmp = await decodeImage(blob);
   const { width, height } = bmp;
   if (blob.type === 'image/jpeg') {
     bmp.close();
@@ -629,7 +630,7 @@ export async function buildPdf(pages: PageSpec[], opts: BuildOpts = {}): Promise
     if (p.overlay) await drawUserPng(p.overlay);
     if (p.watermark && opts.watermark) {
       const wm = opts.watermark;
-      if (!wmArt) wmArt = wm.image ? await createImageBitmap(wm.image) : watermarkCanvas(wm);
+      if (!wmArt) wmArt = wm.image ? await decodeImage(wm.image) : watermarkCanvas(wm);
       const { width: W, height: H } = page.getMediaBox();
       const side = totalRot === 90 || totalRot === 270;
       await drawUserPng(await watermarkOverlay(wm, wmArt, side ? H : W, side ? W : H, totalRot, !!p.flipH, !!p.flipV));
@@ -700,7 +701,7 @@ export async function mergeToPdf(inputs: (File | MergeInput)[], onProgress?: (p:
       for (let i = 0; i < doc.numPages; i++) specs.push({ kind: 'pdf', bytes, index: i, rotate: 0 });
       await closePdf(doc);
     } else {
-      const bmp = await createImageBitmap(file);
+      const bmp = await decodeImage(file);
       const [width, height] = imagePageSize(bmp.width, bmp.height);
       bmp.close();
       specs.push({ kind: 'image', blob: file, width, height, rotate: 0 });
