@@ -50,13 +50,13 @@ MorphKit 是一個完全在瀏覽器裡執行的轉檔工具，附帶幾個小�
 | 試算表 | CSV / TSV / XLSX / XLS / ODS 表格編輯：工作表分頁，插入 / 移動 / 刪除列和欄，排序 |
 | 音訊 / 影片 | 雙把手時間軸剪輯、音量、變速、旋轉、靜音或替換音軌 |
 
-**Studio** 把專案存在瀏覽器裡（IndexedDB）：多軌混音，可以錄音、匯出 WAV；影片專案會把混好的聲音一起匯出成 MP4；圖片、GIF、PDF 和文字專案會保留圖層和編輯內容。專案可以匯出、匯入成 ZIP。
+**專案**（2026 年 11 月以前叫 Studio）是給要分幾次完成的作品用的。專案存在瀏覽器裡（IndexedDB），頁面一開始就會說明，也會顯示佔了多少空間：多軌混音，可以錄音、匯出 WAV；影片專案會把混好的聲音一起匯出成 MP4；圖片、GIF、PDF 和文字專案會保留圖層和編輯內容。專案可以匯出、匯入成 ZIP。
 
 **QR Code 工具** 可以產生網址、文字、Wi-Fi、名片和郵件的 QR Code（可調顏色、大小、留白、容錯等級、中央 Logo，輸出 PNG 或 SVG），也能從圖片、剪貼簿或相機讀取。
 
 介面有 English、繁體中文、日本語三種語言，以及淺色、深色、跟隨系統三種主題。
 
-![六個編輯器：圖片、PDF、GIF、文件、QR Code、Studio](docs/images/editors-zh.webp)
+![六個編輯器：圖片、PDF、GIF、文件、QR Code、專案工作區](docs/images/editors-zh.webp)
 
 手機也能用，編輯器會切換成全螢幕、像 App 一樣的版面：
 
@@ -120,7 +120,7 @@ service worker（讓網站能安裝、離線開啟的背景程式）只在正式
 | [`CLAUDE.md`](CLAUDE.md) | 指令、`src/` 每個檔案的用途、不變條件（每一條都對應一個真的發生過的問題），以及設計語言 |
 | [`docs/claude/app-shell.md`](docs/claude/app-shell.md) | 轉檔畫面：App 的狀態、轉檔怎麼分流、檔案卡片、設定面板、小元件 |
 | [`docs/claude/editors.md`](docs/claude/editors.md) | 圖片、GIF / APNG、PDF 和文件編輯器 |
-| [`docs/claude/studio.md`](docs/claude/studio.md) | Studio 專案、混音器和影片專案 |
+| [`docs/claude/studio.md`](docs/claude/studio.md) | 專案（程式裡這一塊仍然叫 Studio）、混音器和影片專案 |
 | [`docs/claude/libs.md`](docs/claude/libs.md) | `src/lib/` 的所有模組：ffmpeg 參數、格式、設定、PDF、文件、QR Code、翻譯 |
 | [`docs/claude/styles.md`](docs/claude/styles.md) | `styles.css` 的分區、主題和手機版面 |
 | [`docs/claude/README.md`](docs/claude/README.md) | 這套地圖怎麼分層、怎麼保持跟程式一致 |

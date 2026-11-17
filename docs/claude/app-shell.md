@@ -44,7 +44,8 @@ Effects: window `paste` (skipped while editor/drawer open), `keydown` Escape clo
 div.app (+ .studio-mode)
   header.topbar
     div.brand > span.brand-mark + span.brand-name
-    div.topbar-actions > button.studio-toggle + button.theme-toggle.qr-btn (QR tool) + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(auto half-circle/sun/moon cycle)
+    nav.mode-nav > button×2 (navHome | navProjects + span.mode-nav-n = `projectCount`, read from idb at mount and reported by <Studio onProjectCount>)
+    div.topbar-actions > button.theme-toggle.qr-btn (QR tool) + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(auto half-circle/sun/moon cycle)
   main → <Studio/>  |  <Hero compact={items.length>0}/> + section.workbench + <FormatMatrix/>
     section.workbench
       <DropZone onFiles=addFiles compact={items.length>0}/>
@@ -59,8 +60,8 @@ div.app (+ .studio-mode)
   {qrOpen !== null && <QrTool/>}
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
   <InstallPrompt/>   (PWA add-to-home-screen card, self-hiding)
-  nav.m-tabbar > button×4 convert/studio/QR/settings (phone-only bottom tabs, hidden >640 via CSS;
-    mirrors studio-toggle + settings drawer — topbar .studio-toggle hides ≤640;
+  nav.m-tabbar > button×4 home/projects/QR/settings (phone-only bottom tabs, hidden >640 via CSS;
+    mirrors the topbar nav + settings drawer — topbar .mode-nav hides ≤640;
     PORTALED to <body>: .app is a stacking context (z-index:1), so the bar's z95 was trapped
     under body-portaled overlays like the QR sheet — z comparisons must happen at body level.
     TABS ARE MUTUALLY EXCLUSIVE: every tab closes the other surfaces (setQrOpen(null) +

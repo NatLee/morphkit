@@ -133,7 +133,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 
 | File | Role |
 |---|---|
-| `components/Studio.tsx` | **Typed projects** (App `mode==='studio'`): launcher (type picker at creation — type is immutable; storage stats; zip import/export w/ id remap), workspace routing for the 6 types (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace, pdf→inline PdfEditor, text→inline DocEditor), primary-asset pickers (◎), blank canvas, new-project-from-asset |
+| `components/Studio.tsx` | **Typed projects** — shown to users as 專案 / Projects, the code keeps the name Studio (App `mode==='studio'`): launcher (first visit explains what a project is, later the list comes first with a one-line storage note; six use cards start a project — type is immutable; zip import/export w/ id remap), workspace routing for the 6 types (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace, pdf→inline PdfEditor, text→inline DocEditor), primary-asset pickers (◎), blank canvas, new-project-from-asset |
 | `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
 | `lib/studioTypes.ts` | `ProjectType` (6 types), `Clip`/`Track`/`MixerDoc`/`ImageDoc`/`VideoDoc`/`ProjectRec`/`AssetRec`, `empty*` factories, `INLINE_SAVE_EVT`, `uid()` |

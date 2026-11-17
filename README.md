@@ -72,7 +72,7 @@ installed as an app (PWA).
 | Spreadsheet | Grid editor for CSV / TSV / XLSX / XLS / ODS with sheet tabs, row and column insert / move / delete and sorting |
 | Audio / video | Trim with a two-handle timeline, volume, speed, rotate, mute or replace the audio track |
 
-**Studio** keeps projects in the browser (IndexedDB): a multi-track audio mixer with recording and WAV
+**Projects** (called Studio until November 2026) are for work you come back to. They are kept in the browser (IndexedDB), and the page says so up front, with how much space they take: a multi-track audio mixer with recording and WAV
 export, video projects that export MP4 with the mixed audio, and image, GIF, PDF and text projects
 that keep their layers and edits. Projects can be exported and imported as ZIP files.
 
@@ -81,7 +81,7 @@ correction, centre logo; PNG or SVG) and reads them from images, the clipboard o
 
 The interface comes in English, 繁體中文 and 日本語, with light, dark and follow-the-system themes.
 
-![Six editors: image, PDF, GIF, document, QR and Studio](docs/images/editors-en.webp)
+![Six editors: image, PDF, GIF, document, QR and a project workspace](docs/images/editors-en.webp)
 
 It is built for phones too — the editors switch to a full-screen, app-style layout:
 
@@ -153,7 +153,7 @@ The code base comes with a written map, for people and coding assistants alike. 
 | [`CLAUDE.md`](CLAUDE.md) | Commands, one line on every file in `src/`, the invariants (each one guards against a regression that really happened) and the design language |
 | [`docs/claude/app-shell.md`](docs/claude/app-shell.md) | The converter: app state, how a conversion is routed, file cards, the settings drawer, small components |
 | [`docs/claude/editors.md`](docs/claude/editors.md) | The image, GIF / APNG, PDF and document editors |
-| [`docs/claude/studio.md`](docs/claude/studio.md) | Studio projects, the audio mixer and video projects |
+| [`docs/claude/studio.md`](docs/claude/studio.md) | Projects (the code still calls this part Studio), the audio mixer and video projects |
 | [`docs/claude/libs.md`](docs/claude/libs.md) | Everything in `src/lib/`: ffmpeg arguments, formats, settings, PDF, documents, QR codes, translations |
 | [`docs/claude/styles.md`](docs/claude/styles.md) | The sections of `styles.css`, the themes and the phone layout |
 | [`docs/claude/README.md`](docs/claude/README.md) | How the maps are organised and kept up to date |
