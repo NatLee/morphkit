@@ -107,9 +107,21 @@ entry = default; sheets/json lead with xlsx/csv) + `docOutputs(file)` · `output
 `detectKind` (MIME prefix then ext allow-lists; null = unsupported) · `ACCEPT` (file-picker list built from
 the same lists) · `outputsFor` · `defaultTarget`
 (gif→apng / apng→gif FIRST, else webp/mp3/mp4 preference, jpg≡jpeg) · `formatLabel` (jpeg→JPG, else upper
-case; FormatMatrix chips) · `outputFileName` (jpeg→.jpg) ·
+case; every format chip) · `outputFileName` (jpeg→.jpg) ·
 `mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
 `apng` has NO ffmpeg path — must route to convertAnimImage; `ico` has none either — App routes it to `convertToIco`; image `txt` goes to `imageToText` (lib/ocr).
+
+## lib/formatMap.ts (130)
+
+The home panel's data, derived (tests/formatMap.test.ts): `formatRows()` (KINDS order; documents one row per `DOC_TYPES` sub-type;
+`inputsOf` = `EXTENSIONS` with `SAME_FORMAT` merged, docs split by `docTypeOf`; `outputsOf` = `outputsFor` / `DOC_OUTPUTS`) ·
+`allOutputs(rows)` (columns, first-seen order) · `needsFor(kind, target)` → browser | engine (audio/video) | ocr (image→txt) | ocrScans
+(pdf → text outputs) | fonts (doc→pdf) · `describeKey` (kind-specific keys first, else `fmt_<target>`) · `optionsFor` (`fieldsFor` label keys) ·
+`tasksFor(kind, target?, doc?)` · `searchFormats(q, text)` → FormatHit[] (inputs incl. other spellings, outputs once per kind, then `filterTasks`).
+
+## lib/kindIcons.ts (14)
+
+`KIND_ICONS`: Record<Kind, path>. Studio's `KIND_GLYPH` (lib/projectList) adds the GIF project glyph on top.
 
 ## lib/sizeStats.ts (60)
 
@@ -122,7 +134,7 @@ key order) · `usedPct(used, quota)` → the text before "%" ("<0.1" for tiny re
 
 What the Projects launcher lists (tests/projectList.test.ts). `ProjectFilter` = 'all' | ProjectType | 'unsaved' | 'trash' ·
 `typeOf(p)` (legacy = audio) · `matchesFilter(p, f)` (live projects only; 'unsaved' = `backupState !== 'fresh'`) ·
-`liveFilter(f, projects, trashCount)` (an emptied choice → 'all') · `filterCounts` (rail numbers) · `matchesQuery(p, q)` (every word, case-insensitive) ·
+`TYPE_META` / `PROJECT_TYPES` / `KIND_GLYPH` (moved here from Studio: name, use, description, glyph, colour per project type) · `liveFilter(f, projects, trashCount)` (an emptied choice → 'all') · `filterCounts` (rail numbers) · `matchesQuery(p, q)` (every word, case-insensitive) ·
 `ageGroup(updatedAt, now)` (today = since local midnight; then < 7 days, < 30 days, older) · `groupByAge(list, now)` (keeps order, drops empty sections) ·
 `projectTypeFor(name, kind, mime)` (invariant 36: gif/apng → gif, `isTextDoc` docs → text, other docs → null).
 `docTypeOf`/`isTextDoc` in lib/formats take any `{ name }` (an AssetRec works), not only a File.
