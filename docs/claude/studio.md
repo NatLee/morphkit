@@ -5,10 +5,11 @@
 > Type shapes (Clip/Track/MixerDoc/ProjectRec/AssetRec, empty* factories, uid) live in
 > `lib/studioTypes.ts`; audio graph in `lib/audioEngine.ts` (see docs/claude/libs.md).
 
-## Studio.tsx (1110) — projects shell + persistence broker
+## Studio.tsx (1428) — projects shell + persistence broker
 
-Two mutually exclusive trees in one component: **launcher** (early return when `!entered`, ~line 688)
-and **workspace** (~line 821). Only component touching IndexedDB. Five project types: audio→Mixer,
+Two mutually exclusive trees in one component: **launcher** (the early return under `if (!entered)`)
+and **workspace** (the final return). The main IndexedDB user (App only calls `createProjectWithAsset`
+for "open as project"). Six project types: audio→Mixer,
 image→inline ImageEditor, gif→inline GifEditor, video→VideoWorkspace, **text→inline DocEditor** (`textAssetId`; `blankNote` creates note-N.md; ◎ `pickText` accepts `isTextDoc`
 assets; save = `replaceAssetBlob`) · **pdf→inline PdfEditor** (`pdfAssetId`
 primary; save = `replaceAssetBlob` like GIF; `pdfImport` state feeds `importFiles`; `canImportToEditor` accepts
@@ -62,13 +63,14 @@ for inline editors — invariant 15) · `persistBase`. Window `paste` listener w
 **Launcher DOM**: `.studio.st-launcher > .st-bar (h2.launcher-title, InfoTip, .opt-spacer, select.tb-select,
 .st-tabs grid|list, import btn)` + `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body
 (.type-badge.tb-{type}, .pj-name, .pj-meta)) + .pj-actions (info/export/delete)` + `.pj-card.pj-new` ·
-Overlay→`.editor.type-modal > .pj-grid > .pj-card.pj-type×4` · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
+Overlay→`.editor.type-modal > .pj-grid > .pj-card.pj-type×6` (one per `TYPE_META` entry) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
 **Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete)` +
 `.st-body (resizable assets | .split-gutter | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon
-+ .asset-name + .asset-size + .asset-btns (＋ addToMix · ◎ pickBase/pickGif/pickVideo · import-to-editor ·
++ .asset-name + .asset-size + .asset-btns (＋ addToMix · ◎ pickBase/pickGif/pickVideo/pickPdf/pickText · import-to-editor ·
 new-from-asset · download · ×)) + main.st-main[.drop-hot] > .view-anim key={ptype+curId} >
-(Mixer | picker-panel/ImageEditor-inline | picker-panel/GifEditor-inline | VideoWorkspace)` ·
+(Mixer | picker-panel/ImageEditor-inline | picker-panel/GifEditor-inline | VideoWorkspace |
+picker-panel/PdfEditor-inline | DocEditor-inline)` ·
 portal `.banner.info.st-note` · FramePicker · Overlay→`.editor.mini-modal.canvas-modal` (preset-grid + size-row).
 
 **Notes**: asset→canvas drag is HTML5 DnD (`application/x-morphkit-asset`) — no touch support; the
@@ -78,7 +80,8 @@ import-to-editor button is the touch path. `.studio` is a fixed-height workspace
 **Child props**: `<Mixer doc onChange onRecorded bufVer names activeTrackId onActiveTrack>` ·
 `<VideoWorkspace videoAsset candidates doc onDoc onRecorded bufVer names activeTrackId onActiveTrack projectName>` ·
 `<ImageEditor inline key={imgBase.id} item initialLayers bg onLayersChange onBgChange onBaseChange onSave importBlob onImportDone>` ·
-`<GifEditor inline key={id+blob.size} item onSave={replaceAssetBlob} importFrames onImportDone>`.
+`<GifEditor inline key={id+blob.size} item onSave={replaceAssetBlob} importFrames onImportDone>` ·
+`<PdfEditor inline key={id+blob.size} item onSave={replaceAssetBlob}>` · `<DocEditor inline key={id+blob.size} item onSave={replaceAssetBlob}>`.
 
 ## Mixer.tsx (468) — multi-track timeline
 
@@ -111,7 +114,7 @@ input.trk-gain) + .lane > .clip[.sel]{left:start*zoom, width:duration*zoom} (can
 have NO touch-action — touch-drag there must keep scrolling the timeline; ruler seek is tap-only.
 `.clip-edge` widened to 14px + visible tint on touch via media queries.
 
-## VideoWorkspace.tsx (~200)
+## VideoWorkspace.tsx (207)
 
 Props: videoAsset|null, candidates, doc: VideoDoc, onDoc(fn) (functional patch), onRecorded,
 onAudioExtracted(wav, srcName), bufVer, names, activeTrackId, onActiveTrack, projectName.
@@ -130,7 +133,7 @@ playsInline] | .vw-pick picker) + .split-gutter + .vw-side (sp-label+InfoTip, sp
 .vw-extract(btn+InfoTip), .vw-note?, export btn, .fc-progress)` + `.split-gutter.h` + `<Mixer>`.
 `.vw-preview` height var(--vw-ph, 34vh) (26vh ≤640).
 
-## MediaEditor.tsx (276) — converter-queue A/V edit modal
+## MediaEditor.tsx (303) — converter-queue A/V edit modal
 
 Portaled modal (createPortal direct, not Overlay). Collects a sparse `MediaEdit` for one Item —
 never touches bytes. Props `{item, onSave(id, edit|undefined), onClose}`.
@@ -146,4 +149,4 @@ DOM: `.editor-overlay > .editor > .ed-head + .ed-preview.media-preview.mp-video|
 42vh/84px, 34vh ≤640 — fixed so trim updates never shift layout) + .ed-controls (.ed-row trim: sp-label,
 DualRange, .ed-mark-btns×3 · .track-sec video: speed select + .ed-seg rotate×4 · .track-sec audio:
 volume range, speed (audio-only), mute check, .replace-row picker) + .ed-foot (reset · cancel/save)`.
-No Escape handler, no focus trap. Rotation 90/270 visually overflows the fixed stage (known).
+No Escape handler, no focus trap. A 90/270 rotation is scaled down (`rotScale`) to fit the fixed stage.

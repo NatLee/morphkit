@@ -18,12 +18,20 @@ registered PROD-only in `main.tsx`) + `public/icons/*` (brand-mark PNGs — rege
 ## Commands
 
 ```bash
-npm run dev      # dev server
-npm run build    # tsc && vite build  (MUST pass before committing)
+npm run dev            # dev server
+npm test               # unit tests: Vitest + jsdom, files in tests/ (no setup file; mocks are per test)
+npm run build          # tsc && vite build  (MUST pass before committing)
+npm run preview        # serve dist/ with the service worker registered
+npm run check:context  # this file + docs/claude/ still match the source
 ```
+
+CI (`.github/workflows/ci.yml`) runs `npm test` and `npm run build` on every pull request; the
+Pages workflow calls it before building, so main is tested once per push.
 
 Sandbox note: the mounted FS may refuse to delete `dist/`; build with
 `npx vite build --outDir /tmp/morphkit-dist --emptyOutDir` to verify instead.
+Windows note: run Vitest from a path with an upper-case drive letter (`C:\…`); from `c:\…` it
+loads modules twice and every suite fails with "Cannot read properties of undefined (reading 'config')".
 
 ## Context economy — read maps, not source
 
@@ -34,78 +42,102 @@ one or two lines to update its map.
 
 | Map | Read before opening |
 |---|---|
-| `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, SettingsPanel, FormatMatrix, DualRange, Overlay, FramePicker, InfoTip |
-| `docs/claude/editors.md` | ImageEditor.tsx (1.7k lines), GifEditor.tsx, PdfEditor.tsx, PdfPasswordModal.tsx, DocEditor.tsx |
-| `docs/claude/studio.md` | Studio.tsx (1.1k), Mixer.tsx, VideoWorkspace.tsx, MediaEditor.tsx |
+| `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, SettingsPanel, FormatMatrix, DualRange, Overlay, FramePicker, InfoTip, InstallPrompt |
+| `docs/claude/editors.md` | ImageEditor.tsx (2k lines), GifEditor.tsx, PdfEditor.tsx, PdfPasswordModal.tsx, DocEditor.tsx, SheetEditor.tsx, QrTool.tsx |
+| `docs/claude/studio.md` | Studio.tsx (1.4k), Mixer.tsx, VideoWorkspace.tsx, MediaEditor.tsx |
 | `docs/claude/libs.md` | every lib/*.ts, types.ts, i18n.tsx mechanics |
 | `docs/claude/styles.md` | styles.css section index + responsive/mobile architecture |
 
 Project skills: `/add-setting` (new converter param), `/add-format` (new format).
 `.claude/settings.json` pre-approves `npx tsc`, builds, and read-only git commands.
-Map maintenance is ENFORCED: `npm run check:context` (also a Stop hook + a CI job)
-fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key or
-`{placeholder}` gaps. Rules, triggers, and rationale: `docs/claude/README.md`.
+Map maintenance is ENFORCED: `npm run check:context` (also a Stop hook, and a non-blocking job
+in deploy.yml on pushes to main) fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync,
+and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/claude/README.md`.
 
 ## File map (src/)
 
+### App shell & converter
+
 | File | Role |
 |---|---|
-| `App.tsx` | All app state: items list, settings, scheduler (counting semaphore capped at `settings.concurrency`), engine banners, editors routing, batch bar, ZIP download (fflate), global Ctrl+V paste-file |
-| `types.ts` | `Item` (per-file state incl. `edit`, `edited`, `meta`, `outUrl`), `MediaEdit` (trim/volume/speed/rotate), `Status` |
+| `App.tsx` | All app state: items list, settings, scheduler (counting semaphore capped at `settings.concurrency`), engine banners, editors routing, batch bar, ZIP download (fflate), global Ctrl+V paste (files join the list; plain text becomes a note-N.md via `addNote`) |
+| `types.ts` | `Item` (per-file state incl. `edit`, `edited`, `meta`, `outUrl`, `error` = ConvertError key, `pdfPassword`), `MediaEdit` (trim/volume/speed/rotate/mute/audioTrack), `Status` |
 | `i18n.tsx` | Custom context. THREE dicts: zh / en / ja — **every new UI string needs all 3 keys** |
 | `styles.css` | Design system "Cyberdeck": circuit-grid ground + scanlines, neon signal palette (`--paint-*`), `--glow`/`--accent-ink` tokens, synthwave hero, Chakra Petch display, IBM Plex Sans/Mono, light default theme. All editors' CSS lives here too |
-| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists (image outs include `pdf`; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
-| `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only) |
-| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) |
-| `lib/animImage.ts` | GIF/APNG/static → RGBA frames (`decodeAnim`), `encodeAPNG` (upng-js, lossless alpha), `encodeGIFBlob(anim, matte\|null)` — `null` keeps binary alpha via gifenc `rgba4444` + `transparent+dispose:2`; `writeGifFrame` shared with GifEditor |
-| `lib/metadata.ts` | Per-kind file info: dims/duration/EXIF-GPS (exifr)/bitrate estimate + `preview` (object URL for images — revoke on remove!, dataURL frame-grab for video) |
-| `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
 | `components/Hero.tsx` | Tagline + title + feature chips only (format pickers were removed on purpose — they misled users) |
-| `components/DropZone.tsx` | Accepts image/audio/video/pdf/document extensions, multi-file |
-| `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
-| `vite-env.d.ts` | `vite/client` types (`import.meta.env`) |
-| `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings |
-| `components/MediaEditor.tsx` | A/V trim (DualRange + playhead buttons), volume/speed/rotate → saved as `Item.edit`, applied at ffmpeg time |
-| `components/ImageEditor.tsx` | **Raster layer editor**: layer = canvas surface. Tools: pan/move/pen(3 brushes)/eraser/line/rect/ellipse/arrow/text/crop/wand/rectsel/lasso/fill — all paint into the active layer. Layer panel (add/dup/merge-down/delete/reorder/opacity/blend/lock/mask), pixel history, wheel zoom, marching-ants selections, bg layer |
-| `components/PdfEditor.tsx` | **PDF page editor** (modal + Studio `inline`): page-thumb grid + live preview over a `PPage[]` list (source = loaded PDF+index / image blob / blank) with NON-DESTRUCTIVE decorations — rotate, flipH/V, drawing `overlay` (nested ImageEditor → pixel-diff → transparent PNG in page user space; vectors untouched), sticky `notes` (real /Text annots, read back on load), `watermark` flag (doc-level text/image settings), undo/redo. Insert from PDFs+images, blank, dup/move/reverse/drag reorder. Export dialog: scope all/selected, split→ZIP, title/author, AES-256 encrypt. Encrypted sources prompt via `PdfPasswordModal`; export decrypts with qpdf (`getPlainBytes`) else rasterizes |
-| `components/PdfPasswordModal.tsx` | Overlay password prompt; caller verifies with pdf.js before it closes (`onSubmit → Promise<boolean>`, shake on wrong) — password lives in memory only |
-| `lib/pdf.ts` | pdf.js (lazy + `?url` worker) `openPdf(bytes, password?)` (throws `PdfPasswordError` need/wrong)/`closePdf`/`renderPage`/`pdfInfo`/`readNotes`/`sniffEncrypted`; `getPlainBytes` (qpdf decrypt cache); conversions `pdfToImages` (multi-page → ZIP), `pdfToText`, `rasterizePdf` (plan B); pdf-lib `buildPdf(PageSpec[], {watermark, encrypt, title, author})` — rotate/flip (embedPage), overlay PNG, sticky notes (strip + rewrite), watermark (canvas-rendered text or image), qpdf encrypt; `mergeToPdf(inputs w/ passwords)`, `imageToPdf`; user↔display coordinate helpers |
-| `lib/docs.ts` | Documents via ONE intermediate (sanitized HTML): read docx (mammoth UMD) / md (marked) / html / text / sheets (SheetJS) / json → `docToHtml`; write `htmlToMarkdown` (turndown+gfm, tables normalised), `htmlToDocx` (docx lib), `htmlToText`, `htmlToPdf`/`htmlToPngs` via the canvas paginator `layoutHtml` (`htmlToBlocks` block model; rasterized A4 pages — CJK-safe, text not selectable); sheets `readSheets`/`sheetsToXlsx`/`sheetsToCsv`/`sheetsToJson`/`rowsToMarkdown`; entry `convertDoc(file, target)`; editor bridge `docEditSource`/`previewHtml`/`docSave` |
-| `lib/pptx.ts` | PPTX: read via fflate + DOMParser (no library) → sanitized-HTML blocks, one `<section data-slide>` per slide, so every doc target works on presentations; write via pptxgenjs (lazy) splitting blocks into slides on h1/h2 |
-| `lib/pptx.ts` | PPTX read WITHOUT a library (fflate unzip + DOMParser over slide OOXML: text runs w/ b/i, bullets by `lvl`, tables, embedded images → data URIs; slide order via presentation.xml rels; `<hr data-page-break>` between slides) · write via pptxgenjs (`blocksToPptx`: h1/h2 or `---`/pagebreak start a slide, bullets/tables/images placed) |
-| `lib/qr.ts` | QR encode (node-qrcode: canvas/SVG, colours, quiet zone, ECC, centre logo) + decode (jsQR w/ downscale/invert/contrast retries), `payloads` builders (wifi/vcard/mailto), `classifyPayload` |
-| `components/QrTool.tsx` | QR modal, 2 tabs: MAKE (url/text/wifi/vcard/mail templates → live preview, PNG/SVG download, copy, add-to-list) + READ (drop/pick/paste image, camera scan via getUserMedia+decodeFrame, type-aware actions). Opened from topbar `.qr-btn`, the 4-tab phone bar, or a FileCard QR chip |
-| `components/SheetEditor.tsx` | Spreadsheet GRID editor (csv/tsv/xlsx/xls/ods): tab per sheet (add/delete/rename), cell inputs w/ Enter/Tab/arrow nav, insert/delete/move rows+cols, sort by column, undo, 300-row windows; save rebuilds xlsx (all sheets) or csv text |
-| `lib/pptx.ts` | PPTX read WITHOUT a library (fflate unzip + DOMParser over slide OOXML: text runs w/ b/i, bullets by `lvl`, tables, embedded images → data URIs; slide order via presentation.xml rels; `<hr data-page-break>` between slides) · write via pptxgenjs (`blocksToPptx`: h1/h2 or `---`/pagebreak start a slide, bullets/tables/images placed) |
-| `lib/qr.ts` | QR encode (node-qrcode: canvas/SVG, colours, quiet zone, ECC, centre logo) + decode (jsQR w/ downscale/invert/contrast retries), `payloads` builders (wifi/vcard/mailto), `classifyPayload` |
-| `components/QrTool.tsx` | QR modal, 2 tabs: MAKE (url/text/wifi/vcard/mail templates → live preview, PNG/SVG download, copy, add-to-list) + READ (drop/pick/paste image, camera scan via getUserMedia+decodeFrame, type-aware actions). Opened from topbar `.qr-btn`, the 4-tab phone bar, or a FileCard QR chip |
-| `components/SheetEditor.tsx` | Spreadsheet GRID editor (csv/tsv/xlsx/xls/ods): tab per sheet (add/delete/rename), cell inputs w/ Enter/Tab/arrow nav, insert/delete/move rows+cols, sort by column, undo, 300-row windows; save rebuilds xlsx (all sheets) or csv text |
-| `lib/docPaint.ts` | The document LAYOUT ENGINE behind both PDF outputs: `renderBlocks(blocks, style, Painter)` (wrapping w/ CJK break points, headings/lists/quotes/code/tables/images/page breaks) + two painters — `renderCanvases` (raster A4) and `renderPdfBlob` (pdf-lib vector text w/ embedded Noto subsets via lib/cjkFont; throws offline → caller rasters) |
-| `lib/cjkFont.ts` | On-demand Noto Sans TC/JP/KR for selectable-text PDFs: parse Google css2 `unicode-range` blocks, download ONLY the woff2 subsets the document's codepoints touch, wawoff2 (classic-script injected Emscripten) decompresses woff2→TTF for pdf-lib subsetting; `segment()` splits strings into per-subset runs |
-| `components/DocEditor.tsx` | Source textarea + live preview (split/source/preview) for doc items: md/html/csv(first sheet)/json/text; DOCX edits as Markdown and is regenerated on save; Ctrl+S saves, Tab inserts |
-| `components/SheetEditor.tsx` | Spreadsheet grid editor (csv/tsv/xlsx/xls/ods): tab per sheet, plain-input cells (Enter/Tab/arrow nav), row/col insert/delete/move, header-row toggle, 300-row windows w/ "show more"; save = xlsx (all sheets) or csv/tsv text of active sheet |
-| `lib/qr.ts` | QR encode (node-qrcode) / decode (jsQR), both lazy: `qrToCanvas`/`qrToSvg` (QrStyle: colours, size, quiet zone, ECC, centre logo), `decodeQr` downsamples then retries inverted/contrast-boosted, `payloads` builders + `classifyPayload` |
-| `components/QrTool.tsx` | QR modal, two tabs — MAKE: template (text/URL/Wi-Fi/vCard/mail) → styled live preview, download PNG/SVG, copy, push PNG into converter; READ: drop/pick/paste or camera scan → decoded payload w/ type-aware actions |
-| `lib/qpdf.ts` | qpdf-wasm (lazy, `qpdf.wasm?url`): `decryptPdf(bytes, pw)` / `encryptPdf(bytes, user, owner)` (AES-256) — fresh module per call, `QpdfError` carries the CLI log |
-| `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
+| `components/DropZone.tsx` | Accepts every extension `detectKind` knows (`ACCEPT`), multi-file; optional blank-note link |
+| `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings, ConvertError message |
+| `components/SettingsPanel.tsx` | Controlled Settings form (7 sections), single `set(key,val)` mutator; only ever mounted inside the drawer |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes |
-| `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
-| `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
-| `components/FramePicker.tsx` | Video → frames: single-frame (image projects) or clip w/ fps (GIF projects). Inlines its own portal — keep in sync with Overlay |
-| `components/SettingsPanel.tsx` | Controlled Settings form (5 sections), single `set(key,val)` mutator; only ever mounted inside the drawer |
-| `components/ColorPicker.tsx` | Inline HSV picker (SV square + hue strip + hex), used in ImageEditor layer panel |
+| `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
-| `components/Studio.tsx` | **Typed projects** (App `mode==='studio'`): launcher (type picker at creation — type is immutable; storage stats; zip import/export w/ id remap), 4-way workspace routing (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace), primary-asset pickers (◎), blank canvas, new-project-from-asset |
-| `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
-| `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
-| `lib/studioTypes.ts` | `Clip`/`Track`/`MixerDoc`/`ProjectRec`/`AssetRec`, `uid()` |
-| `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
-| `lib/useSplitter.ts` | Draggable panel-size hook (localStorage-persisted, dblclick reset) behind every `.split-gutter`/`.ie-gutter` |
+| `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
+| `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
+| `components/FramePicker.tsx` | Video → frames: single-frame (image projects) or clip w/ fps (GIF projects). Inlines its own portal — keep in sync with Overlay |
+| `vite-env.d.ts` | `vite/client` types (`import.meta.env`) |
+| `gif-libs.d.ts` | Hand-written module types for gifuct-js / gifenc / upng-js, plus qpdf-wasm, the mammoth browser build, turndown-plugin-gfm and wawoff2 |
+
+### Conversion libraries
+
+| File | Role |
+|---|---|
+| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists (image outs include `pdf`; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
+| `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
+| `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only) |
+| `lib/animImage.ts` | GIF/APNG/static → RGBA frames (`decodeAnim`), `encodeAPNG` (upng-js, lossless alpha), `encodeGIFBlob(anim, matte\|null)` — `null` keeps binary alpha via gifenc `rgba4444` + `transparent+dispose:2`; `writeGifFrame` shared with GifEditor |
+| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) |
+| `lib/metadata.ts` | Per-kind file info: dims/duration/EXIF-GPS (exifr)/bitrate estimate, PDF pages/author/encryption, document words/chars/lines/sheets/slides, QR codes found in images + `preview` (object URL for images — owned by `useBlobUrlOwner` once in state; dataURL frame-grab for video) |
+
+### PDF
+
+| File | Role |
+|---|---|
+| `lib/pdf.ts` | pdf.js (lazy + `?url` worker) `openPdf(bytes, password?)` (throws `PdfPasswordError` need/wrong)/`closePdf`/`renderPage`/`pdfInfo`/`readNotes`/`sniffEncrypted`; `getPlainBytes` (qpdf decrypt cache); conversions `pdfToImages` (multi-page → ZIP; render scale from settings), `pdfToText`, `rasterizePdf` (plan B); pdf-lib `buildPdf(PageSpec[], {watermark, encrypt, title, author})` — rotate/flip (embedPage), overlay PNG, sticky notes (strip + rewrite), watermark (canvas-rendered text or image), qpdf encrypt; `mergeToPdf(inputs w/ passwords)`, `imageToPdf`; user↔display coordinate helpers |
+| `lib/qpdf.ts` | qpdf-wasm (lazy, `qpdf.wasm?url`): `decryptPdf(bytes, pw)` / `encryptPdf(bytes, user, owner)` (AES-256) — fresh module per call, `QpdfError` carries the CLI log |
+| `components/PdfEditor.tsx` | **PDF page editor** (modal + Studio `inline`): page-thumb grid + live preview over a `PPage[]` list (source = loaded PDF+index / image blob / blank) with NON-DESTRUCTIVE decorations — rotate, flipH/V, drawing `overlay` (nested ImageEditor → pixel-diff → transparent PNG in page user space; vectors untouched), sticky `notes` (real /Text annots, read back on load), `watermark` flag (doc-level text/image settings), undo/redo. Insert from PDFs+images, blank, dup/move/reverse/drag reorder. Export dialog: scope all/selected, split→ZIP, title/author, AES-256 encrypt. Encrypted sources prompt via `PdfPasswordModal`; export decrypts with qpdf (`getPlainBytes`) else rasterizes |
+| `components/PdfPasswordModal.tsx` | Overlay password prompt; caller verifies with pdf.js before it closes (`onSubmit → Promise<boolean>`, shake on wrong) — password lives in memory only |
+
+### Documents
+
+| File | Role |
+|---|---|
+| `lib/docs.ts` | Documents via ONE intermediate (sanitized HTML): read docx (mammoth UMD) / pptx (lib/pptx) / md (marked) / html / text / sheets (SheetJS) / json → `docToHtml`; write `htmlToMarkdown` (turndown+gfm, tables normalised), `htmlToDocx` (docx lib), `htmlToText`, `htmlToPdf` ('text' = vector text with embedded fonts, the default; 'raster' = canvas pages) and `htmlToPngs`, both laid out by lib/docPaint from the `htmlToBlocks` block model; sheets `readSheets`/`sheetsToXlsx`/`sheetsToCsv`/`sheetsToJson`/`rowsToMarkdown`; `countWords` (CJK-aware); entry `convertDoc(file, target, onProgress, opts)`; editor bridge `docEditSource`/`previewHtml`/`docSave` |
+| `lib/docPaint.ts` | The document LAYOUT ENGINE behind PDF and PNG output: `renderBlocks(blocks, style, Painter)` (wrapping w/ CJK break points, headings/lists/quotes/code/tables/images/page breaks) + two painters — `renderCanvases` (raster pages) and `renderPdfBlob` (pdf-lib vector text w/ embedded Noto subsets via lib/cjkFont; throws offline → caller rasters) |
+| `lib/cjkFont.ts` | On-demand Noto Sans TC/JP/KR for selectable-text PDFs: parse Google css2 `unicode-range` blocks, download ONLY the woff2 subsets the document's codepoints touch, wawoff2 (classic-script injected Emscripten) decompresses woff2→TTF for pdf-lib subsetting; `segment()` splits strings into per-subset runs |
+| `lib/pptx.ts` | PPTX read WITHOUT a library (fflate unzip + DOMParser over slide OOXML: text runs w/ b/i, bullets by `lvl`, tables, embedded images → data URIs; slide order via presentation.xml rels; one `<section data-slide>` per slide with `<hr data-page-break>` between slides) · write via pptxgenjs, lazy (`blocksToPptx`: h1/h2 or `---`/pagebreak start a slide, bullets/tables/images placed) |
+| `components/DocEditor.tsx` | Source textarea + live preview (split/source/preview) for md/html/json/text docs; DOCX and PPTX edit as Markdown and are rebuilt on save; sheets go to SheetEditor instead; Ctrl+S saves, Tab inserts |
+| `components/SheetEditor.tsx` | Spreadsheet GRID editor (csv/tsv/xlsx/xls/ods): tab per sheet (add/delete/rename, workbooks only), cell inputs w/ Enter/Tab/arrow nav, insert/delete/move rows+cols, sort by column, undo, row 0 styled as the header, 300-row windows w/ "show more"; save = xlsx of all sheets (xls/ods come back as .xlsx) or csv/tsv text of the active sheet |
+
+### Editors
+
+| File | Role |
+|---|---|
+| `components/ImageEditor.tsx` | **Raster layer editor**: layer = canvas surface. Tools: pan/move/pen(3 brushes)/eraser/line/rect/ellipse/arrow/text/crop/wand/rectsel/lasso/fill — all paint into the active layer. Layer panel (add/dup/merge-down/delete/reorder/opacity/blend/lock/mask), pixel history, wheel zoom, marching-ants selections, bg layer |
+| `components/ColorPicker.tsx` | Inline HSV picker (SV square + hue strip + hex), used by the ImageEditor layer panel, the PdfEditor watermark and the QrTool colours |
+| `components/GifEditor.tsx` | ScreenToGif-style: decodes via `decodeAnim` (GIF **and** APNG), film strip thumbs, per-frame delete/dup/move/delay, dedupe (32px signature merge), draggable caption layers (relative x/y), flatten toggle + matte, output GIF or APNG |
+| `components/MediaEditor.tsx` | A/V trim (DualRange + playhead buttons), volume/speed/rotate, mute or replace the audio track → saved as `Item.edit`, applied at ffmpeg time |
+
+### QR codes
+
+| File | Role |
+|---|---|
+| `lib/qr.ts` | QR encode (node-qrcode) / decode (jsQR), both lazy: `qrToCanvas`/`qrToSvg` (QrStyle: colours, size, quiet zone, ECC, centre logo), `decodeQr` downsamples then retries inverted/contrast-boosted, `decodeFrame` (camera loop), `payloads` builders (wifi/vcard/mail → mailto:) + `classifyPayload`, `DEFAULT_QR` |
+| `components/QrTool.tsx` | QR modal, two tabs — MAKE: template (text/URL/Wi-Fi/vCard/mail) → styled live preview, download PNG/SVG, copy, push PNG into the converter list; READ: drop/pick/paste image or camera scan (getUserMedia + `decodeFrame`) → decoded payload w/ type-aware actions. Opened from topbar `.qr-btn`, the 4-tab phone bar, or a FileCard QR chip |
+
+### Studio
+
+| File | Role |
+|---|---|
+| `components/Studio.tsx` | **Typed projects** (App `mode==='studio'`): launcher (type picker at creation — type is immutable; storage stats; zip import/export w/ id remap), workspace routing for the 6 types (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace, pdf→inline PdfEditor, text→inline DocEditor), primary-asset pickers (◎), blank canvas, new-project-from-asset |
+| `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
+| `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
+| `lib/studioTypes.ts` | `ProjectType` (6 types), `Clip`/`Track`/`MixerDoc`/`ImageDoc`/`VideoDoc`/`ProjectRec`/`AssetRec`, `empty*` factories, `INLINE_SAVE_EVT`, `uid()` |
+| `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
 | `lib/audioEngine.ts` | AudioBuffer decode cache (assetId-keyed), `playMix` live graph (solo/mute logic), `renderMixWav` OfflineAudioContext, `peaks` for waveforms |
 | `lib/wav.ts` | AudioBuffer → 16-bit PCM WAV |
-| `gif-libs.d.ts` | Hand-written types for gifuct-js / gifenc / upng-js |
+| `lib/useSplitter.ts` | Draggable panel-size hook (localStorage-persisted, dblclick reset) behind every `.split-gutter`/`.ie-gutter` |
 
 ## Invariants & gotchas (violating these causes regressions)
 
@@ -116,14 +148,14 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 5. **Text tool focus bug**: canvas `pointerdown` must `preventDefault()` or it blurs the floating text input instantly.
 6. **`.tool-btn.active:hover`** needs explicit `color: var(--bg)` — the generic hover rule otherwise paints ink-on-ink.
 7. **Editor canvases** are full-resolution; zoom is CSS width only. Pointer→canvas mapping divides by `getBoundingClientRect`.
-8. **ImageEditor history**: entries share the base `Blob` by reference; geometry ops (crop/rotate/flip/wand) create a new base blob AND transform object coordinates.
+8. **ImageEditor history**: each entry (`HistEntry`) snapshots every layer's pixels plus the base `Blob` (shared by reference); geometry ops (crop/rotate/flip/resize) go through `transformLayers` + `swapBase`. The full layer rules are in 18.
 9. Build output goes nowhere near the repo: `dist/` is gitignored.
 10. Bullet-proof rule: after edits run `npx tsc` — the project is strict-mode clean.
-11. **Studio persistence**: mixer doc saves to IndexedDB debounced 500ms via `persist()`; clips reference assets by id — deleting an asset must strip its clips AND `dropAssetBuffer`.
+11. **Studio persistence**: `savePatch` debounces the IndexedDB write by 500 ms; clips reference assets by id — deleting an asset must strip its clips AND `dropAssetBuffer`.
 12. **AudioContext** is created lazily (user gesture) — never at module load. Buffers must be decoded (cache warm) before `playMix`/`renderMixWav`; Studio warms the cache on project load.
 13. **MediaEdit trim preview**: never seek-back on reaching trim end (causes visible shake); trim handles scrub `currentTime` instead.
-14. **Typed projects**: `ProjectRec.type` is set at creation and immutable; legacy records without `type` are 'audio'. `savePatch` updates `curRef` synchronously — required for rapid patch bursts (trim drags, `onObjectsChange`). The async init load MERGES into `projects` and only fills a null `curId` — clobbering either wipes a project created before the IndexedDB read resolves (savePatch then no-ops on a null curRef and the record never persists).
-15. **ImageEditor inline mode**: `initialObjects` consumed once at mount (key by base asset id); `objId` must be bumped past loaded ids. Pseudo-Items passed to inline editors MUST be memoized or the init effect loops.
+14. **Typed projects**: `ProjectRec.type` is set at creation and immutable; legacy records without `type` are 'audio'. `savePatch` updates `curRef` synchronously — required for rapid patch bursts (trim drags, `onLayersChange`). The async init load MERGES into `projects` and only fills a null `curId` — clobbering either wipes a project created before the IndexedDB read resolves (savePatch then no-ops on a null curRef and the record never persists).
+15. **ImageEditor inline mode**: `initialLayers` is consumed once at mount, so the inline editor is keyed by its base asset id. Pseudo-Items passed to inline editors MUST be memoized or the init effect loops.
 16. **muxVideo**: audio timeline aligns to the TRIMMED video start; wav is rendered by OfflineAudioContext first, then mapped `-map 0:v -map 1:a -shortest`.
 17. **Modals MUST portal to `<body>`** (`components/Overlay.tsx`, or `createPortal` directly). Any ancestor transform/filter makes itself the containing block for `position:fixed`, which clips the backdrop. Keyframe endings should also be `transform: none` for the same reason — AND transform-animating entrances must fill `backwards`, never `both`/`forwards`: a FINISHED fill keeps a transform on the element (Chrome reports an identity matrix even for an end frame of none), which overrides the element's own transform (bottom-sheet slides silently freeze — animations beat inline styles) and makes it the containing block for fixed descendants. Bit the Studio assets sheet via rise/panelIn.
 18. **Layer model is RASTER**: a `Layer` IS a canvas (`pixRef: Map<id, HTMLCanvasElement>`, persisted as `src` dataURL). Every tool paints into the active layer; there are no sub-objects. Rendering composites each layer through a scratch canvas (mask via `destination-in`, then alpha+blend). Geometry ops (crop/rotate/resize) must run `transformLayers` so every layer canvas follows the base. History snapshots ALL layer pixels (cap 14) — keep it that way or undo desyncs.
@@ -143,11 +175,11 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
     encoder-specific and point opposite ways — libmp3lame 0(best)…9, libvorbis
     0…10(best) — so `audioQuality` is mirrored for vorbis. Native AAC VBR is
     experimental, so m4a always uses `-b:a`.
-21. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as ≤1024px dataURL in `Obj.src`; runtime bitmaps live in module-level `imgBmpCache` keyed by obj id. GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
+21. **Cross-type imports**: asset-panel ↧ routes by project type (Studio `importAssetToEditor`). Image layers persist as full-resolution PNG dataURLs in `Layer.src` (written by `commitPixels`, saved under `ImageDoc.layers`). GIF appends contain-fit imported frames to its own canvas size. GIF→video conversion is capped at 15 MB.
 22. **Mobile layer** (end of styles.css; details in `docs/claude/styles.md`): the page must NEVER
     scroll horizontally — html/body carry `overflow-x: clip` + `overscroll-behavior-x: none`
     (a sideways pan on mobile triggers the browser's back-swipe); viewport-wide decorations get
-    clipped by their container (`.hero` overflow:hidden). Breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
+    clipped by their container (`.hero` overflow:hidden). Breakpoints 640 (phone: modal editors become full-width sheets, inputs ≥16px for iOS focus-zoom) / 760 (studio stacks AND switches to auto height so the page scrolls; really the app-mode family of 24). Hover-only affordances need a `@media (hover:none)` fallback; new drag surfaces need `touch-action:none` + `setPointerCapture`; `.trk-head`/`.lane` CSS must mirror `HEAD_W`/`LANE_H` in Mixer.tsx; `.ed-options` stays a nowrap fixed-height scroller by design; new `100vh` layout values need a dvh override in the `@supports (height:100dvh)` block.
 23. **Mobile image editor** (≤720, **≤540px tall**, or coarse-pointer ≤920 — landscape phones, squat PWA windows and touch tablets get the same treatment; the OR-condition media queries are self-sufficient: they reset overlay padding + editor max-width/radius because the generic ≤640 rules do not apply at 844×390): layers panel becomes a fixed bottom sheet (`.layers-panel.open`, `panelOpen` state + `.lp-fab` toggle + `.lp-scrim` in ImageEditor.tsx). ≤640 the modal editor with `.ie-layout` is a **100dvh paint-app GRID** — canvas owns the screen, `.ed-toolbar` becomes a 50px vertical scrolling left rail, `.ed-options` a thin bottom strip, foot last (`.kbd-hints` hidden). The inline editor gets the same rail grid ≤760, where the rail is `position:absolute; inset:0` inside its own grid area (the editor is `position:relative`) — its ~900px content MUST stay out of track sizing or the height:auto studio chain grows the page to fit (a vh `max-height` cap did that job before but left the rail border ending mid-air); both app rails carry a bottom mask-image fade + 26px bottom padding as the scroll hint. The inline `.ie-viewport` is a flex box with `.ie-inner{margin:auto}` so the canvas centers instead of hugging the top-left (same trick as the modal). Focus mode adds `env(safe-area-inset-top)` to `.studio.st-focus` — the topbar that normally carries the notch padding is hidden there — and EVERY project type goes FULL-BLEED in focus: app gutter zeroed, `.studio.st-focus` is exactly 100dvh (a real `height`, not min-height — WebKit doesn't stretch flex children from min-height alone), inline editors shed their card chrome, and the bottom-most surface (image options strip / editor body / mixer / vw) carries `env(safe-area-inset-bottom)` itself so nothing shows under it. Non-grid inline editors get `overflow-y:auto` (the studio no longer grows). The base `.ie-layout` is `align-items:start` — the modal override needs `stretch` or the viewport collapses.
 24. **App-mode media condition**: the stacked studio, focus mode, and the editor app layouts share
     ONE breakpoint family — `(max-width:760px), (max-height:540px), (pointer:coarse) and (max-width:920px)`
@@ -186,11 +218,13 @@ fails on stale map tokens, unmapped src files, HEAD_W↔CSS desync, and i18n key
 27. **Documents**: `Kind 'doc'` outputs depend on the SOURCE sub-type — always call `outputsFor(kind, file)` /
     `defaultTarget` with the file. Every document conversion goes through sanitized HTML
     (`docToHtml` → `htmlTo*`); spreadsheets/JSON take a data fast path. mammoth MUST be imported as
-    `mammoth/mammoth.browser.js` (the node entry pulls fs/path). PDF/PNG output is RASTERIZED by
-    `layoutHtml` (no font files → CJK renders, text unselectable — say so in UI copy). turndown-gfm
-    only converts tables with a header row and chokes on `<p>` inside cells → `normalizeTablesForMd`
-    runs before every html→md. Documents have no Studio type (`openAsProject` bails, FileCard hides
-    the button). All five doc libs are lazy `import()`s (mammoth 500 kB, xlsx 430 kB chunks).
+    `mammoth/mammoth.browser.js` (the node entry pulls fs/path). PDF output has two painters in
+    lib/docPaint — selectable vector text (default, invariant 28) and raster pages (fallback, or when
+    `docPdfText` is off: CJK still renders, text is not selectable — say so in UI copy); PNG output is
+    always raster. turndown-gfm only converts tables with a header row and chokes on `<p>` inside cells
+    → `normalizeTablesForMd` runs before every html→md. Only text-ish docs (`isTextDoc`) become Studio
+    projects (invariant 29): `openAsProject` bails on the others and FileCard hides their button. Every
+    doc library is a lazy `import()` (mammoth, xlsx, marked, turndown + gfm, docx, pptxgenjs).
 28. **Doc→PDF text mode** (`settings.docPdfText`, default ON): pdf-lib needs raw sfnt tables, so
     Google's woff2 subsets are decompressed by wawoff2 loaded as a CLASSIC SCRIPT via
     `?url` + <script> injection — bundling its Emscripten glue (Vite CJS transform) breaks env
@@ -226,10 +260,13 @@ perspective grid + drifting orbs in hero (`.hero::before/::after`), RGB-split gl
 Display font Chakra Petch (CJK falls back to Noto Sans); mono data labels stay. Sharp radii
 (6/10px), no rotations, no hand-drawn shapes. `prefers-reduced-motion` kills all of it (last
 block in styles.css). Dark theme via `:root[data-theme]` variables only.
+The README cover (`docs/images/cover.html` → `cover.webp`) uses the dark tokens; re-render it when
+the palette or the mark changes.
 
 ## Conventions
 
 - New converter feature → param in `settings.ts` + section in `SettingsPanel` + wire into `buildArgs` (recipe: `/add-setting`).
-- New editor capability → keep it object-model (ImageEditor) or frame-model (GifEditor); bake only geometry.
+- New editor capability → keep ImageEditor raster (paint into the active layer, invariant 18) and GifEditor frame-based; bake only geometry.
 - Structural change to a mapped file → update its `docs/claude/*.md` map in the same commit.
-- Commits: conventional-ish (`feat:`, `fix:`, `design:`, `docs:`), one logical change each, always build first.
+- Bug fix → add a regression test in `tests/` next to the closest existing one.
+- Commits: conventional-ish (`feat:`, `fix:`, `design:`, `docs:`), one logical change each, always build and test first.

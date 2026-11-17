@@ -14,13 +14,15 @@ progressive disclosure; sub-agent summarization) and the taxonomy in
 
 | Layer | Loaded | Contents | Token rule |
 |---|---|---|---|
-| `CLAUDE.md` | every session | commands, file map, invariants, map index | keep ≲200 lines; only what can't be derived from code |
+| `CLAUDE.md` | every session | commands, file map, invariants, map index | one line per file, grouped by area; invariants only for regressions that really happened; only what can't be derived from code |
 | `docs/claude/*.md` | on demand (agent reads when touching that subsystem) | per-subsystem maps: state, functions, DOM/class trees, contracts | read the map INSTEAD of the source; grep names from it |
 | `.claude/skills/*` | description always, body on invocation | multi-step recipes (`/add-setting`, `/add-format`) | one recipe per skill, < 100 lines |
 | `.claude/settings.json` | mechanical | permission allowlist + Stop hook running the drift checker | no prose here |
 
 Two deliberate non-choices: no `@import` in CLAUDE.md (imports load every session,
 defeating on-demand economy) and no line numbers in maps (names are grep-stable, lines are not).
+File sizes in map headings ("App.tsx (777)") are only there to say how big a file is; refresh them
+when you touch a map, and don't trust them as positions.
 
 ## Maintenance — the part that actually matters
 
@@ -35,6 +37,7 @@ change has a maintenance trigger:
 | add a breakpoint / section to `styles.css` | `styles.md` responsive table |
 | change `HEAD_W` / `LANE_H` in Mixer.tsx | the mirrored px values in `styles.css` |
 | add a UI string | all three dicts in `i18n.tsx` (zh / en / ja, same position) |
+| fix a bug | a regression test in `tests/` (CI runs `npm test` on every pull request) |
 
 Same-commit rule: map updates ride along with the code change they describe.
 
@@ -57,6 +60,11 @@ that left drift) · as the **context-check job** in `.github/workflows/deploy.ym
 The checker is intentionally lenient (substring search, fenced code blocks skipped) —
 it catches renames/deletions of real identifiers with near-zero false positives. If it
 does false-positive, fix the doc wording or extend `SKIP_TOKEN`, don't delete the check.
+
+What it cannot see: a backticked span is checked only when it is ONE bare identifier or
+`.class` on one line. Calls (`persist()`), several names in one span, and spans that wrap
+a line are skipped, and so is prose. Stale descriptions therefore still need a reader: when a
+map section is about code you just changed, read the whole section, not only the names.
 
 ## References
 
