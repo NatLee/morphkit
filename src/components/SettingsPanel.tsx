@@ -14,6 +14,10 @@ const VBR_LEVELS: ReadonlyArray<[q: number, kbps: number]> = [
  */
 const IMAGE_TARGET_SIZES = [100e3, 200e3, 500e3, 1e6, 2e6, 5e6];
 const VIDEO_TARGET_SIZES = [10e6, 25e6, 50e6, 100e6];
+/** Loudness targets in LUFS, each named after where such files usually go. */
+const LOUDNESS_TARGETS: ReadonlyArray<[lufs: number, labelKey: string]> = [
+  [-14, 'loudnessStreaming'], [-16, 'loudnessPodcast'], [-23, 'loudnessBroadcast'],
+];
 const sizeLabel = (bytes: number) => (bytes >= 1e6 ? `${bytes / 1e6} MB` : `${bytes / 1e3} KB`);
 
 interface Props {
@@ -185,6 +189,20 @@ export function SettingsPanel({ settings, onChange }: Props) {
               <option value={2}>{t('stereo')}</option>
               <option value={1}>{t('mono')}</option>
             </select>
+          </label>
+
+          <label className="sp-field">
+            <span className="sp-label">{t('audioLoudness')}</span>
+            <select
+              value={settings.audioLoudness}
+              onChange={(e) => set('audioLoudness', Number(e.target.value))}
+            >
+              <option value={0}>{t('loudnessOff')}</option>
+              {LOUDNESS_TARGETS.map(([lufs, key]) => (
+                <option key={lufs} value={lufs}>{t(key)}</option>
+              ))}
+            </select>
+            <span className="sp-hint">{t('audioLoudnessHint')}</span>
           </label>
         </div>
       </div>
