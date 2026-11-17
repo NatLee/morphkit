@@ -42,7 +42,7 @@ one or two lines to update its map.
 
 | Map | Read before opening |
 |---|---|
-| `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, SettingsPanel, FormatMatrix, DualRange, Overlay, FramePicker, InfoTip, InstallPrompt |
+| `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, SettingsPanel, FormatMatrix, DualRange, Overlay, ConfirmDialog, FramePicker, InfoTip, InstallPrompt |
 | `docs/claude/editors.md` | ImageEditor.tsx (2k lines), GifEditor.tsx, PdfEditor.tsx, PdfPasswordModal.tsx, DocEditor.tsx, SheetEditor.tsx, QrTool.tsx |
 | `docs/claude/studio.md` | Studio.tsx (1.4k), Mixer.tsx, VideoWorkspace.tsx, MediaEditor.tsx |
 | `docs/claude/libs.md` | every lib/*.ts, types.ts, i18n.tsx mechanics |
@@ -72,6 +72,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
 | `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
+| `components/ConfirmDialog.tsx` | Second step for irreversible actions (Studio project and asset deletes): Overlay + alertdialog, Cancel holds the focus, Escape cancels, danger button confirms |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
 | `components/FramePicker.tsx` | Video → frames: single-frame (image projects) or clip w/ fps (GIF projects). Inlines its own portal — keep in sync with Overlay |
 | `vite-env.d.ts` | `vite/client` types (`import.meta.env`) |
@@ -269,4 +270,5 @@ the palette or the mark changes.
 - New editor capability → keep ImageEditor raster (paint into the active layer, invariant 18) and GifEditor frame-based; bake only geometry.
 - Structural change to a mapped file → update its `docs/claude/*.md` map in the same commit.
 - Bug fix → add a regression test in `tests/` next to the closest existing one.
+- Anything that deletes without an undo (IndexedDB records, user files) goes through `ConfirmDialog`; say in the message what goes with it.
 - Commits: conventional-ish (`feat:`, `fix:`, `design:`, `docs:`), one logical change each, always build and test first.

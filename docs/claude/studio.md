@@ -33,7 +33,7 @@ workspace, skipping the launcher; App clears it on manual studio-toggle.
 
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
-entered · pickType · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
+entered · pickType · `confirmDel` ({project}|{asset}|null — the pending delete shown in ConfirmDialog) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
 sortBy (`'mk-sort'`) · metaPj · metaFacts {id, name, meta: FileMeta} (info-modal probe, keyed by project
 id so a slow probe can't paint another project's rows) · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
 framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
@@ -50,7 +50,7 @@ audio/video get tracks+clips+timeline, video adds dims/duration/trim, image adds
 gif adds dims; never show track counts on an image project) ·
 `flattenImageProject` (≤320px launcher thumb) · `noteThumb` (doc assets: paints first lines on a 320×200 canvas — an .md blob is NOT an <img> src; the thumbs effect branches doc → noteThumb, pdf → extractMeta preview, before the generic object-URL branch) · `savePatch(patch)` — THE mutation funnel
 (merge curRef → setProjects → debounced putProject) · `leaveWorkspace` · `patchVideoDoc(fn)` ·
-`createProject`/`removeProject`/`renameProject` · `importFiles` (hidden input uses the shared `ACCEPT` from lib/formats) · `removeAsset` (must strip clips +
+`createProject`/`removeProject(p)` (the ONLY project delete — launcher × and the workspace bar both reach it through `confirmDel`; deleting the open project first clears `saveTimer`/`baseSaveTimer` and nulls `curRef`, or a pending debounced save writes the deleted record back)/`renameProject` · `projectSize(p)` + `confirmNode` (dialog text: live assets for the open project, launcher stats otherwise) · `importFiles` (hidden input uses the shared `ACCEPT` from lib/formats) · `removeAsset` (must strip clips +
 `dropAssetBuffer` — invariant 11) · `downloadAsset` · `replaceAssetBlob` · `exportAsset` ·
 `withClip`/`addToMix` · `onRecorded` (rec_*.webm asset → addToMix) · `onAudioExtracted` (extracted WAV →
 `*_audio.wav` asset + its own track at timeline 0, becomes active) · `newFromAsset` (delegates to
@@ -62,10 +62,10 @@ for inline editors — invariant 15) · `persistBase`. Window `paste` listener w
 
 **Launcher DOM**: `.studio.st-launcher > .st-bar (h2.launcher-title, InfoTip, .opt-spacer, select.tb-select,
 .st-tabs grid|list, import btn)` + `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body
-(.type-badge.tb-{type}, .pj-name, .pj-meta)) + .pj-actions (info/export/delete)` + `.pj-card.pj-new` ·
+(.type-badge.tb-{type}, .pj-name, .pj-meta)) + .pj-actions (info/export/delete → confirm)` + `.pj-card.pj-new` ·
 Overlay→`.editor.type-modal > .pj-grid > .pj-card.pj-type×6` (one per `TYPE_META` entry) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
-**Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete)` +
+**Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete → confirm)` +
 `.st-body (resizable assets | .split-gutter | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon
 + .asset-name + .asset-size + .asset-btns (＋ addToMix · ◎ pickBase/pickGif/pickVideo/pickPdf/pickText · import-to-editor ·
 new-from-asset · download · ×)) + main.st-main[.drop-hot] > .view-anim key={ptype+curId} >
