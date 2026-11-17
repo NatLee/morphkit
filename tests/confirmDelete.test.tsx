@@ -88,7 +88,7 @@ describe('Studio deletes only after a confirmation', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(idb.deleteProject).toHaveBeenCalledWith('p1');
     // back on the launcher, and the pending debounced save did not write the project back
-    await screen.findByText('No projects yet — hit “＋” to create one');
+    await screen.findByText(/^A project is work you finish over several sittings/);
     await new Promise((r) => setTimeout(r, 700));
     expect(idb.putProject).not.toHaveBeenCalled();
   });

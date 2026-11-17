@@ -60,13 +60,14 @@ const KIND_GLYPH: Record<string, string> = {
   doc: 'M6 3h9l4 4v14H6zM15 3v4h4M8 12h8M8 15h8M8 18h5',
 };
 
-const TYPE_META: Record<ProjectType, { labelKey: string; descKey: string; glyph: string }> = {
-  audio: { labelKey: 'typeAudio', descKey: 'typeAudioDesc', glyph: KIND_GLYPH.audio },
-  image: { labelKey: 'typeImage', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image },
-  gif: { labelKey: 'typeGif', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif },
-  video: { labelKey: 'typeVideo', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video },
-  pdf: { labelKey: 'typePdf', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf },
-  text: { labelKey: 'typeText', descKey: 'typeTextDesc', glyph: KIND_GLYPH.doc },
+/** Per project type: its name, what people use it for (`useKey`, the card title when starting one) and what it offers. */
+const TYPE_META: Record<ProjectType, { labelKey: string; useKey: string; descKey: string; glyph: string }> = {
+  audio: { labelKey: 'typeAudio', useKey: 'typeAudioUse', descKey: 'typeAudioDesc', glyph: KIND_GLYPH.audio },
+  image: { labelKey: 'typeImage', useKey: 'typeImageUse', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image },
+  gif: { labelKey: 'typeGif', useKey: 'typeGifUse', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif },
+  video: { labelKey: 'typeVideo', useKey: 'typeVideoUse', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video },
+  pdf: { labelKey: 'typePdf', useKey: 'typePdfUse', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf },
+  text: { labelKey: 'typeText', useKey: 'typeTextUse', descKey: 'typeTextDesc', glyph: KIND_GLYPH.doc },
 };
 
 /** Common canvas sizes offered when starting a blank image project. */
@@ -163,8 +164,15 @@ const primaryAsset = (p: ProjectRec, list: AssetRec[]): AssetRec | null => {
   );
 };
 
-/** `enterProjectId`: skip the launcher and open this project directly (one-shot, read at mount). */
-export function Studio({ enterProjectId = null }: { enterProjectId?: string | null }) {
+interface StudioProps {
+  /** skip the launcher and open this project directly (one-shot, read at mount) */
+  enterProjectId?: string | null;
+  /** told whenever the number of projects changes (the app's nav shows it) */
+  onProjectCount?: (n: number) => void;
+}
+
+/** The "Projects" place of the app (the code keeps its original name, Studio). */
+export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   const { t } = useI18n();
   const [projects, setProjects] = useState<ProjectRec[]>([]);
   const [curId, setCurId] = useState<string | null>(null);
@@ -180,7 +188,11 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
   const [assetsOpen, setAssetsOpen] = useState(() => !window.matchMedia(APP_MQ).matches);
   // draggable asset-panel width (desktop; ≤760 stacks and hides the gutter)
   const assetsSplit = useSplitter('morphkit-stw', 252, 180, 460);
-  const [pickType, setPickType] = useState(false);
+  // what the browser lets this site store, for the "N MB of about X" line (null = it would not say)
+  const [quota, setQuota] = useState<number | null>(null);
+  useEffect(() => {
+    navigator.storage?.estimate?.().then((e) => setQuota(e.quota ?? null)).catch(() => { /* not supported */ });
+  }, []);
   const [pjStats, setPjStats] = useState<Record<string, { n: number; bytes: number }>>({});
   const [thumbs, setThumbs] = useState<Record<string, { url: string; video: boolean }>>({});
   const [layout, setLayout] = useState<'grid' | 'list'>(
@@ -221,6 +233,7 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
 
   const cur = projects.find((p) => p.id === curId) ?? null;
   useEffect(() => { curRef.current = cur; }, [cur]);
+  useEffect(() => { onProjectCount?.(projects.length); }, [projects.length, onProjectCount]);
   const ptype: ProjectType = cur?.type ?? 'audio';
 
   // phones enter a workspace in FOCUS mode (chrome hidden, assets behind the FAB sheet)
@@ -316,7 +329,6 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     // ephemeral until the user actually does something (savePatch persists)
     setProjects((prev) => [p, ...prev]);
     setCurId(p.id);
-    setPickType(false);
     setEntered(true);
   };
 
@@ -621,6 +633,8 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
     })();
     return () => { stale = true; };
   }, [entered, projects]);
+
+  const totalBytes = useMemo(() => Object.values(pjStats).reduce((sum, s) => sum + s.bytes, 0), [pjStats]);
 
   const sortedProjects = useMemo(() => {
     const list = [...projects];
@@ -948,21 +962,24 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
       <div className="studio st-launcher">
         <div className="st-bar">
           <h2 className="launcher-title">{t('projectsTitle')}</h2>
-          <InfoTip text={t('tipProjects')} />
           <span className="opt-spacer" />
-          <select className="tb-select" value={sortBy} onChange={(e) => setSortP(e.target.value as 'updated' | 'name' | 'size')}>
-            <option value="updated">{t('sortUpdated')}</option>
-            <option value="name">{t('sortName')}</option>
-            <option value="size">{t('sortSize')}</option>
-          </select>
-          <div className="st-tabs" role="group">
-            <button className={layout === 'grid' ? 'active' : ''} onClick={() => setLayoutP('grid')} title="Grid">
-              <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
-            </button>
-            <button className={layout === 'list' ? 'active' : ''} onClick={() => setLayoutP('list')} title="List">
-              <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            </button>
-          </div>
+          {projects.length > 0 && (
+            <>
+              <select className="tb-select" aria-label={t('sortLabel')} value={sortBy} onChange={(e) => setSortP(e.target.value as 'updated' | 'name' | 'size')}>
+                <option value="updated">{t('sortUpdated')}</option>
+                <option value="name">{t('sortName')}</option>
+                <option value="size">{t('sortSize')}</option>
+              </select>
+              <div className="st-tabs" role="group">
+                <button className={layout === 'grid' ? 'active' : ''} onClick={() => setLayoutP('grid')} title="Grid">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                </button>
+                <button className={layout === 'list' ? 'active' : ''} onClick={() => setLayoutP('list')} title="List">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                </button>
+              </div>
+            </>
+          )}
           <button className="btn btn-ghost" onClick={() => pjImportRef.current?.click()}>
             {t('importProject')}
           </button>
@@ -979,6 +996,18 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
           />
         </div>
 
+        {/* first visit: say what a project is; later: the work comes first, the facts shrink to one line */}
+        {projects.length === 0 ? (
+          <p className="pj-explain">{t('pjExplain')}</p>
+        ) : (
+          <p className="pj-note">
+            <b>{t('pjNoteCount', { n: String(projects.length), size: formatBytes(totalBytes) })}</b>
+            {quota != null && <span>{t('pjNoteQuota', { quota: formatBytes(quota) })}</span>}
+            <span>{t('pjNoteLocal')}</span>
+          </p>
+        )}
+
+        {projects.length > 0 && (
         <div className={layout === 'grid' ? 'pj-grid' : 'pj-list'}>
           {sortedProjects.map((p) => (
             <div className="pj-card" key={p.id}>
@@ -1021,34 +1050,26 @@ export function Studio({ enterProjectId = null }: { enterProjectId?: string | nu
             </div>
           ))}
 
-          <button className="pj-card pj-new" onClick={() => setPickType(true)}>
-            <span className="pj-plus">＋</span>
-            <span className="pj-name">{t('newProject')}</span>
-          </button>
         </div>
-
-        {projects.length === 0 && <p className="st-empty">{t('noProjects')}</p>}
-
-        {/* type picker — overlay modal (portaled: always full-viewport) */}
-        {pickType && (
-          <Overlay onClick={() => setPickType(false)}>
-            <div className="editor type-modal" onClick={(e) => e.stopPropagation()}>
-              <p className="mx-label">{t('chooseType')}</p>
-              <div className="pj-grid">
-                {(Object.keys(TYPE_META) as ProjectType[]).map((tp) => (
-                  <button key={tp} className="pj-card pj-type" onClick={() => void createProject(tp)}>
-                    <span className="type-icon">
-                      <svg viewBox="0 0 24 24" width="22" height="22"><path d={TYPE_META[tp].glyph} fill={tp === 'gif' ? 'none' : 'currentColor'} stroke={tp === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
-                    </span>
-                    <span className="pj-name">{t(TYPE_META[tp].labelKey)}</span>
-                    <span className="pj-meta">{t(TYPE_META[tp].descKey)}</span>
-                  </button>
-                ))}
-              </div>
-              <button className="btn btn-ghost btn-sm" onClick={() => setPickType(false)}>{t('cancel')}</button>
-            </div>
-          </Overlay>
         )}
+
+        {/* starting a project: pick by what you want to make — the type badge says what it becomes */}
+        <div className="pj-uses-head">
+          <h3>{t(projects.length ? 'pjUsesMore' : 'pjUsesFirst')}</h3>
+          <span>{t('pjTypeFixed')}</span>
+        </div>
+        <div className="pj-uses">
+          {(Object.keys(TYPE_META) as ProjectType[]).map((tp) => (
+            <button key={tp} className={`pj-use ut-${tp}`} onClick={() => void createProject(tp)}>
+              <span className="pj-use-title">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={TYPE_META[tp].glyph} fill={tp === 'gif' ? 'none' : 'currentColor'} stroke={tp === 'gif' ? 'currentColor' : 'none'} strokeWidth="1.8" /></svg>
+                {t(TYPE_META[tp].useKey)}
+              </span>
+              <span className="pj-use-desc">{t(TYPE_META[tp].descKey)}</span>
+              <span className={`type-badge tb-${tp}`}>{t(TYPE_META[tp].labelKey)}</span>
+            </button>
+          ))}
+        </div>
 
         {confirmNode}
 
