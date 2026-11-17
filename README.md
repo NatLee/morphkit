@@ -41,6 +41,9 @@ of file, and its own options.
   (every image and PDF in the list becomes one PDF).
 - Images through the Canvas API with a quality slider; GIF ⇄ APNG keeps every frame, APNG keeps
   full transparency, GIF output keeps 1-bit transparency or flattens onto a colour.
+- iPhone photos (HEIC / HEIF) open like any other image: convert them to JPG (the default), PNG, WEBP or
+  PDF, read their text, or edit them. Browsers cannot decode HEIC themselves, so a decoder (libheif, about
+  1.5 MB) is loaded from this site the first time you add one.
 - Any image to an ICO icon (favicon) holding 16 – 256 px versions, each no bigger than the original,
   centred on a transparent square.
 - Audio and video through [ffmpeg.wasm](https://ffmpegwasm.netlify.app/) (single-thread core, so no
@@ -151,6 +154,8 @@ Your files never leave the browser. The app does make a few network requests:
   read text from an image or a scanned PDF, and only after you agree in a dialog;
 - the interface fonts (Chakra Petch and IBM Plex) from Google Fonts.
 
+The HEIC decoder (about 1.5 MB) comes from this site itself, the first time you add an iPhone photo.
+
 ## Known limitations
 
 - Browser memory tops out around 1.8–2 GB; bigger files fail, and the app warns before you try.
@@ -193,3 +198,7 @@ the source of the cover and says how to render it again.
 ## License
 
 [MIT](LICENSE). Use it, change it, host your own copy; keep the copyright notice.
+
+The HEIC decoder is [libheif](https://github.com/strukturag/libheif) (built by
+[libheif-js](https://github.com/catdad-experiments/libheif-js)), licensed under the LGPL-3.0. It ships as its own
+files (`assets/libheif-*.js` and `.wasm`) that load only for HEIC photos, so you can swap in your own build.
