@@ -115,7 +115,8 @@
     .clip(**touch-action:none**; tracks cycle pigments via .tl-row:nth-child — row 1 is the ruler)
     .clip-wave .clip-name .clip-edge(8px; 14 touch) .mix-empty(padding-left
     192 = HEAD_W+20) .playhead(top:-30px) · themed scrollbars group · `project launcher`: .st-launcher
-    .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-explain .pj-note
+    .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-explain .pj-note(.pj-warn) .pj-backup(.bk-never/.bk-stale/.bk-fresh)
+    .pj-trash(.pj-trash-head .pj-trash-toggle .pj-trash-n .pj-trash-list .pj-trash-name .pj-purge) .pj-undo(restore toast)
     .pj-uses-head .pj-uses(3 cols → 2 ≤900 → 1 ≤560, so six cards never leave an orphan) .pj-use(.ut-{type} sets --c)
     .pj-use-title .pj-use-desc ·
     `typed projects`: .type-badge .tb-audio/image/gif/video/pdf/text .picker-panel .picker-list ·

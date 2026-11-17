@@ -78,7 +78,7 @@ installed as an app (PWA).
 | Spreadsheet | Grid editor for CSV / TSV / XLSX / XLS / ODS with sheet tabs, row and column insert / move / delete and sorting |
 | Audio / video | Trim with a two-handle timeline, volume, speed, rotate, mute or replace the audio track |
 
-**Projects** (called Studio until November 2026) are for work you come back to. They are kept in the browser (IndexedDB), and the page says so up front, with how much space they take: a multi-track audio mixer with recording and WAV
+**Projects** (called Studio until November 2026) are for work you come back to. They are kept in the browser (IndexedDB), and the page says so up front, with how much space they take. Each project shows whether its latest state has been exported as a backup, and a deleted project waits 30 days in a trash before it is gone for good: a multi-track audio mixer with recording and WAV
 export, video projects that export MP4 with the mixed audio, and image, GIF, PDF and text projects
 that keep their layers and edits. Projects can be exported and imported as ZIP files.
 

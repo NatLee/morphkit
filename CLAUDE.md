@@ -137,10 +137,10 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 
 | File | Role |
 |---|---|
-| `components/Studio.tsx` | **Typed projects** — shown to users as 專案 / Projects, the code keeps the name Studio (App `mode==='studio'`): launcher (first visit explains what a project is, later the list comes first with a one-line storage note; six use cards start a project — type is immutable; zip import/export w/ id remap), workspace routing for the 6 types (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace, pdf→inline PdfEditor, text→inline DocEditor), primary-asset pickers (◎), blank canvas, new-project-from-asset |
+| `components/Studio.tsx` | **Typed projects** — shown to users as 專案 / Projects, the code keeps the name Studio (App `mode==='studio'`): launcher (first visit explains what a project is, later the list comes first with a one-line storage note and a backup mark per card; six use cards start a project — type is immutable; deleting moves a project to a 30-day trash (restore / delete for good); zip import/export w/ id remap, export stamps the backup), workspace routing for the 6 types (audio→Mixer, image→inline ImageEditor w/ persisted layers, gif→inline GifEditor, video→VideoWorkspace, pdf→inline PdfEditor, text→inline DocEditor), primary-asset pickers (◎), blank canvas, new-project-from-asset |
 | `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
-| `lib/studioTypes.ts` | `ProjectType` (6 types), `Clip`/`Track`/`MixerDoc`/`ImageDoc`/`VideoDoc`/`ProjectRec`/`AssetRec`, `empty*` factories, `INLINE_SAVE_EVT`, `uid()` |
+| `lib/studioTypes.ts` | `ProjectType` (6 types), `Clip`/`Track`/`MixerDoc`/`ImageDoc`/`VideoDoc`/`ProjectRec` (+ `deletedAt`, `exportedAt`)/`AssetRec`, `empty*` factories, trash rules (`TRASH_DAYS`, `isTrashed`, `trashDaysLeft`, `trashExpired`), `backupState`, `INLINE_SAVE_EVT`, `uid()` |
 | `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
 | `lib/audioEngine.ts` | AudioBuffer decode cache (assetId-keyed), `playMix` live graph (solo/mute logic), `renderMixWav` OfflineAudioContext, `peaks` for waveforms |
 | `lib/wav.ts` | AudioBuffer → 16-bit PCM WAV |
@@ -286,6 +286,15 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     preset clears after one add, a batch preset stays until merged or cancelled. tests/tasks.test.tsx
     checks every task against `outputsFor` and `fieldsFor`, and that its two strings (`task_<id>`,
     `task_<id>_d`) exist in all three languages. New user-facing job → one entry + six strings.
+35. **Deleting a project = `deletedAt`** (the record and its assets stay in IndexedDB). `listProjects()`
+    returns trashed records too — every reader must filter with `isTrashed` (Studio init splits them,
+    App counts live ones only). Only three things call `idbDeleteProject`: the trash's "delete for good",
+    "empty the trash" (both behind ConfirmDialog) and the automatic purge at Studio init of records past
+    `TRASH_DAYS`. `removeProject` writes the LATEST in-memory state (`curRef`) with `deletedAt` after
+    clearing the debounced save, so an unsaved rename survives into the trash and the pending save
+    cannot write the project back live. `exportedAt` is stamped by `exportProjectZip` through
+    `savePatch(patch, false)` — `touch: false` leaves `updatedAt` alone, or the backup would read as
+    stale the moment it is made. The import must restore everything the export wrote (`...meta.imageDoc`).
 
 ## Design language ("Cyberdeck")
 

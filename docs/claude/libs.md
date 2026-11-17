@@ -137,6 +137,10 @@ audioLoudness 0 · ocrLang 'auto' (type `OcrLangSetting` from lib/ocr).
 
 ## lib/idb.ts (93)
 
+`listProjects()` returns EVERY record, trashed ones included (`deletedAt`, invariant 35) — filter with `isTrashed`
+(lib/studioTypes). `deleteProject(id)` removes the record and its assets for good; only the trash and the expiry purge call it.
+
+
 DB `'morphkit-studio'` v1: store `projects` (keyPath id) + `assets` (keyPath id, index `projectId`).
 Exports: putProject/listProjects/deleteProject/putAsset/listAssets/deleteAsset ·
 `createProjectWithAsset(name, kind, blob, type)` → ProjectRec (persists asset + typed project,

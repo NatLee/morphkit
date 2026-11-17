@@ -33,7 +33,7 @@ import { applyTask, taskById, taskFits, type PdfExportPreset, type Task } from '
 import { createProjectWithAsset, listProjects } from './lib/idb';
 import { ConvertError } from './lib/errors';
 import { useBlobUrlOwner } from './lib/useBlobUrlOwner';
-import type { ProjectType } from './lib/studioTypes';
+import { isTrashed, type ProjectType } from './lib/studioTypes';
 import type { Item, MediaEdit } from './types';
 
 let uid = 0;
@@ -120,7 +120,7 @@ export default function App() {
   // how many projects this browser holds — shown next to the nav entry (Studio reports changes)
   const [projectCount, setProjectCount] = useState(0);
   useEffect(() => {
-    listProjects().then((l) => setProjectCount(l.length)).catch(() => { /* no IndexedDB: nothing saved */ });
+    listProjects().then((l) => setProjectCount(l.filter((p) => !isTrashed(p)).length)).catch(() => { /* no IndexedDB: nothing saved */ });
   }, []);
   // encrypted PDF awaiting its password (item id)
   const [pwFor, setPwFor] = useState<string | null>(null);

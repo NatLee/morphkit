@@ -32,9 +32,15 @@ import {
   emptyImageDoc,
   emptyMixer,
   emptyVideoDoc,
+  backupState,
   INLINE_SAVE_EVT,
+  isTrashed,
+  TRASH_DAYS,
+  trashDaysLeft,
+  trashExpired,
   uid,
   type AssetRec,
+  type ImageDoc,
   type Clip,
   type MixerDoc,
   type ProjectRec,
@@ -46,6 +52,9 @@ import { PDF_ICON } from './FormatMatrix';
 import { PdfEditor } from './PdfEditor';
 import { DocEditor } from './DocEditor';
 import { useBlobUrlOwner } from '../lib/useBlobUrlOwner';
+
+/** How long the "moved to the trash — restore" toast stays. */
+const TRASH_TOAST_MS = 8000;
 
 /* the app-mode breakpoint — MUST mirror the stacked-studio media block in
    styles.css: phones, short/landscape viewports, touch tablets */
@@ -202,8 +211,15 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
     () => (localStorage.getItem('mk-sort') as 'updated' | 'name' | 'size') || 'updated'
   );
   const [metaPj, setMetaPj] = useState<ProjectRec | null>(null);
-  // every delete waits here for ConfirmDialog — both are irreversible (IndexedDB, no undo)
-  const [confirmDel, setConfirmDel] = useState<{ project: ProjectRec } | { asset: AssetRec } | null>(null);
+  // every delete waits here for ConfirmDialog: a project goes to the trash, the rest cannot be undone
+  const [confirmDel, setConfirmDel] = useState<{ project: ProjectRec } | { asset: AssetRec } | { purge: ProjectRec } | { emptyTrash: true } | null>(null);
+  // deleted projects, kept for TRASH_DAYS (newest first)
+  const [trash, setTrash] = useState<ProjectRec[]>([]);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashStats, setTrashStats] = useState<Record<string, { n: number; bytes: number }>>({});
+  // the project just moved to the trash: a toast offers to put it back
+  const [justTrashed, setJustTrashed] = useState<ProjectRec | null>(null);
+  const trashToast = useRef(0);
   // primary-asset facts for the info modal, keyed by project so a slow probe
   // can never paint onto a different project's rows
   const [metaFacts, setMetaFacts] = useState<{ id: string; name: string; meta: FileMeta } | null>(null);
@@ -247,7 +263,12 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   // ---- init ----
   useEffect(() => {
     void (async () => {
-      const list = (await listProjects()).map((p) => ({ ...p, type: p.type ?? ('audio' as ProjectType) }));
+      const all = (await listProjects()).map((p) => ({ ...p, type: p.type ?? ('audio' as ProjectType) }));
+      // the trash empties itself: whatever has waited TRASH_DAYS goes for good, with its files
+      const now = Date.now();
+      for (const p of all.filter((x) => trashExpired(x, now))) await idbDeleteProject(p.id);
+      setTrash(all.filter((p) => isTrashed(p) && !trashExpired(p, now)).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)));
+      const list = all.filter((p) => !isTrashed(p));
       persistedRef.current = new Set(list.map((p) => p.id));
       // MERGE, never clobber: a project created while this async load ran must survive it
       setProjects((prev) => {
@@ -289,11 +310,14 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curId, projects.length]);
 
-  /** Merge a patch into the current project; debounce the IndexedDB write. */
-  const savePatch = (patch: Partial<ProjectRec>) => {
+  /**
+   * Merge a patch into the current project; debounce the IndexedDB write. `touch: false` is for
+   * bookkeeping that is not an edit (the export stamp): it must not move `updatedAt`.
+   */
+  const savePatch = (patch: Partial<ProjectRec>, touch = true) => {
     const c = curRef.current;
     if (!c) return;
-    const next = { ...c, ...patch, updatedAt: Date.now() };
+    const next = { ...c, ...patch, ...(touch ? { updatedAt: Date.now() } : {}) };
     curRef.current = next; // stay fresh across rapid successive patches
     persistedRef.current.add(next.id);
     setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p)));
@@ -332,10 +356,15 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
     setEntered(true);
   };
 
-  /** The one delete path for projects (launcher card and workspace bar both call it). */
+  /**
+   * The one delete path for projects (launcher card and workspace bar both call it): the project
+   * moves to the trash with its files and can be restored for TRASH_DAYS.
+   */
   const removeProject = async (p: ProjectRec) => {
+    // the open project may hold edits the debounced save has not written yet: keep those
+    const latest = curRef.current?.id === p.id ? curRef.current : p;
     if (curRef.current?.id === p.id) {
-      // a debounced save still pending for this project would write it back after the delete
+      // a debounced save still pending for this project would write it back as a live one
       window.clearTimeout(saveTimer.current);
       window.clearTimeout(baseSaveTimer.current);
       curRef.current = null; // editors unmounting below must not patch a deleted project
@@ -343,9 +372,32 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
       setEntered(false);
       setFocus(false);
     }
-    persistedRef.current.delete(p.id);
-    await idbDeleteProject(p.id);
     setProjects((prev) => prev.filter((x) => x.id !== p.id));
+    if (!persistedRef.current.has(p.id)) return; // never saved: there is nothing to keep
+    persistedRef.current.delete(p.id);
+    const rec: ProjectRec = { ...latest, deletedAt: Date.now() };
+    await putProject(rec);
+    setTrash((prev) => [rec, ...prev]);
+    setJustTrashed(rec);
+    window.clearTimeout(trashToast.current);
+    trashToast.current = window.setTimeout(() => setJustTrashed(null), TRASH_TOAST_MS);
+  };
+
+  const restoreProject = async (p: ProjectRec) => {
+    const { deletedAt: _gone, ...rec } = p;
+    await putProject(rec);
+    persistedRef.current.add(rec.id);
+    setTrash((prev) => prev.filter((x) => x.id !== p.id));
+    setProjects((prev) => [rec, ...prev]);
+    setJustTrashed((j) => (j?.id === p.id ? null : j));
+  };
+
+  /** Remove trashed projects for good, files included. */
+  const purgeProjects = async (list: ProjectRec[]) => {
+    for (const p of list) await idbDeleteProject(p.id);
+    const gone = new Set(list.map((p) => p.id));
+    setTrash((prev) => prev.filter((x) => !gone.has(x.id)));
+    setJustTrashed((j) => (j && gone.has(j.id) ? null : j));
   };
 
   /** Files and bytes a project delete takes with it: live assets when it is open, launcher stats otherwise. */
@@ -362,10 +414,22 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
       return (
         <ConfirmDialog
           title={t('confirmDeleteProjectTitle')}
-          message={t('confirmDeleteProjectMsg', { name: p.name, files: t('filesCount', { n: String(size.n) }), size: formatBytes(size.bytes) })}
-          confirmLabel={t('confirmDelete')}
+          message={t('confirmDeleteProjectMsg', { name: p.name, files: t('filesCount', { n: String(size.n) }), size: formatBytes(size.bytes), days: String(TRASH_DAYS) })}
+          confirmLabel={t('confirmTrash')}
           onCancel={close}
           onConfirm={() => { close(); void removeProject(p); }}
+        />
+      );
+    }
+    if ('purge' in confirmDel || 'emptyTrash' in confirmDel) {
+      const list = 'purge' in confirmDel ? [confirmDel.purge] : trash;
+      return (
+        <ConfirmDialog
+          title={t('confirmPurgeTitle')}
+          message={'purge' in confirmDel ? t('confirmPurgeMsg', { name: confirmDel.purge.name }) : t('confirmEmptyTrashMsg', { n: String(trash.length) })}
+          confirmLabel={t('confirmPurge')}
+          onCancel={close}
+          onConfirm={() => { close(); void purgeProjects(list); }}
         />
       );
     }
@@ -635,6 +699,22 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   }, [entered, projects]);
 
   const totalBytes = useMemo(() => Object.values(pjStats).reduce((sum, s) => sum + s.bytes, 0), [pjStats]);
+  // projects whose latest state exists only in this browser
+  const unsaved = projects.filter((p) => backupState(p) !== 'fresh').length;
+
+  // what the trash holds (files and bytes per project), for its rows
+  useEffect(() => {
+    let stale = false;
+    void (async () => {
+      const stats: Record<string, { n: number; bytes: number }> = {};
+      for (const p of trash) {
+        const list = await listAssets(p.id);
+        stats[p.id] = { n: list.length, bytes: list.reduce((s, a) => s + a.blob.size, 0) };
+      }
+      if (!stale) setTrashStats(stats);
+    })();
+    return () => { stale = true; };
+  }, [trash]);
 
   const sortedProjects = useMemo(() => {
     const list = [...projects];
@@ -708,6 +788,14 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
     el.download = `${p.name.replace(/[\\/:*?"<>|]/g, '_') || 'project'}.morphkit.zip`;
     el.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+    // remember the backup; not an edit, so `updatedAt` stays (backupState compares the two)
+    const exportedAt = Date.now();
+    if (curRef.current?.id === p.id) savePatch({ exportedAt }, false);
+    else {
+      const rec = { ...p, exportedAt };
+      setProjects((prev) => prev.map((x) => (x.id === p.id ? rec : x)));
+      await putProject(rec);
+    }
   };
 
   const importProjectZip = async (file: File) => {
@@ -715,7 +803,7 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
       const unzipped = unzipSync(new Uint8Array(await file.arrayBuffer()));
       const meta = JSON.parse(strFromU8(unzipped['project.json'])) as {
         name: string; type?: ProjectType; mixer: MixerDoc;
-        imageDoc?: { baseAssetId: string | null; objects: unknown[] } | null;
+        imageDoc?: ImageDoc | null;
         videoDoc?: VideoDoc | null; gifAssetId?: string | null; pdfAssetId?: string | null; textAssetId?: string | null;
         assets: { id: string; name: string; kind: string; addedAt: number; type?: string }[];
       };
@@ -736,13 +824,15 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
         id: pid, name: meta.name || 'Imported', type: meta.type ?? 'audio',
         createdAt: Date.now(), updatedAt: Date.now(),
         mixer: remapMixer(meta.mixer ?? emptyMixer(), idMap),
-        ...(meta.imageDoc ? { imageDoc: { baseAssetId: meta.imageDoc.baseAssetId ? idMap[meta.imageDoc.baseAssetId] ?? null : null, objects: meta.imageDoc.objects ?? [] } } : {}),
+        // everything the export wrote (layers, background colour) — only the asset id is remapped
+        ...(meta.imageDoc ? { imageDoc: { ...meta.imageDoc, baseAssetId: meta.imageDoc.baseAssetId ? idMap[meta.imageDoc.baseAssetId] ?? null : null, objects: meta.imageDoc.objects ?? [] } } : {}),
         ...(meta.videoDoc ? { videoDoc: { videoAssetId: meta.videoDoc.videoAssetId ? idMap[meta.videoDoc.videoAssetId] ?? null : null, trimStart: meta.videoDoc.trimStart, trimEnd: meta.videoDoc.trimEnd, mixer: remapMixer(meta.videoDoc.mixer ?? emptyMixer(), idMap) } } : {}),
         ...(meta.gifAssetId !== undefined ? { gifAssetId: meta.gifAssetId ? idMap[meta.gifAssetId] ?? null : null } : {}),
         ...(meta.pdfAssetId !== undefined ? { pdfAssetId: meta.pdfAssetId ? idMap[meta.pdfAssetId] ?? null : null } : {}),
         ...(meta.textAssetId !== undefined ? { textAssetId: meta.textAssetId ? idMap[meta.textAssetId] ?? null : null } : {}),
       };
       await putProject(p);
+      persistedRef.current.add(p.id);
       setProjects((prev) => [p, ...prev]);
     } catch { /* not a valid project zip */ }
   };
@@ -1004,6 +1094,7 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
             <b>{t('pjNoteCount', { n: String(projects.length), size: formatBytes(totalBytes) })}</b>
             {quota != null && <span>{t('pjNoteQuota', { quota: formatBytes(quota) })}</span>}
             <span>{t('pjNoteLocal')}</span>
+            {unsaved > 0 && <span className="pj-warn">{t('pjNoteUnsaved', { n: String(unsaved) })}</span>}
           </p>
         )}
 
@@ -1029,6 +1120,7 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                   <span className="pj-meta">
                     {new Date(p.updatedAt).toLocaleDateString()} · {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
                   </span>
+                  <span className={`pj-backup bk-${backupState(p)}`}>{t(`backup_${backupState(p)}`)}</span>
                 </span>
               </button>
               <div className="pj-actions">
@@ -1070,6 +1162,42 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
             </button>
           ))}
         </div>
+
+        {trash.length > 0 && (
+          <section className="pj-trash" aria-label={t('trashTitle')}>
+            <div className="pj-trash-head">
+              <button className="pj-trash-toggle" aria-expanded={trashOpen} onClick={() => setTrashOpen((v) => !v)}>
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                {t('trashTitle')} <span className="pj-trash-n">{trash.length}</span>
+              </button>
+              <span>{t('trashHint', { days: String(TRASH_DAYS) })}</span>
+              {trashOpen && <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDel({ emptyTrash: true })}>{t('trashEmpty')}</button>}
+            </div>
+            {trashOpen && (
+              <ul className="pj-trash-list">
+                {trash.map((p) => (
+                  <li key={p.id}>
+                    <span className={`type-badge tb-${p.type ?? 'audio'}`}>{t(TYPE_META[p.type ?? 'audio'].labelKey)}</span>
+                    <span className="pj-trash-name">{p.name}</span>
+                    <span className="pj-meta">
+                      {t('trashLeft', { n: String(trashDaysLeft(p, Date.now())) })} · {t('filesCount', { n: String(trashStats[p.id]?.n ?? 0) })} · {formatBytes(trashStats[p.id]?.bytes ?? 0)}
+                    </span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => void restoreProject(p)}>{t('trashRestore')}</button>
+                    <button className="btn btn-ghost btn-sm pj-purge" onClick={() => setConfirmDel({ purge: p })}>{t('confirmPurge')}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {justTrashed && createPortal(
+          <div className="banner info st-note pj-undo" role="status">
+            <span>{t('trashedToast', { name: justTrashed.name, days: String(TRASH_DAYS) })}</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => void restoreProject(justTrashed)}>{t('trashRestore')}</button>
+          </div>,
+          document.body
+        )}
 
         {confirmNode}
 

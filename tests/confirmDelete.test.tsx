@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nProvider } from '../src/i18n';
 import { Studio } from '../src/components/Studio';
@@ -50,9 +50,9 @@ function openStudio() {
   );
 }
 
-describe('Studio deletes only after a confirmation', () => {
+describe('Projects are deleted only after a confirmation', () => {
   // Regression: the × on a project card and "Delete project" deleted at once, with no way back.
-  it('asks before deleting a project from the launcher, and keeps it on cancel', async () => {
+  it('asks before deleting a project from the launcher, keeps it on cancel, and can restore it', async () => {
     const user = userEvent.setup();
     openStudio();
     await screen.findByText('Podcast cut');
@@ -70,9 +70,15 @@ describe('Studio deletes only after a confirmation', () => {
     expect(screen.getByText('Podcast cut')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Delete project' }));
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
-    expect(idb.deleteProject).toHaveBeenCalledWith('p1');
+    await user.click(screen.getByRole('button', { name: 'Move to trash' }));
+    // into the trash, files kept: nothing is deleted from IndexedDB yet
+    expect(idb.deleteProject).not.toHaveBeenCalled();
+    expect(idb.putProject).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'p1', deletedAt: expect.any(Number) }));
     await waitFor(() => expect(screen.queryByText('Podcast cut')).toBeNull());
+    // the toast puts it straight back
+    await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Restore' }));
+    expect(await screen.findByText('Podcast cut')).toBeTruthy();
+    expect((idb.putProject as ReturnType<typeof vi.fn>).mock.lastCall![0]).not.toHaveProperty('deletedAt');
   });
 
   it('asks before deleting the open project, then returns to the launcher', async () => {
@@ -83,14 +89,16 @@ describe('Studio deletes only after a confirmation', () => {
     await user.type(await screen.findByDisplayValue('Podcast cut'), '!');
     await user.click(screen.getByRole('button', { name: 'Delete project' }));
     expect(screen.getByRole('alertdialog').textContent).toContain('“Podcast cut!”');
-    expect(idb.deleteProject).not.toHaveBeenCalled();
+    expect(idb.putProject).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
-    expect(idb.deleteProject).toHaveBeenCalledWith('p1');
-    // back on the launcher, and the pending debounced save did not write the project back
+    await user.click(screen.getByRole('button', { name: 'Move to trash' }));
     await screen.findByText(/^A project is work you finish over several sittings/);
     await new Promise((r) => setTimeout(r, 700));
-    expect(idb.putProject).not.toHaveBeenCalled();
+    // Regression: the pending debounced save used to fire after the delete and write the project
+    // back as a live one. Exactly one write happens — the trashed record, with the unsaved rename.
+    expect(idb.putProject).toHaveBeenCalledTimes(1);
+    expect(idb.putProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', name: 'Podcast cut!', deletedAt: expect.any(Number) }));
+    expect(idb.deleteProject).not.toHaveBeenCalled();
   });
 
   it('asks before removing a file from a project', async () => {
