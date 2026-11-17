@@ -6,7 +6,7 @@
 > `FileCard`, `SettingsPanel`, `FormatMatrix`, `DualRange`, `Overlay`, `FramePicker`, `InfoTip`,
 > `InstallPrompt`.
 
-## App.tsx (777 lines) — owns ALL convert-mode state
+## App.tsx (779 lines) — owns ALL convert-mode state
 
 **State**: `items: Item[]` · `engine: 'idle'|'loading'|'ready'|'error'` · `engineDl {received,total}` ·
 `skipped` (rejected names, 6s auto-clear) · `settings` (persisted via saveSettings) · `showSettings` ·
@@ -73,7 +73,7 @@ warnVideo filesSummary{n,size} progressSummary{done,total} convertAll downloadAl
 tabConvert tabSettings (tab bar) · installTitle installBody installBtn installLater installIosHint
 (InstallPrompt).
 
-## FileCard.tsx (345)
+## FileCard.tsx (346)
 
 `KIND_ICONS` has 5 kinds (doc = page-with-lines) (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
 kindImage/kindAudio/kindVideo/kindPdf/kindDoc. `.fc-qr` chip (meta.qr) opens the QR tool via `onQr`. Doc rows: words chip (`docWordsN`), details `docWords`/`docChars`/`docLines`/`docSheets`; target lists come from `outputsFor(item.kind, item.file)` (docs vary by sub-type); the open-as-project button is hidden for docs that are not text-ish (`isTextDoc`). PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
@@ -98,15 +98,17 @@ article.file-card.kind-*.status-*
   p.fc-error (t(item.error ?? 'failed') — ConvertError keys) | p.fc-warn(.danger)
 ```
 
-## SettingsPanel.tsx (327)
+## SettingsPanel.tsx (365)
 
 Stateless controlled form; single mutator `set(key, value)` → `onChange({...settings, [key]: value})`.
 Module const `VBR_LEVELS: [q,kbps][]` (LAME 0→245 … 9→65). Seven `.sp-section` groups: General
 (workers select 1–4, keepMetadata, keepCoverArt disabled unless keepMetadata) · Image (defaultQuality range +
-imageMaxDim) ·
+imageMaxDim + imageTargetSize) ·
 Audio (audioBitrate, audioRateMode cbr|vbr, audioQuality V0–V9 vbr-only, audioSampleRate, audioChannels) ·
-Video (videoCrf range 18–32, videoPreset, videoMaxH, videoFps, videoMute) · PDF (pdfImageScale dpi select) ·
+Video (videoCrf range 18–32, disabled while videoTargetSize is set · videoTargetSize, videoPreset, videoMaxH, videoFps, videoMute) · PDF (pdfImageScale dpi select) ·
 Documents (docPageSize + docFontSize + docPdfText) · GIF (gifFps range 5–24, gifWidth).
+Size-target choices `IMAGE_TARGET_SIZES` / `VIDEO_TARGET_SIZES` are DECIMAL bytes (a file under 500,000 bytes
+passes a "500 KB" limit read either way), labelled by `sizeLabel`.
 Pattern: `label.sp-field > span.sp-label [+span.sp-val] > select|input [+ span.sp-hint]`; checkboxes
 `label.sp-field.sp-check`. Mounted ONLY inside `.drawer` (which forces `.sp-grid` to 1 column); App renders a `.drawer-bottom-close`
 button after it, and ≤640 the drawer head is sticky with safe-area padding (the top X was unreachable

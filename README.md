@@ -42,9 +42,13 @@ installed as an app (PWA).
 - File details per type: dimensions, duration, bitrate, page count, word count, photo EXIF with GPS
   and a map link, and QR codes found inside images.
 - Paste with Ctrl+V: a file or screenshot joins the list, plain text becomes a new Markdown note.
-- A settings drawer for image size caps, audio bitrate / VBR / sample rate / channels, video CRF /
-  preset / resolution / frame rate, GIF frame rate and width, PDF render resolution and document page
-  size.
+- **Fit to a file size** for upload limits: pick a target (100 KB – 5 MB for images, 10 – 100 MB for
+  video) and each image is squeezed under it (quality first, then dimensions), while MP4 / WebM get
+  the bitrate that lands the clip under it. Sizes are decimal, so "500 KB" means 500,000 bytes and the
+  result passes the limit however the site counts.
+- A settings drawer for image size caps and size targets, audio bitrate / VBR / sample rate / channels,
+  video CRF / size target / preset / resolution / frame rate, GIF frame rate and width, PDF render
+  resolution and document page size.
 
 **Editors** (open any file with *Edit*)
 
@@ -120,6 +124,8 @@ Your files never leave the browser. The app does make a few network requests:
 - PDF → TXT / DOCX / Markdown / HTML reads the text layer. A scanned PDF has none; the app says so
   and suggests PNG / JPG or an OCR tool instead (there is no OCR built in).
 - Canvas WEBP export does not work in older Safari; copying results to the clipboard needs HTTPS.
+- A video size target needs the clip's length, which comes from the browser. For a file the browser
+  cannot play (some AVI / WMV / FLV), the card asks you to turn the target off instead of guessing.
 
 ## Working on the code
 
