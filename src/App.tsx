@@ -5,8 +5,8 @@ import { Hero } from './components/Hero';
 import { DropZone } from './components/DropZone';
 import { FileCard } from './components/FileCard';
 import { SettingsPanel } from './components/SettingsPanel';
-import { FormatMatrix } from './components/FormatMatrix';
-import { TaskList } from './components/TaskList';
+import { FormatExplorer } from './components/FormatExplorer';
+import { RecentProjects } from './components/RecentProjects';
 import { StackBar } from './components/SizeViz';
 import { sizeChange, sumBy } from './lib/sizeStats';
 import { MediaEditor } from './components/MediaEditor';
@@ -31,7 +31,7 @@ import { imageToText, OCR_HOST, OCR_LANGS, ocrLangs, withOcr, type OcrConsent, t
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { effectiveSettings, withOption, type SettingValue } from './lib/settingFields';
-import { applyTask, taskById, taskFits, type PdfExportPreset, type Task } from './lib/tasks';
+import { applyTask, taskById, taskFits, taskName, type PdfExportPreset, type Task } from './lib/tasks';
 import { createProjectWithAsset, listProjects } from './lib/idb';
 import { projectTypeFor } from './lib/projectList';
 import { ConvertError } from './lib/errors';
@@ -503,8 +503,13 @@ export default function App() {
     const type = projectTypeFor(it.file.name, it.kind, it.file.type);
     if (!type) return; // only text-ish docs become projects
     const p = await createProjectWithAsset(it.file.name, it.kind, it.file, type);
-    try { localStorage.setItem('morphkit-project', p.id); } catch { /* ignore */ }
-    setStudioEnterId(p.id);
+    openProject(p.id);
+  };
+
+  /** Jump straight into a stored project's workspace (Studio skips its list). */
+  const openProject = (id: string) => {
+    try { localStorage.setItem('morphkit-project', id); } catch { /* ignore */ }
+    setStudioEnterId(id);
     setMode('studio');
   };
 
@@ -689,7 +694,7 @@ export default function App() {
           {presetTask && (
             <div className="banner info task-banner" role="status">
               <div>
-                <b>{t('taskChosen', { name: t(`task_${presetTask.id}`) })}</b>
+                <b>{t('taskChosen', { name: taskName(presetTask, t) })}</b>
                 <span>{t(`taskWait_${presetTask.run}`, { kind: t(KIND_NAME[presetTask.kind]) })}</span>
               </div>
               {presetTask.run === 'batch' && mergeable > 1 && (
@@ -699,7 +704,12 @@ export default function App() {
             </div>
           )}
           <DropZone onFiles={addFiles} compact={items.length > 0} onNewNote={() => addNote()} />
-          {items.length === 0 && <TaskList chosen={preset} onPick={pickTask} />}
+          {items.length === 0 && (
+            <>
+              <RecentProjects onOpen={openProject} onAll={() => { setMode('studio'); setStudioEnterId(null); }} />
+              <FormatExplorer chosen={preset} onPick={pickTask} />
+            </>
+          )}
 
           {engine === 'loading' && (
             <div className="banner info engine-banner">
@@ -798,8 +808,6 @@ export default function App() {
             </>
           )}
         </section>
-
-        <FormatMatrix />
       </main>
       )}
 

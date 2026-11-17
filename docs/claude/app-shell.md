@@ -3,7 +3,7 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. If structure changed since this
 > was written, trust the code and update this file. Covers: `App.tsx`, `Hero`, `DropZone`,
-> `FileCard`, `SizeViz`, `TaskList`, `SettingsPanel`, `SettingControl`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
+> `FileCard`, `SizeViz`, `FormatExplorer`, `RecentProjects`, `SettingsPanel`, `SettingControl`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
 > `InstallPrompt`.
 
 ## App.tsx (781 lines) — owns ALL convert-mode state
@@ -27,7 +27,7 @@ toggles it closed; sticky head + .qr-foot close as fallbacks) · topbar `.qr-btn
 `mergeAll` + `merging` state (batch bar `mergePdf`: every pdf+image item → one PDF download,
 shown when `mergeable` > 1) · `convertAll` · `remove`/`clearAll` (only drop items — `useBlobUrlOwner` revokes `outUrl` + `meta.preview` after commit) ·
 `downloadAll` (fflate zipSync → morphkit.zip) · `isGifItem` (routes gif/apng to GifEditor) ·
-`openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
+`openProject(id)` (localStorage `'morphkit-project'` → `<Studio enterProjectId>`; shared by "save as project" and the home "Continue" strip) · `openAsProject(id)` (idb `createProjectWithAsset` → localStorage `'morphkit-project'` →
 `<Studio enterProjectId>` jumps into the workspace) ·
 `saveMediaEdit`/`saveEditedImage`/`saveEditedGif`/`saveEditedPdf`/`saveEditedDoc` (doc = replace file, status ready) (gif + pdf saves mark the item done immediately —
 the edited file IS the deliverable; pdf save also clears `pdfPassword`). `unlockPdf(id, pw)` verifies with
@@ -46,13 +46,13 @@ div.app (+ .studio-mode)
     div.brand > span.brand-mark + span.brand-name
     nav.mode-nav > button×2 (navHome | navProjects + span.mode-nav-n = `projectCount`, read from idb at mount and reported by <Studio onProjectCount>)
     div.topbar-actions > button.theme-toggle.qr-btn (QR tool) + div.lang-switch(×3 buttons) + button.theme-toggle(gear=settings) + button.theme-toggle(auto half-circle/sun/moon cycle)
-  main → <Studio/>  |  <Hero compact={items.length>0}/> + section.workbench + <FormatMatrix/>
+  main → <Studio/>  |  <Hero compact={items.length>0}/> + section.workbench
     section.workbench
       (inside div.batch-bar, when the list has more than one file) div.bb-viz > <StackBar> of the list by kind (`KINDS` from lib/formats,
         `kindBytes`) + li.stack-note = what the finished conversions did to the total (`converted*`; editor saves excluded)
       div.banner.info.task-banner (preset chosen: name + what to add; batch → mergePdf button; cancel)
       <DropZone onFiles=addFiles compact={items.length>0}/>
-      <TaskList chosen={preset} onPick={pickTask}/>   (only while the list is empty)
+      <RecentProjects onOpen={openProject} onAll/> + <FormatExplorer chosen={preset} onPick={pickTask}/>   (only while the list is empty)
       div.banner.info.engine-banner (loading: .spinner + .engine-dl > .fc-progress > .fc-bar + .fc-pct)
       div.banner.danger|warn|note (engine error / skipped / hasVideo)
       div.batch-bar > div.bb-info (.bb-count, .bb-progress-wrap > .bb-progress > .bb-bar, .bb-done)
@@ -84,7 +84,7 @@ tabConvert tabSettings (tab bar) · installTitle installBody installBtn installL
 
 ## FileCard.tsx (412)
 
-`KIND_ICONS` has 5 kinds (doc = page-with-lines) (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
+`KIND_ICONS` (lib/kindIcons, shared) has 5 kinds (doc = page-with-lines); `EDIT_ICONS.pdf`; `kindKey` picks
 kindImage/kindAudio/kindVideo/kindPdf/kindDoc. `.fc-qr` chip (meta.qr) opens the QR tool via `onQr`. Doc rows: words chip (`docWordsN`), details `docWords`/`docChars`/`docLines`/`docSheets`; target lists come from `outputsFor(item.kind, item.file)` (docs vary by sub-type); "save as project" is offered only for docs that are text-ish (`canProject` = `isTextDoc`). PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
 `pdfPages`/`pdfPageSize`/`tagTitle`/`pdfAuthor`; quality slider also for pdf→jpeg/webp. PPTX rows: slides chip (`docSlidesN`) + `docSlides` detail. `locked` (encrypted &&
 no `pdfPassword`) swaps convert for a 🔒 `pdfUnlock` button and routes edit to `onUnlock`; `.fc-lock(.open)` chip.
@@ -162,11 +162,19 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
   .sc-track > .sc-bar.sc-before|.sc-after (+ .sc-target tick), .sc-num with the verdict in words) · `StackBar {segments, label, children?}` →
   `div.stack > div.stack-bar[role=img] > span×n (width = share, --c colour, .muted = hatched) + ul.stack-legend` (children = extra legend items)
   · `Meter {value, max, tone, label}` → `span.meter.mt-{accent|warn}[role=img] > span`. All sizes go through lib/sizeStats.
-- **TaskList.tsx (67)**: `section.tasks > .tasks-head (h2 + count hint) + .tasks-find (input[type=search] +
-  .tasks-kinds > button×7 from `KIND_FILTERS`) + .tasks-grid > button.task.tk-{kind}(.chosen) (b name, span
-  description, i how-it-runs) | p.tasks-empty`. Local state `query`/`kind`; the list is
-  `filterTasks(query, kind, text)` over the task's shown strings. Strings by convention: `task_<id>`,
-  `task_<id>_d`, `taskRun_<run>`. ≤640: two columns of names only.
+- **FormatExplorer.tsx**: `section.fx > .fx-q (h2#fx-title "I have" + .fx-kinds > button.fx-kind×5 (--c, aria-pressed) + .fx-after)
+  + .fx-tools (input.fx-search + .fx-view by kind | all formats)` then one of: `ul.fx-hits` (search: `searchFormats` — input / output / task;
+  a hit shows that kind, a task hit is also picked) | `.fx-none` | <Overview> (`.fx-table-wrap > table.fx-table`, rows `formatRows`, columns
+  `allOutputs`, a filled cell = `td > button` → that kind + output) | `.fx-kindview[--c]` (`.fx-subs` for documents, `p.fx-ins` chips
+  (.hit = the searched format), `.fx-body > .fx-col` (h3 + button.fx-task×n from `tasksFor`, aria-pressed = chosen) + `.fx-col` (h3 +
+  `.fx-outs > button.fx-out` (.on selected, .set = the waiting format pick, i.fx-need for engine/ocr) + `.fx-detail` (h4 kind → FMT,
+  description, `p.fx-needs`, options = `optionsFor` label keys, related = `tasksFor(kind, out)`, button.fx-go = `onPick(formatTask(...))`,
+  aria-pressed when it is the preset)), `p.fx-foot` (mxEdit<Kind> + QR tool button)) + `p.fx-legend`.
+  State: kind (localStorage `mk-fx-kind`), doc, out, view, query, hit; `show(kind, {doc, out, hit})`. A preset chosen elsewhere
+  brings its kind into view. Strings: fx…, docSub_<DocType>, fmt_<target> and the kind-specific description keys (`describeKey`),
+  needs_<Needs>, and the format pick's name (`taskName`). ≤760 the kinds scroll sideways and the columns stack; ≤640 the jobs are two columns of names (description = title).
+- **RecentProjects.tsx**: `section.recent > h2 + .recent-list > button.recent-pj[--c]×≤3 (type glyph, name, type · date) + button.recent-all`;
+  reads `listProjects()` once per mount (live projects, newest first). Renders nothing without projects.
   NOTE: `.hero-stage`/`.format-card`/`.fsel`/`.stage-*` CSS still exists but is DEAD — Hero no longer
   renders the conversion stage (format pickers removed on purpose). Don't style them.
 - **DropZone.tsx (71)**: `div.dropzone(+.over)(+.dz-compact)[role=button]` wrapping hidden
@@ -181,11 +189,8 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 - **ConfirmDialog.tsx (50)**: Overlay + `.editor.mini-modal.confirm-modal[role=alertdialog]` with title, `.confirm-msg`,
   Cancel (`.btn-ghost`, focused on mount) and confirm (`.btn-${tone}`: danger by default, accent for App's OCR download question). Backdrop click and Escape cancel; keydown stops
   propagation so editor shortcuts underneath stay quiet. Used by Studio for every delete.
-- **FormatMatrix.tsx (78)**: static 5 cards (image/audio/video/pdf/doc — `.mx-pdf` violet, `.mx-doc` accent) from module const `MATRIX`.
-  OUT chips are derived (`outs(IMAGE_OUTPUTS)` … `formatLabel`, documents = the union of `DOC_OUTPUTS`), so a new
-  output appears by itself; IN chips are a short hand-picked list (detectKind accepts more).
-  The README picture `docs/images/formats-*.webp` comes from `docs/images/formats.html`, whose OUT lists are
-  checked against lib/formats by tests/formatsPicture.test.ts.
+- The README formats picture (`docs/images/formats-*.webp` from `docs/images/formats.html`) is checked against lib/formats by
+  tests/formatsPicture.test.ts; the app's own format list is FormatExplorer's overview.
 - **InfoTip.tsx (47)**: `span.info-i` + portal `.tip-pop` (fixed-position tooltip, never clipped).
 - **InstallPrompt.tsx (98)**: `.install-card > .install-icon + .install-text + .install-btns`.
   Captures `beforeinstallprompt` (Android/desktop → real install button) or shows the iOS

@@ -197,7 +197,7 @@ Overlay .editor.mini-modal.pdf-export: .pdf-x-row scope .ed-seg · split check (
   encrypt check → .pdf-x-pw (user/owner password) · pdfDecryptNote · foot
 ```
 i18n: the pdf* key family (+ mergePdf/mergePdfTip in the App batch bar, kindPdf/mxEditPdf in
-FileCard/FormatMatrix, typePdf/typePdfDesc/pickPdf in Studio).
+FileCard/FormatExplorer, typePdf/typePdfDesc/pickPdf in Studio).
 
 ## PdfPasswordModal.tsx (87)
 

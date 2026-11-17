@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { I18nProvider } from '../src/i18n';
-import { FormatMatrix } from '../src/components/FormatMatrix';
+import { outputsOf } from '../src/lib/formatMap';
 import { ICO_SIZES, encodeIco, icoSizesFor } from '../src/lib/imageConvert';
 import { buildArgs, noStreamInLog } from '../src/lib/ffmpegClient';
 import {
@@ -72,22 +72,11 @@ describe('video → audio', () => {
 });
 
 describe('format overview', () => {
-  const chips = (kind: string) => {
-    localStorage.setItem('morphkit-lang', 'en');
-    const { container } = render(<I18nProvider><FormatMatrix /></I18nProvider>);
-    return [...container.querySelectorAll(`.mx-${kind} .chip.out`)].map((c) => c.textContent);
-  };
-
-  it('lists outputs from the format registry, so new ones appear by themselves', () => {
-    expect(chips('image')).toEqual(IMAGE_OUTPUTS.map(formatLabel));
-    expect(chips('image')).toContain('ICO');
-    expect(chips('video')).toEqual(['MP4', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'FLAC', 'M4A']);
-  });
-
-  it('shows each document output once', () => {
-    const doc = chips('doc');
-    expect(new Set(doc).size).toBe(doc.length);
-    expect(doc).toEqual(expect.arrayContaining(['PDF', 'DOCX', 'PPTX', 'MD', 'HTML', 'TXT', 'CSV', 'XLSX', 'JSON', 'PNG']));
+  // the home page's overview reads these lists (lib/formatMap), so a new output appears by itself there
+  it('names the image and video outputs the registry has', () => {
+    expect(outputsOf('image')).toEqual(IMAGE_OUTPUTS);
+    expect(outputsOf('image')).toContain('ico');
+    expect(outputsOf('video').map(formatLabel)).toEqual(['MP4', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'FLAC', 'M4A']);
   });
 
   it('writes jpeg the familiar way', () => {

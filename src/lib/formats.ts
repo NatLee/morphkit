@@ -74,10 +74,17 @@ const AUDIO_EXT = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'wm
 const VIDEO_EXT = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', '3gp'];
 const PDF_EXT = ['pdf'];
 
+/** Every extension `detectKind` recognises, by kind — the one list the pickers and the home page's format list read. */
+export const EXTENSIONS: Readonly<Record<Kind, readonly string[]>> = {
+  image: IMAGE_EXT, audio: AUDIO_EXT, video: VIDEO_EXT, pdf: PDF_EXT, doc: DOC_EXT,
+};
+/** Extensions that are another spelling of the same format: shown once, under the usual name. */
+export const SAME_FORMAT: Readonly<Record<string, string>> = { jpeg: 'jpg', markdown: 'md', htm: 'html', mpeg: 'mpg', oga: 'ogg' };
+
 /** `accept` for every file picker that feeds `detectKind`: the MIME families it trusts plus every
     extension it recognises, so the picker never hides a file the app could open. */
 export const ACCEPT = ['image/*', 'audio/*', 'video/*', 'application/pdf',
-  ...[...IMAGE_EXT, ...AUDIO_EXT, ...VIDEO_EXT, ...PDF_EXT, ...DOC_EXT].map((e) => `.${e}`)].join(',');
+  ...Object.values(EXTENSIONS).flat().map((e) => `.${e}`)].join(',');
 
 /** Files above this size get a "may fail / be slow" warning (200 MB). */
 export const LARGE_FILE_BYTES = 200 * 1024 * 1024;

@@ -42,7 +42,7 @@ one or two lines to update its map.
 
 | Map | Read before opening |
 |---|---|
-| `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, SettingsPanel, FormatMatrix, DualRange, Overlay, ConfirmDialog, FramePicker, InfoTip, InstallPrompt |
+| `docs/claude/app-shell.md` | App.tsx, Hero, DropZone, FileCard, FormatExplorer, RecentProjects, SettingsPanel, DualRange, Overlay, ConfirmDialog, FramePicker, InfoTip, InstallPrompt |
 | `docs/claude/editors.md` | ImageEditor.tsx (2k lines), GifEditor.tsx, PdfEditor.tsx, PdfPasswordModal.tsx, DocEditor.tsx, SheetEditor.tsx, QrTool.tsx |
 | `docs/claude/studio.md` | Studio.tsx (1.4k), Mixer.tsx, VideoWorkspace.tsx, MediaEditor.tsx |
 | `docs/claude/libs.md` | every lib/*.ts, types.ts, i18n.tsx mechanics |
@@ -65,13 +65,13 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `i18n.tsx` | Custom context. THREE dicts: zh / en / ja — **every new UI string needs all 3 keys** |
 | `styles.css` | Design system "Cyberdeck": circuit-grid ground + scanlines, neon signal palette (`--paint-*`), `--glow`/`--accent-ink` tokens, synthwave hero, Chakra Petch display, IBM Plex Sans/Mono, light default theme. All editors' CSS lives here too |
 | `components/Hero.tsx` | Home headline (tagline + title) only; folds away once files are listed |
-| `components/TaskList.tsx` | Home "I want to…": every task from `lib/tasks` as a card, with a search box and a file-kind filter; picking one reports it to App (`pickTask`) |
+| `components/FormatExplorer.tsx` | Home "I have a ___ file and want to…": kind buttons (+ document sub-types), the formats that open, the jobs (lib/tasks), the outputs with what each needs and lets you adjust, "set it up" (a format pick = `formatTask`), a search box (extensions, outputs, jobs) and an "all formats" table (rows = what you have, columns = outputs). Everything from lib/formatMap |
+| `components/RecentProjects.tsx` | Home "Continue": the `RECENT_PROJECTS` (3) projects changed last, one click into each (App `openProject`); only when there are projects |
 | `components/DropZone.tsx` | Accepts every extension `detectKind` knows (`ACCEPT`), multi-file; optional blank-note link |
 | `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, the file's own options (override chips + the controls that apply to its conversion), a "more" menu (save as project, file details), warnings, ConvertError message |
 | `components/SettingsPanel.tsx` | The drawer: every setting as the DEFAULT for new files, drawn section by section from `lib/settingFields`; only ever mounted inside the drawer |
 | `components/SettingControl.tsx` | One setting as a form control (select / range / check) from its `SettingField` description — shared by the drawer and the file cards |
 | `components/SizeViz.tsx` | The size pictures: `SizeCompare` (source vs result on one scale, size target as a tick), `StackBar` (one total split into coloured parts + a legend with the numbers), `Meter` (one quantity against its limit). Numbers come from `lib/sizeStats` |
-| `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes; output chips come from lib/formats, input chips are a short curated pick |
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `components/MoreMenu.tsx` | The "⋯" button + menu for less-used actions (`MoreMenuItem`: label, hint, disabled, onSelect); closes on a pick, a click elsewhere and Escape. Used by FileCard and the project cards; styled by `.fc-more`/`.fc-menu` |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
@@ -86,10 +86,12 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 
 | File | Role |
 |---|---|
-| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists — the single registry the UI derives from (image outs include `pdf`, `ico` and `txt` = OCR, `SLOW_IMAGE_OUTPUTS` queue like media; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
+| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), `EXTENSIONS` (every accepted extension by kind; `ACCEPT` and the home panel read it) + `SAME_FORMAT` (jpeg→jpg …), output lists — the single registry the UI derives from (image outs include `pdf`, `ico` and `txt` = OCR, `SLOW_IMAGE_OUTPUTS` queue like media; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) — the defaults for new files |
 | `lib/settingFields.ts` | The ONE description of every setting: label, control, hint and `applies(kind, target)` = the conversions it changes. `fieldsFor`, `effectiveSettings(defaults, item.opts)`, `withOption` (an override equal to the default is dropped), `activeOverrides`, `showValue`. Invariant 33 |
-| `lib/tasks.ts` | "I want to…" registry: each `Task` is a preset over what the app already does — convert (target and/or per-file opts), editor (optionally a PDF export option), batch (merge), tool (QR). `suggestionsFor` (card chips), `taskFits`, `taskActive` (derived, nothing stored), `applyTask`, `filterTasks`. Invariant 34 |
+| `lib/formatMap.ts` | What the home panel shows, derived from the registries: `formatRows` (one row per kind, per document sub-type `DOC_TYPES`; inputs from `EXTENSIONS` with `SAME_FORMAT` merged), `inputsOf`/`outputsOf`/`allOutputs`, `needsFor` (browser / engine / ocr / ocrScans / fonts — mirrors runConvert), `describeKey` (`fmt_<target>` or a kind-specific key), `optionsFor` (= `fieldsFor` label keys), `tasksFor`, `searchFormats` |
+| `lib/kindIcons.ts` | `KIND_ICONS`: one 24px path per file kind, drawn by the file cards, the project list and the home panel |
+| `lib/tasks.ts` | "I want to…" registry: each `Task` is a preset over what the app already does — convert (target and/or per-file opts), editor (optionally a PDF export option), batch (merge), tool (QR). `suggestionsFor` (card chips), `taskFits`, `taskActive` (derived, nothing stored), `applyTask`, `filterTasks`; `formatTask(kind, target)` = a "convert to …" pick from the home panel (id `to-<kind>-<target>`, resolved by `taskById`), `taskName` (its own strings or "Convert to MP3"). Invariant 34 |
 | `lib/sizeStats.ts` | Arithmetic behind the size pictures: `sizeChange`, `compareBars`, `shares`, `sumBy`, `usedPct` (label; "<0.1" for tiny real use, never rounded up) |
 | `lib/ocr.ts` | Text recognition (tesseract.js, lazy): `withOcr(langs, consent, fn)` hands `fn` a reader that starts the engine on its FIRST read — asking `consent` before a download (sizes in `ocrDownloadBytes`) — and closes it after; `imageToText`; `ocrLangs` (setting `auto` follows the UI language, English always added). Invariant 32 |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
@@ -145,7 +147,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `components/VideoWorkspace.tsx` | Video project: preview + trim (DualRange) + embedded Mixer; export = renderMixWav → `muxVideo` → MP4 |
 | `components/Mixer.tsx` | Multi-track timeline: sticky track heads (name/M/S/gain), draggable+edge-trimmable clips w/ waveform canvas, ruler seek, playhead rAF, split-at-playhead, mic recording (MediaRecorder→asset→new track), WAV export |
 | `lib/studioTypes.ts` | `ProjectType` (6 types), `Clip`/`Track`/`MixerDoc`/`ImageDoc`/`VideoDoc`/`ProjectRec` (+ `deletedAt`, `exportedAt`)/`AssetRec`, `empty*` factories, trash rules (`TRASH_DAYS`, `isTrashed`, `trashDaysLeft`, `trashExpired`), `backupState`, `INLINE_SAVE_EVT`, `uid()` |
-| `lib/projectList.ts` | What the Projects page lists: `ProjectFilter` (all / a type / `unsaved` / `trash`), `matchesFilter`, `liveFilter` (an emptied choice falls back to all), `filterCounts` (the rail numbers), `matchesQuery` (search box: every word in the name), `ageGroup`/`groupByAge` (today · 7 days · 30 days · older), and `projectTypeFor(name, kind, mime)` — the ONE rule for which project a file starts (invariant 36) |
+| `lib/projectList.ts` | What the Projects page lists: `ProjectFilter` (all / a type / `unsaved` / `trash`), `matchesFilter`, `liveFilter` (an emptied choice falls back to all), `filterCounts` (the rail numbers), `matchesQuery` (search box: every word in the name), `ageGroup`/`groupByAge` (today · 7 days · 30 days · older), and `projectTypeFor(name, kind, mime)` — the ONE rule for which project a file starts (invariant 36); `TYPE_META`/`PROJECT_TYPES`/`KIND_GLYPH` (per project type: name, use, description, glyph, colour — the Projects page and the home "Continue" strip) |
 | `lib/idb.ts` | IndexedDB `morphkit-studio`: `projects` store + `assets` store (index `projectId`) |
 | `lib/audioEngine.ts` | AudioBuffer decode cache (assetId-keyed), `playMix` live graph (solo/mute logic), `renderMixWav` OfflineAudioContext, `peaks` for waveforms |
 | `lib/wav.ts` | AudioBuffer → 16-bit PCM WAV |
@@ -289,7 +291,9 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     ordinary format + option chips. Whether a task is "on" is derived (`taskActive`) — do not store
     the chosen task on the item. A task picked on the home page (`preset`) applies to the files added
     next that it fits (`taskFits`: same kind AND the output exists for that file); a convert or editor
-    preset clears after one add, a batch preset stays until merged or cancelled. tests/tasks.test.tsx
+    preset clears after one add, a batch preset stays until merged or cancelled. A format picked in the home
+    panel is the same thing: `formatTask(kind, target)` is a convert task with only a target, kept in `preset`
+    by its id (`to-<kind>-<target>`) and resolved by `taskById`. tests/tasks.test.tsx
     checks every task against `outputsFor` and `fieldsFor`, and that its two strings (`task_<id>`,
     `task_<id>_d`) exist in all three languages. New user-facing job → one entry + six strings.
 35. **Deleting a project = `deletedAt`** (the record and its assets stay in IndexedDB). `listProjects()`
@@ -327,7 +331,7 @@ grid" — deep-space navy `#0a0e1c`, NEVER pure black: surfaces must step up vis
 →sunken and lines run brighter for contrast). Circuit-grid body background (`--weave` graph
 lines) + CRT scanline overlay (`body::after`). Signal palette `--paint-red/blue/yellow/green/
 violet` (token names kept from the pigment era) used semantically: image=lime, audio=cyan,
-video=magenta, gif=amber (type badges, mx-cards, feat chips, mixer clips cycle it).
+video=magenta, gif=amber (type badges, the home panel's kind colours, feat chips, mixer clips cycle it).
 `--accent-ink` = text colour on accent surfaces (dark theme accent is light cyan → dark text).
 `--glow` = standard neon box-shadow for hover/focus/selection. Fancy layer: synthwave
 perspective grid + drifting orbs in hero (`.hero::before/::after`), RGB-split glitch on
@@ -346,6 +350,7 @@ the palette or the mark changes.
 - Structural change to a mapped file → update its `docs/claude/*.md` map in the same commit.
 - A size, a share or a countdown shown to the user gets a picture next to the number (`SizeViz`): the number stays as text, the bar is `role="img"` with the same facts in its label, colours come from tokens, and a bar never claims more than the number (`usedPct`).
 - New thing people can do → add it to `lib/tasks.ts` so the home page and the file cards can offer it (invariant 34).
+- New input extension or output format → only lib/formats; the home panel (lib/formatMap) lists it by itself. A new output also needs its `fmt_<target>` description string (tests/formatExplorer.test.tsx fails on a raw key).
 - Bug fix → add a regression test in `tests/` next to the closest existing one.
 - Anything that deletes without an undo (IndexedDB records, user files) goes through `ConfirmDialog`; say in the message what goes with it.
 - Commits: conventional-ish (`feat:`, `fix:`, `design:`, `docs:`), one logical change each, always build and test first.

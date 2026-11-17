@@ -1,4 +1,4 @@
-import { outputsFor, type Kind } from './formats';
+import { formatLabel, outputsFor, type Kind } from './formats';
 import { effectiveSettings, withOption } from './settingFields';
 import type { SqueezeLevel } from './pdfTools';
 import type { Settings } from './settings';
@@ -74,7 +74,27 @@ export const TASKS: readonly Task[] = [
   { id: 'qr', kind: 'other', run: 'tool' },
 ];
 
-export const taskById = (id: string | null | undefined): Task | undefined => TASKS.find((t) => t.id === id);
+/**
+ * "Turn files of this kind into this format" — what the home page's format list picks. It is a convert
+ * task with a target and nothing else, so it waits for files, fits and applies like any other.
+ * Its id carries the kind and the target (`to-video-mp3`), so a preset stays a plain string.
+ */
+export const formatTask = (kind: Kind, target: string): Task => ({ id: `to-${kind}-${target}`, kind, run: 'convert', target });
+const FORMAT_TASK = /^to-(image|audio|video|pdf|doc)-([a-z0-9]+)$/;
+export const isFormatTask = (task: Task): boolean => FORMAT_TASK.test(task.id);
+
+export function taskById(id: string | null | undefined): Task | undefined {
+  if (!id) return undefined;
+  const listed = TASKS.find((t) => t.id === id);
+  if (listed) return listed;
+  const m = FORMAT_TASK.exec(id);
+  return m ? formatTask(m[1] as Kind, m[2]) : undefined;
+}
+
+/** How a task is named in the UI: its own strings, or "Convert to MP3" for a format pick. */
+export function taskName(task: Task, t: (key: string, vars?: Record<string, string>) => string): string {
+  return isFormatTask(task) ? t('taskToFormat', { fmt: formatLabel(task.target!) }) : t(`task_${task.id}`);
+}
 
 /** Can this task be done to this file? (same kind, and the output is one the file can become) */
 export function taskFits(task: Task, kind: Kind, file: File): boolean {

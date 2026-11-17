@@ -38,11 +38,12 @@
     .drawer-head; `.drawer .sp-grid → 1fr` (drawer forces single column)
 11. `settings fields` — .settings-panel .sp-intro .sp-section .sp-sec-title .sp-grid(minmax 190px) .sp-check
     .sp-field .sp-label .sp-val .sp-hint
-12. `format matrix` — .matrix .matrix-title(+::after brush dash) .matrix-grid(minmax 250px)
-    .mx-card(+.mx-image/.mx-audio/.mx-video pigment top borders, set in FormatMatrix.tsx)
-    .mx-head .mx-icon .mx-kind .mx-label .mx-chips .chip(.out) .mx-arrow .mx-edit
-13. `home task list` — .tasks .tasks-head .tasks-find .tasks-kinds .tasks-grid(minmax 218px; 2 cols of names ≤640)
-    .task(.tk-{kind} sets --c, .chosen) .tasks-empty · .task-banner · .fc-tasks .fc-task(.active) · .fc-edited · .btn-sm
+12. `format list leftovers` — .mx-label (Studio's info modal) .chip(.out) (format chips, the home panel uses .chip)
+13. `home panel` (FormatExplorer) — .fx .fx-q .fx-kinds .fx-kind(--c, .on) .fx-after .fx-tools .fx-search .fx-view .fx-kindview(--c)
+    .fx-subs .fx-ins(.chip.hit) .fx-body(5fr|7fr; 1 col ≤760) .fx-col .fx-task(.on; ≤640 two columns of names) .fx-outs .fx-out(.on .set)
+    .fx-need(.nd-engine ring, .nd-ocr filled) .fx-detail .fx-needs .fx-lbl .fx-chips .fx-opt .fx-quiet .fx-go .fx-foot .fx-tool .fx-legend
+    .fx-hits .fx-none .fx-table-wrap(overflow-x) .fx-table(sticky row heads, vertical column labels) .sr-only · `home Continue` — .recent
+    .recent-list .recent-pj(--c) .recent-all · .task-banner · .fc-tasks .fc-task(.active) · .fc-edited · .btn-sm
 14. `editors (shared shell)` — .editor-overlay(z110, fixed grid-center, padding 20) .editor
     (min(760px,100%), max-height calc(100vh−40px), scrolls) .editor-wide(980) .ed-head .ed-title
     .ed-preview .media-preview.mp-video(42vh)/.mp-audio(84px) .gif-preview .track-sec .replace-row
@@ -80,12 +81,12 @@
     .pdf-note-idx · .pdf-wm(auto-fit grid) .pdf-wm-field(.pdf-wm-text .pdf-wm-color) .pdf-wm-btns .pdf-wm-apply ·
     .pdf-export .pdf-x-row .pdf-x-pw · .pw-modal(.shake, pwShake keyframes) .pw-file .pw-row .pw-input .pw-err ·
     .pdf-lock .fc-lock(.open) · inline: `.editor.ie-inline.pdf-editor` flex column, grid+preview fill ·
-    `.mx-pdf` + `.file-card.kind-pdf .fc-icon` violet live in the format-matrix section
+    `.file-card.kind-pdf .fc-icon` violet sits right after `.fc-icon` in the file-card section
 19. `doc editor` — .doc-mdbar(2nd toolbar row, position:relative for popovers) .mdb-btn(.mdb-wide) .md-heading
     .md-pop(.md-pop-qr) .md-grid/.md-cell(.on hover-picker) · `.editor.ie-inline.doc-editor` (Studio text projects: flex column, .doc-body fills) · .doc-editor(.view-source/.view-preview collapse to one pane) .doc-tools .doc-body(2-col grid,
     58vh; ≤760 two rows; ≤640 100dvh sheet) textarea.doc-source(mono, tab-size 2) .doc-preview(always-light sheet)
-    .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.mx-doc` + `.file-card.kind-doc .fc-icon`
-    accent live in the format-matrix section
+    .doc-prose(readable prose: h1–h4, code/pre, blockquote, table scroller, img) · `.file-card.kind-doc .fc-icon`
+    accent sits right after `.fc-icon` in the file-card section
 20. `sheet editor` — .sheet-editor .sheet-tools .sheet-tabs .sheet-tab(.active .sheet-add .sheet-del)
     .sheet-rename .sheet-grid(58vh scroller; sticky thead th top / tbody th left, .sh-corner z3; td input
     transparent, .num right-blue; .sel outlines; tr.sh-header tint) .sheet-more · ≤640 100dvh sheet, 16px inputs
