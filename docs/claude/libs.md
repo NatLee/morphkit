@@ -114,9 +114,14 @@ key order) · `usedPct(used, quota)` → the text before "%" ("<0.1" for tiny re
 
 What the Projects launcher lists (tests/projectList.test.ts). `ProjectFilter` = 'all' | ProjectType | 'unsaved' | 'trash' ·
 `typeOf(p)` (legacy = audio) · `matchesFilter(p, f)` (live projects only; 'unsaved' = `backupState !== 'fresh'`) ·
-`liveFilter(f, projects, trashCount)` (an emptied choice → 'all') · `filterCounts` (rail numbers) ·
+`liveFilter(f, projects, trashCount)` (an emptied choice → 'all') · `filterCounts` (rail numbers) · `matchesQuery(p, q)` (every word, case-insensitive) ·
+`ageGroup(updatedAt, now)` (today = since local midnight; then < 7 days, < 30 days, older) · `groupByAge(list, now)` (keeps order, drops empty sections) ·
 `projectTypeFor(name, kind, mime)` (invariant 36: gif/apng → gif, `isTextDoc` docs → text, other docs → null).
 `docTypeOf`/`isTextDoc` in lib/formats take any `{ name }` (an AssetRec works), not only a File.
+
+## lib/useMediaQuery.ts (15)
+
+`useMediaQuery(query)` → boolean, live via `matchMedia(...).addEventListener('change')` (tests mock `window.matchMedia`).
 
 ## lib/tasks.ts (120)
 

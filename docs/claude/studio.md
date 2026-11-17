@@ -34,7 +34,7 @@ workspace, skipping the launcher; App clears it when the nav is used. Prop `onPr
 
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
-entered · quota · `confirmDel` ({project}|{asset}|{purge}|{emptyTrash}|null — the pending delete shown in ConfirmDialog) · `trash` (deleted projects, newest first) · `filter` (ProjectFilter; read through `shown = liveFilter(...)`) · `npOpen`/`npMsg`/`npHot` (new-project dialog, its skipped-files message, drag highlight; `npFileRef`) · trashStats · `justTrashed` (+ `trashToast` timer: the restore toast, `TRASH_TOAST_MS`) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
+entered · quota · `confirmDel` ({project}|{asset}|{purge}|{emptyTrash}|null — the pending delete shown in ConfirmDialog) · `trash` (deleted projects, newest first) · `filter` (ProjectFilter; read through `shown = liveFilter(...)`) · `npOpen`/`npMsg`/`npHot` (new-project dialog, its skipped-files message, drag highlight; `npFileRef`) · `query` (search box) · `phone` (`useMediaQuery('(max-width: 640px)')`: rows always, no grid/list switch) · trashStats · `justTrashed` (+ `trashToast` timer: the restore toast, `TRASH_TOAST_MS`) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
 sortBy (`'mk-sort'`) · metaPj · metaFacts {id, name, meta: FileMeta} (info-modal probe, keyed by project
 id so a slow probe can't paint another project's rows) · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
 framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
@@ -66,7 +66,7 @@ for inline editors — invariant 15) · `persistBase`. Window `paste` listener w
 + `button.np-drop` (click → hidden multi-file input with `ACCEPT`; drag/drop → `startFromFiles`: each file → `projectTypeFor` →
 `createProjectWithAsset` + `persistedRef`; one file enters its workspace, files that cannot be projects → `p.np-msg`).
 `.studio.st-launcher > .st-bar (h2.launcher-title, button.pj-new "New project" — only with live projects, opens the dialog,
-.opt-spacer, [select.tb-select + .st-tabs grid|list — with projects, not on the trash], import btn)`, then:
+input.pj-search[type=search] — with two projects or more, .opt-spacer, [select.tb-select + .st-tabs grid|list — with projects, not on the trash, not on phones], import btn)`, then:
 first visit (no projects, empty trash) `p.pj-explain` + picker; otherwise `.pj-layout > aside.pj-side + .pj-main`.
 `aside.pj-side > nav.pj-rail` (aria "Show projects"; `railRow(key, name, {color, bytes, warn})` = `button.pj-f[.on][.warn]` >
 .pj-f-dot + .pj-f-name + .pj-f-n (`counts` from `filterCounts`) [+ <Meter color> of the bytes against `largestType` + .pj-f-size];
@@ -74,9 +74,12 @@ rows: all · `p.pj-rail-h` · one per type that has projects (bytes = `typeBytes
 + `.pj-store > p.pj-note` (count · `totalBytes` · local-only reminder) + `p.pj-quota` (<Meter> + text of `storedBytes` against `quota`,
 when the browser reports one). `.pj-main` = `section.pj-trash` when `shown === 'trash'` (`.pj-trash-head` > h3 + hint + "empty" btn,
 `ul.pj-trash-list > li` (type badge, name, <Meter> of days left out of `TRASH_DAYS` — warn tone from `TRASH_WARN_DAYS` — days left · files · size,
-restore, delete for good)) | explain + picker when only the trash holds projects | `.pj-grid|.pj-list > .pj-card` over `sortedProjects`
-(already filtered by `shown`; button.pj-open > .pj-thumb + .pj-body (.type-badge.tb-{type}, .pj-name, .pj-meta, <Meter> against
-`largestBytes` with two projects or more, span.pj-backup.bk-{never|stale|fresh})) + .pj-actions (info/export/delete → confirm)).
+restore, delete for good); `shownTrash` follows the search) | explain + picker when only the trash holds projects | `p.pj-empty` (no match)
++ `section.pj-group` per `groupByAge(sortedProjects)` when sorted by "updated" (else one unnamed section; `h3.pj-group-h` = name + count)
+> `.pj-grid|.pj-list` (list when `layout === 'list' || phone`) > `card(p)` = `.pj-card` (position relative) > button.pj-open >
+.pj-thumb + .pj-body (.pj-tags (.type-badge.tb-{type} + span.pj-backup.bk-{never|stale|fresh}), .pj-name, .pj-meta, <Meter> against
+`largestBytes` with two projects or more) + <MoreMenu> "More for “name”" (project info · export · delete → confirm).
+`sortedProjects` is already filtered by `shown` and `matchesQuery(query)`.
 Overlay→`.editor.mini-modal.np-modal[role=dialog]` (picker + Close; Escape closes, focus starts on the first use card) ·
 portal `.banner.info.st-note.pj-undo` (restore toast) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
