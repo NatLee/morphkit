@@ -101,6 +101,24 @@ describe('Projects are deleted only after a confirmation', () => {
     expect(idb.deleteProject).not.toHaveBeenCalled();
   });
 
+  // Regression: a project spun off from an asset ("New project from this asset") was saved to
+  // IndexedDB but not marked as saved, so deleting it before any edit only hid it from the list —
+  // it came back on the next visit instead of going to the trash.
+  it('moves a project made from an asset to the trash when it is deleted right away', async () => {
+    const user = userEvent.setup();
+    db.assets = [{ ...asset, name: 'cover.md', kind: 'doc', blob: new Blob(['# Cover'], { type: 'text/markdown' }) }];
+    const spun: ProjectRec = { id: 'p2', name: 'cover', type: 'text', createdAt: 2, updatedAt: 2, mixer: emptyMixer(), textAssetId: 'a9' };
+    (idb.createProjectWithAsset as ReturnType<typeof vi.fn>).mockResolvedValue(spun);
+    openStudio();
+    await user.click(await screen.findByText('Podcast cut'));
+    await screen.findAllByText('cover.md');
+    await user.click(screen.getByRole('button', { name: 'New project from this asset' }));
+    await screen.findByDisplayValue('cover');
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await user.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await waitFor(() => expect(idb.putProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'p2', deletedAt: expect.any(Number) })));
+  });
+
   it('asks before removing a file from a project', async () => {
     const user = userEvent.setup();
     openStudio();

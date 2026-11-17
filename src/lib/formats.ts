@@ -37,7 +37,7 @@ const DOC_MIME = new Set([
 
 /** Normalised document sub-type used by lib/docs.ts. */
 export type DocType = 'docx' | 'pptx' | 'text' | 'md' | 'html' | 'sheet' | 'json';
-export function docTypeOf(file: File): DocType {
+export function docTypeOf(file: { name: string }): DocType {
   const ext = extOf(file.name);
   if (ext === 'docx') return 'docx';
   if (ext === 'pptx') return 'pptx';
@@ -48,7 +48,7 @@ export function docTypeOf(file: File): DocType {
   return 'text';
 }
 /** documents that edit as text/markdown — the only ones Studio text projects accept */
-export function isTextDoc(file: File): boolean {
+export function isTextDoc(file: { name: string }): boolean {
   const t = docTypeOf(file);
   return t === 'md' || t === 'text' || t === 'html' || t === 'json';
 }

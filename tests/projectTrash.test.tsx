@@ -110,7 +110,8 @@ describe('backups', () => {
     expect((await card('Saved one')).textContent).toContain('Backed up');
     expect((await card('Edited since')).textContent).toContain('Changed since the backup');
     expect((await card('Never saved')).textContent).toContain('No backup yet');
-    expect((document.querySelector('.pj-note') as HTMLElement).textContent).toContain('2 projects have changes that are not exported yet');
+    // the rail counts them and lists them on a click
+    expect(screen.getByRole('button', { name: /^Not backed up/ }).textContent).toContain('2');
   });
 
   it('marks a project as backed up when it is exported, without counting that as an edit', async () => {

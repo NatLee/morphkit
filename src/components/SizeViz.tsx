@@ -63,11 +63,14 @@ export function StackBar({ segments, label, children }: { segments: readonly Sta
   );
 }
 
-/** A single quantity against its limit (project size against the largest, days left in the trash). */
-export function Meter({ value, max, tone = 'accent', label }: { value: number; max: number; tone?: 'accent' | 'warn'; label: string }) {
+/**
+ * A single quantity against its limit (project size against the largest, days left in the trash).
+ * `color` (a CSS colour token) paints the bar in what it measures, e.g. a project type on the rail.
+ */
+export function Meter({ value, max, tone = 'accent', color, label }: { value: number; max: number; tone?: 'accent' | 'warn'; color?: string; label: string }) {
   const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   return (
-    <span className={`meter mt-${tone}`} role="img" aria-label={label} title={label}>
+    <span className={`meter mt-${tone}`} role="img" aria-label={label} title={label} style={color ? ({ '--meter-c': color } as CSSProperties) : undefined}>
       <span style={{ width: `${pct}%` }} />
     </span>
   );
