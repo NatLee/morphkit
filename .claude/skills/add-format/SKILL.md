@@ -36,8 +36,10 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
      output MUST use `rgba4444` + `transparent: true` + `dispose: 2` (invariant 4).
 3. `src/App.tsx` `runConvert` — make sure the new target reaches the right converter
    (apng/gif images route to `convertAnimImage`, NOT ffmpeg).
-4. `src/components/FormatMatrix.tsx` — the `MATRIX` chips are hardcoded strings, not derived
-   from formats.ts. Add the chip so the marketing section stays truthful.
+4. Overview: the in-app FormatMatrix derives its OUT chips from formats.ts (nothing to do there; IN
+   chips are a hand-picked short list). The README picture is drawn from `docs/images/formats.html`:
+   add the output to its ROWS (tests/formatsPicture.test.ts fails until you do) and re-render
+   `formats-en.webp` / `formats-zh.webp` with the command in its header.
 5. i18n — only needed if you add visible labels (all three dicts: zh/en/ja).
 6. Verify: `npx tsc` clean and `npm test` (extend `tests/formats.test.ts` for detection, outputs and
    default targets), then convert a real file of that kind in `npm run dev` if feasible.
@@ -47,6 +49,6 @@ Read `docs/claude/libs.md` (formats.ts + ffmpegClient/animImage/imageConvert sec
 - [ ] formats.ts registry (outputs/mime/default/filename)
 - [ ] Conversion branch (ffmpeg buildArgs case | imageConvert | animImage | pdf.ts | docs.ts)
 - [ ] App runConvert routing correct
-- [ ] FormatMatrix chips updated
+- [ ] formats.html ROWS + both formats-*.webp re-rendered
 - [ ] README format lists and `docs/images/formats-*.webp` still true
 - [ ] Tests; `npx tsc` and `npm test` clean
