@@ -1,4 +1,12 @@
 export type Kind = 'image' | 'audio' | 'video' | 'pdf' | 'doc';
+/** Every kind, in the order the app lists them, with its name (i18n key) and signal colour (CSS token). */
+export const KINDS: ReadonlyArray<{ kind: Kind; nameKey: string; color: string }> = [
+  { kind: 'image', nameKey: 'kindImage', color: 'var(--paint-green)' },
+  { kind: 'audio', nameKey: 'kindAudio', color: 'var(--paint-blue)' },
+  { kind: 'video', nameKey: 'kindVideo', color: 'var(--paint-red)' },
+  { kind: 'pdf', nameKey: 'kindPdf', color: 'var(--paint-violet)' },
+  { kind: 'doc', nameKey: 'kindDoc', color: 'var(--accent)' },
+];
 
 /** `ico` = a multi-size icon (favicon), see `convertToIco`; `txt` = the text in the picture (OCR, lib/ocr). */
 export const IMAGE_OUTPUTS = ['webp', 'png', 'jpeg', 'apng', 'gif', 'pdf', 'ico', 'txt'] as const;

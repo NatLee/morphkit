@@ -14,6 +14,7 @@ import type { Item } from '../types';
 import { docTypeOf, isTextDoc } from '../lib/formats';
 import { PDF_ICON } from './FormatMatrix';
 import { SettingControl } from './SettingControl';
+import { SizeCompare } from './SizeViz';
 import { activeOverrides, effectiveSettings, fieldsFor, showValue, type SettingValue } from '../lib/settingFields';
 import type { Settings } from '../lib/settings';
 import { suggestionsFor, taskActive } from '../lib/tasks';
@@ -78,6 +79,8 @@ export function FileCard({ item, settings, onOption, onResetOptions, onTask, onT
   const overrides = activeOverrides(settings, item.opts, item.kind, item.target);
   // the jobs most often done with this kind of file
   const suggestions = suggestionsFor(item.kind, item.file);
+  // the size target this conversion ran under, if any (drawn as a tick on the result bar)
+  const sizeTarget = (fields.some((f) => f.key === 'imageTargetSize') && eff.imageTargetSize) || (fields.some((f) => f.key === 'videoTargetSize') && eff.videoTargetSize) || 0;
   const [copied, setCopied] = useState(false);
 
   const copyResult = async () => {
@@ -415,6 +418,10 @@ export function FileCard({ item, settings, onOption, onResetOptions, onTask, onT
           />
           <span className="fc-quality-val">{Math.round(item.quality * 100)}%</span>
         </div>
+      )}
+
+      {item.status === 'done' && item.outSize != null && !item.edited && (
+        <SizeCompare before={item.file.size} after={item.outSize} target={sizeTarget} />
       )}
 
       {item.status === 'converting' && item.kind !== 'image' && (

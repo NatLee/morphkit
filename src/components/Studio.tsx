@@ -11,6 +11,8 @@ import { FramePicker } from './FramePicker';
 import { InfoTip } from './InfoTip';
 import { Overlay } from './Overlay';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Meter, StackBar } from './SizeViz';
+import { sumBy, usedPct } from '../lib/sizeStats';
 import { createPortal } from 'react-dom';
 import { ACCEPT, detectKind, extOf, formatBytes, isTextDoc } from '../lib/formats';
 import { decodeAssetBuffer, dropAssetBuffer, mixDuration } from '../lib/audioEngine';
@@ -70,14 +72,17 @@ const KIND_GLYPH: Record<string, string> = {
 };
 
 /** Per project type: its name, what people use it for (`useKey`, the card title when starting one) and what it offers. */
-const TYPE_META: Record<ProjectType, { labelKey: string; useKey: string; descKey: string; glyph: string }> = {
-  audio: { labelKey: 'typeAudio', useKey: 'typeAudioUse', descKey: 'typeAudioDesc', glyph: KIND_GLYPH.audio },
-  image: { labelKey: 'typeImage', useKey: 'typeImageUse', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image },
-  gif: { labelKey: 'typeGif', useKey: 'typeGifUse', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif },
-  video: { labelKey: 'typeVideo', useKey: 'typeVideoUse', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video },
-  pdf: { labelKey: 'typePdf', useKey: 'typePdfUse', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf },
-  text: { labelKey: 'typeText', useKey: 'typeTextUse', descKey: 'typeTextDesc', glyph: KIND_GLYPH.doc },
+const TYPE_META: Record<ProjectType, { labelKey: string; useKey: string; descKey: string; glyph: string; color: string }> = {
+  audio: { labelKey: 'typeAudio', useKey: 'typeAudioUse', descKey: 'typeAudioDesc', glyph: KIND_GLYPH.audio, color: 'var(--paint-blue)' },
+  image: { labelKey: 'typeImage', useKey: 'typeImageUse', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image, color: 'var(--paint-green)' },
+  gif: { labelKey: 'typeGif', useKey: 'typeGifUse', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif, color: 'var(--paint-yellow)' },
+  video: { labelKey: 'typeVideo', useKey: 'typeVideoUse', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video, color: 'var(--paint-red)' },
+  pdf: { labelKey: 'typePdf', useKey: 'typePdfUse', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf, color: 'var(--paint-violet)' },
+  text: { labelKey: 'typeText', useKey: 'typeTextUse', descKey: 'typeTextDesc', glyph: KIND_GLYPH.doc, color: 'var(--accent)' },
 };
+const PROJECT_TYPES = Object.keys(TYPE_META) as ProjectType[];
+/** From this many days left, a trashed project's countdown turns to the warning colour. */
+const TRASH_WARN_DAYS = 7;
 
 /** Common canvas sizes offered when starting a blank image project. */
 const CANVAS_PRESETS = [
@@ -699,6 +704,11 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
   }, [entered, projects]);
 
   const totalBytes = useMemo(() => Object.values(pjStats).reduce((sum, s) => sum + s.bytes, 0), [pjStats]);
+  // the same bytes as pictures: per project type, the trash, and the largest project (the scale of the card bars)
+  const typeBytes = sumBy(projects, PROJECT_TYPES, (p) => p.type ?? 'audio', (p) => pjStats[p.id]?.bytes ?? 0);
+  const trashBytes = trash.reduce((sum, p) => sum + (trashStats[p.id]?.bytes ?? 0), 0);
+  const storedBytes = totalBytes + trashBytes;
+  const largestBytes = Math.max(0, ...projects.map((p) => pjStats[p.id]?.bytes ?? 0));
   // projects whose latest state exists only in this browser
   const unsaved = projects.filter((p) => backupState(p) !== 'fresh').length;
 
@@ -1092,10 +1102,29 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
         ) : (
           <p className="pj-note">
             <b>{t('pjNoteCount', { n: String(projects.length), size: formatBytes(totalBytes) })}</b>
-            {quota != null && <span>{t('pjNoteQuota', { quota: formatBytes(quota) })}</span>}
             <span>{t('pjNoteLocal')}</span>
             {unsaved > 0 && <span className="pj-warn">{t('pjNoteUnsaved', { n: String(unsaved) })}</span>}
           </p>
+        )}
+
+        {/* where the space goes: by project type, plus what the trash still holds */}
+        {storedBytes > 0 && (
+          <div className="pj-storage">
+            <p className="pj-storage-title">{t('storageTitle')}</p>
+            <StackBar
+              label={t('storageTitle')}
+              segments={[
+                ...PROJECT_TYPES.map((tp, i) => ({ key: tp, label: t(TYPE_META[tp].labelKey), color: TYPE_META[tp].color, value: typeBytes[i].value })),
+                { key: 'trash', label: t('trashTitle'), color: 'var(--ink-faint)', value: trashBytes, muted: true },
+              ]}
+            />
+            {quota != null && (
+              <p className="pj-quota">
+                <Meter value={storedBytes} max={quota} label={t('storageOf', { used: formatBytes(storedBytes), quota: formatBytes(quota), pct: usedPct(storedBytes, quota) })} />
+                <span>{t('storageOf', { used: formatBytes(storedBytes), quota: formatBytes(quota), pct: usedPct(storedBytes, quota) })}</span>
+              </p>
+            )}
+          </div>
         )}
 
         {projects.length > 0 && (
@@ -1120,6 +1149,9 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                   <span className="pj-meta">
                     {new Date(p.updatedAt).toLocaleDateString()} · {t('filesCount', { n: String(pjStats[p.id]?.n ?? 0) })} · {formatBytes(pjStats[p.id]?.bytes ?? 0)}
                   </span>
+                  {projects.length > 1 && (
+                    <Meter value={pjStats[p.id]?.bytes ?? 0} max={largestBytes} label={t('sizeOfLargest', { size: formatBytes(pjStats[p.id]?.bytes ?? 0) })} />
+                  )}
                   <span className={`pj-backup bk-${backupState(p)}`}>{t(`backup_${backupState(p)}`)}</span>
                 </span>
               </button>
@@ -1179,6 +1211,12 @@ export function Studio({ enterProjectId = null, onProjectCount }: StudioProps) {
                   <li key={p.id}>
                     <span className={`type-badge tb-${p.type ?? 'audio'}`}>{t(TYPE_META[p.type ?? 'audio'].labelKey)}</span>
                     <span className="pj-trash-name">{p.name}</span>
+                    <Meter
+                      value={trashDaysLeft(p, Date.now())}
+                      max={TRASH_DAYS}
+                      tone={trashDaysLeft(p, Date.now()) <= TRASH_WARN_DAYS ? 'warn' : 'accent'}
+                      label={t('trashLeft', { n: String(trashDaysLeft(p, Date.now())) })}
+                    />
                     <span className="pj-meta">
                       {t('trashLeft', { n: String(trashDaysLeft(p, Date.now())) })} · {t('filesCount', { n: String(trashStats[p.id]?.n ?? 0) })} · {formatBytes(trashStats[p.id]?.bytes ?? 0)}
                     </span>

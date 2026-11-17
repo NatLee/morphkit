@@ -74,7 +74,9 @@ describe('Projects page', () => {
     await screen.findByText('Episode 12');
     const note = document.querySelector('.pj-note') as HTMLElement;
     await waitFor(() => expect(note.textContent).toContain('1 projects · 2.0 KB'));
-    await waitFor(() => expect(note.textContent).toContain('the browser allows about 2.00 GB'));
+    // the storage picture: what the space goes to, and how much of the browser's allowance it is
+    await waitFor(() => expect(document.querySelector('.pj-quota')?.textContent).toContain('2.0 KB in all, <0.1% of what the browser allows (about 2.00 GB)'));
+    expect(document.querySelector('.pj-storage .stack-legend')?.textContent).toContain('Audio project 2.0 KB');
     expect(screen.queryByText(/^A project is work you finish/)).toBeNull();
     // the project list comes before the "start a new one" cards
     const card = screen.getByText('Episode 12');
@@ -90,6 +92,6 @@ describe('Projects page', () => {
     db.projects = [project];
     open();
     await screen.findByText('Episode 12');
-    expect((document.querySelector('.pj-note') as HTMLElement).textContent).not.toContain('allows about');
+    expect(document.querySelector('.pj-quota')).toBeNull();
   });
 });
