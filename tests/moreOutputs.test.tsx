@@ -76,7 +76,7 @@ describe('format overview', () => {
   it('names the image and video outputs the registry has', () => {
     expect(outputsOf('image')).toEqual(IMAGE_OUTPUTS);
     expect(outputsOf('image')).toContain('ico');
-    expect(outputsOf('video').map(formatLabel)).toEqual(['MP4', 'WEBM', 'GIF', 'MP3', 'WAV', 'OGG', 'FLAC', 'M4A']);
+    expect(outputsOf('video').map(formatLabel)).toEqual(['MP4', 'WEBM', 'MOV', 'MKV', 'GIF', 'MP3', 'WAV', 'OGG', 'FLAC', 'M4A']);
   });
 
   it('writes jpeg the familiar way', () => {

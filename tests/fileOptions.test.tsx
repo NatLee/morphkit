@@ -25,6 +25,10 @@ describe('settings registry', () => {
   // which settings a conversion really reads — the same conditions as the conversion code
   it('gives each conversion only the settings that change it', () => {
     expect(keys('video', 'mp4')).toEqual(['keepMetadata', 'audioLoudness', 'videoCrf', 'videoTargetSize', 'videoPreset', 'videoMaxH', 'videoFps', 'videoMute']);
+    // MOV and MKV are the same H.264 encode in another container: the same options, the encoder speed included
+    expect(keys('video', 'mov')).toEqual(keys('video', 'mp4'));
+    expect(keys('video', 'mkv')).toEqual(keys('video', 'mp4'));
+    expect(keys('video', 'webm')).not.toContain('videoPreset');
     expect(keys('video', 'gif')).toEqual(['videoMaxH', 'gifFps', 'gifWidth']);
     expect(keys('video', 'mp3')).toEqual(['keepMetadata', 'audioBitrate', 'audioRateMode', 'audioQuality', 'audioSampleRate', 'audioChannels', 'audioLoudness']);
     expect(keys('audio', 'mp3')).toContain('keepCoverArt');

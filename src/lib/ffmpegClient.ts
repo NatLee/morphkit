@@ -327,9 +327,12 @@ function videoRate(codec: 'x264' | 'vp8', s: Settings, kbps?: number): string[] 
     : ['-crf', String(Math.min(s.videoCrf + 7, 40)), '-b:v', '1M'];
 }
 
+/** Containers written as H.264 video + AAC sound — what plays almost everywhere. MP4 is the default;
+    MOV is what Apple's editors expect, MKV what many players and archivists prefer. */
+export const H264_TARGETS: ReadonlySet<string> = new Set(['mp4', 'mov', 'mkv']);
 /** Outputs with both a picture and a sound track (GIF has no sound, the audio formats no
     picture): the ones whose sound can be replaced and that the size target applies to. */
-export const AV_TARGETS: ReadonlySet<string> = new Set(['mp4', 'webm']);
+export const AV_TARGETS: ReadonlySet<string> = new Set([...H264_TARGETS, 'webm']);
 /** Share of the size budget given to the streams; the rest is room for the container. */
 const SIZE_MARGIN = 0.95;
 /** Below this the picture is mush — better to say the target cannot be met. */
@@ -394,6 +397,8 @@ export function buildArgs(
       return [...trim, '-i', input, ...art, '-c:a', 'aac', ...rateOpts('aac', s), ...audioOpts(s), ...afChain(e, loud), ...meta, output];
     // ---- video ----
     case 'mp4':
+    case 'mov':
+    case 'mkv':
       return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, ...videoRate('x264', s, videoKbps), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', `${VIDEO_AUDIO_KBPS}k`, ...afChain(e, loud)] : videoAudioTrack(s, e, loud)), ...meta, output];
     case 'webm':
       return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', ...videoRate('vp8', s, videoKbps), ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e, loud)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e, loud)]), ...meta, output];

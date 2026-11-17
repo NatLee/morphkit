@@ -1,4 +1,4 @@
-import { ART_CAPABLE, AV_TARGETS } from './ffmpegClient';
+import { ART_CAPABLE, AV_TARGETS, H264_TARGETS } from './ffmpegClient';
 import { AUDIO_OUTPUTS, PDF_TEXT_OUTPUTS, RASTER_OUTPUTS, type Kind } from './formats';
 import { MIN_QUALITY } from './imageConvert';
 import { OCR_LANGS } from './ocr';
@@ -117,7 +117,7 @@ export const SETTING_FIELDS: readonly SettingField[] = [
     applies: (k, t) => k === 'video' && has(AV_TARGETS, t) },
   { key: 'videoPreset', section: 'video', labelKey: 'videoPreset', hintKey: 'presetHint',
     control: { type: 'select', choices: ['veryfast', 'fast', 'medium'].map((p) => ({ value: p, label: p })) },
-    applies: (k, t) => k === 'video' && t === 'mp4' },
+    applies: (k, t) => k === 'video' && has(H264_TARGETS, t) },
   { key: 'videoMaxH', section: 'video', labelKey: 'videoRes',
     control: { type: 'select', choices: [original, ...[1080, 720, 480].map((n) => ({ value: n, label: `${n}p` }))] },
     applies: (k, t) => k === 'video' && (has(AV_TARGETS, t) || t === 'gif') },
