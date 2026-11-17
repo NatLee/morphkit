@@ -41,7 +41,8 @@
 12. `format matrix` — .matrix .matrix-title(+::after brush dash) .matrix-grid(minmax 250px)
     .mx-card(+.mx-image/.mx-audio/.mx-video pigment top borders, set in FormatMatrix.tsx)
     .mx-head .mx-icon .mx-kind .mx-label .mx-chips .chip(.out) .mx-arrow .mx-edit
-13. `hero feature row` — .feat-row .feat(nth-child pigments) · .fc-edited · .btn-sm
+13. `home task list` — .tasks .tasks-head .tasks-find .tasks-kinds .tasks-grid(minmax 218px; 2 cols of names ≤640)
+    .task(.tk-{kind} sets --c, .chosen) .tasks-empty · .task-banner · .fc-tasks .fc-task(.active) · .fc-edited · .btn-sm
 14. `editors (shared shell)` — .editor-overlay(z110, fixed grid-center, padding 20) .editor
     (min(760px,100%), max-height calc(100vh−40px), scrolls) .editor-wide(980) .ed-head .ed-title
     .ed-preview .media-preview.mp-video(42vh)/.mp-audio(84px) .gif-preview .track-sec .replace-row
@@ -95,8 +96,8 @@
     while a chip is open — state in QrTool; ≤640 the .qr-foot close row is hidden, the ✕/QR-tab close) · .qr-field
     .qr-text .qr-style .qr-colors .qr-canvas(.checker) .qr-payload .qr-actions · .qr-read .qr-drop
     (.drop-hot) .qr-video .qr-read-actions .qr-result .qr-decoded .qr-kind(-url) · .fc-qr chip · .dz-note ·
-    ≤640: topbar .qr-btn hidden; .qr-overlay z90 (< .m-tabbar z95 → the QR tab stays tappable and toggles
-    the sheet) with an OPAQUE var(--bg) backdrop (a dimmed translucent one read as a modal window, not a tab
+    ≤640: topbar .qr-btn hidden (QR opens from the home task list); .qr-overlay z90 (< .m-tabbar z95 → the tabs stay
+    tappable and close the sheet) with an OPAQUE var(--bg) backdrop (a dimmed translucent one read as a modal window, not a tab
     page); APP-STYLE sheet: 100dvh `overflow:hidden` (never scrolls as a whole) — .qr-make rows
     `auto minmax(0,1fr)`: preview (order:-1, canvas 18vh cap, compact .qr-actions, .qr-payload hidden)
     pinned under the tabs, ONLY .qr-form scrolls; .qr-read scrolls likewise; .qr-foot pinned above the bar;
@@ -149,7 +150,7 @@
 | `≤720px` OR `≤540px tall` OR coarse-pointer ≤920 | .ie-layout → 1 column (same condition as the layers sheet) |
 | `≤640px` (phone) | .app gutter 16px; .topbar wraps; hero compact; dropzone compact; .bb-actions full-width grow; file-card controls grow + .fc-details 1col; .fc-target hidden →
 .fc-chips target chip row shown (native select popup covered the card); **modal editors become full-width sheets** (.editor-overlay padding 0, .editor 100% wide, radius 0, safe-area padding, 100dvh cap); .media-preview.mp-video 34vh; .ie-viewport/.ie-canvas 44vh + .layers-panel 240px; .ed-toolbar + .gif-transport wrap into rows (.ed-options stays a nowrap scroller on purpose); drawer + studio compact; **text/number inputs + selects → 16px font (iOS focus-zoom guard)**; .fp-preview 180px; .vw-preview 26vh |
-| `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×4 (z95, safe-area padding); `.mode-nav` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
+| `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×3 (z95, safe-area padding); `.mode-nav` and the top bar's `.lang-switch` hidden (tab bar owns mode switching; `.drawer-lang` shows the language buttons inside the settings page); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
 | `≤640px` (settings) | drawer → full-screen APP PAGE under the tab bar (z90/91, the 設定 tab toggles it like QR): flex column, head + `.drawer-bottom-close` pinned (close carries the 76px tab-bar clearance), ONLY `.settings-panel` scrolls |
 | app-mode (toolbars) | **mobile-layer block** (must stay after the ≤640 `.ed-toolbar{flex-wrap:wrap}` or it loses the cascade): `.pdf-tools` / `.mixer .gif-transport` / `.doc-tools` / `.doc-mdbar` become nowrap swipeable rows (scrollbar hidden, children flex-shrink 0); `.md-pop` goes `position:fixed` above the tab bar (the strip's overflow would clip an absolute popover); `.vw-tabs` shows (video/audio pane switch, `.vw.vw-pane-*` hides the other pane); `.trk-head:not(.tl-corner)` is FORCED to 72px (= LANE_H) w/ compact name/buttons/gain — the coarse bumps grew it to ~90px and rows misaligned with their lanes |
 | `@media (display-mode: standalone)` | installed PWA: `.footer` hidden; `.topbar` padding-top honors `env(safe-area-inset-top)` (22px desktop / 14px ≤640) |

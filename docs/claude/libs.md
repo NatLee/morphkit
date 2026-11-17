@@ -103,6 +103,16 @@ case; FormatMatrix chips) · `outputFileName` (jpeg→.jpg) ·
 `mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
 `apng` has NO ffmpeg path — must route to convertAnimImage; `ico` has none either — App routes it to `convertToIco`; image `txt` goes to `imageToText` (lib/ocr).
 
+## lib/tasks.ts (120)
+
+The "I want to…" registry (invariant 34). `Task {id, kind: Kind|'other', run: convert|editor|batch|tool, target?, opts?,
+pdfExport?: PdfExportPreset {numbers?, squeeze?, encrypt?}, suggest?}` · `TASKS` (23) · `CARD_SUGGESTIONS` 3 ·
+`taskById` · `taskFits(task, kind, file)` (same kind + the target is in `outputsFor`) · `suggestionsFor(kind, file)`
+(the `suggest` ones that fit, in list order) · `taskActive(task, item, defaults)` (target matches and every task option
+equals the file's EFFECTIVE value) · `applyTask(task, item, defaults)` → `{target, opts}` (through `withOption`; applying
+an active task with options takes them back out) · `filterTasks(query, kind, text)` (every word must appear in the
+shown strings or the target). Tests: tests/tasks.test.tsx.
+
 ## lib/settingFields.ts (188)
 
 The registry behind the drawer AND the per-file options (invariant 33). `SETTING_SECTIONS` (drawer order; `titleKey`

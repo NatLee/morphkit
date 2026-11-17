@@ -208,7 +208,7 @@ toggle) + .pw-err|.ed-hint + .ed-foot.
 
 ## DocEditor.tsx (369) — source + preview for documents (modal + Studio inline)
 
-Props `{item, onSave(id, file), onClose?, inline?}` — inline renders in place (.ie-inline-wrap, no head,
+Props `{item, onSave(id, file), onClose?, inline?}` (PdfEditor also takes `exportPreset?: PdfExportPreset` — numbers / squeeze / encrypt switched on and the export dialog opened once the pages are loaded; a `presetDone` ref makes it fire once per mount) — inline renders in place (.ie-inline-wrap, no head,
 save label = pdfSaveAsset, Esc disabled) for Studio TEXT projects.
 
 **Markdown toolbar** (`.doc-mdbar`, md mode + source visible): selection helpers `apply/sel/wrapSel/
