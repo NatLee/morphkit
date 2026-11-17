@@ -7,6 +7,10 @@ export const SLOW_IMAGE_OUTPUTS: ReadonlySet<string> = new Set(['pdf', 'txt']);
 export const AUDIO_OUTPUTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a'] as const;
 /** A video can become any audio format: the sound track goes through the same ffmpeg branches. */
 export const VIDEO_OUTPUTS = ['mp4', 'webm', 'gif', ...AUDIO_OUTPUTS] as const;
+/** The outputs drawn on a canvas — the ones a pixel cap, a size target or a render scale can change. */
+export const RASTER_OUTPUTS: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp']);
+/** PDF outputs made from the page text (read by OCR where a page has none). */
+export const PDF_TEXT_OUTPUTS: ReadonlySet<string> = new Set(['txt', 'docx', 'md', 'html']);
 /** PDF: rasterize pages (multi-page → ZIP), extract text, or re-save (after editing). */
 export const PDF_OUTPUTS = ['png', 'jpeg', 'webp', 'txt', 'docx', 'md', 'html', 'pdf'] as const;
 

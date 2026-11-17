@@ -1017,10 +1017,110 @@ select optgroup {
 
 .fc-remove { padding: 9px 11px; }
 
-.fc-detail-btn.active {
-  border-color: var(--ink);
+/* the card's "more" menu (save as project, file details) */
+.fc-more { position: relative; }
+.fc-more > .btn.active { border-color: var(--ink); color: var(--ink); background: var(--panel); }
+
+.fc-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(320px, 82vw);
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  animation: rise 0.16s ease backwards;
+}
+
+.fc-menu button {
+  border: 0;
+  background: none;
   color: var(--ink);
-  background: var(--panel);
+  text-align: left;
+  padding: 8px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-body);
+}
+
+.fc-menu button:hover:not(:disabled), .fc-menu button:focus-visible { background: var(--accent-soft); }
+.fc-menu button:disabled { opacity: 0.5; cursor: not-allowed; }
+.fc-menu b { font-size: 13.5px; font-weight: 600; }
+.fc-menu span { font-size: 12px; line-height: 1.5; color: var(--ink-dim); }
+
+/* this file's own options: what it overrides, then the controls */
+.fc-optrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.fc-optrow-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; }
+.fc-opt-default { color: var(--ink-dim); }
+
+.fc-opt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.fc-opt-chip button {
+  border: 0;
+  background: none;
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.fc-opt-chip button:hover:not(:disabled) { color: var(--danger); }
+
+.fc-opt-toggle {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 2px 2px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.fc-opt-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.fc-opts {
+  margin-top: 10px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  animation: rise 0.2s ease backwards;
 }
 
 /* ============ details / quality / progress / warnings ============ */
@@ -1226,6 +1326,17 @@ select optgroup {
   background: var(--bg-raised);
   padding: 20px 22px;
   margin-bottom: 16px;
+}
+
+/* what the drawer is: defaults, not the options of the files on screen */
+.sp-intro {
+  margin: 0 0 16px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-dim);
 }
 
 .sp-section + .sp-section {
@@ -4698,6 +4809,12 @@ html:has(.drawer-overlay) { overflow-y: clip; }
   }
   .fc-chip:disabled { opacity: 0.5; cursor: not-allowed; }
   .fc-controls > .btn { flex: 1 1 auto; justify-content: center; }
+  /* the two icon buttons stay compact so Convert gets the width; the menu spans the card,
+     because a popover hung from a mid-row button ran off the left edge */
+  .fc-controls { position: relative; }
+  .fc-controls > .fc-remove, .fc-more { flex: 0 0 auto; }
+  .fc-more { position: static; }
+  .fc-menu { left: 0; right: 0; width: auto; max-width: none; }
   .fc-details { grid-template-columns: 1fr; }
   .fc-quality input[type='range'] { max-width: none; }
 

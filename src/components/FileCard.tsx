@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import {
   formatBytes,
@@ -13,6 +13,9 @@ import { extOf } from '../lib/formats';
 import type { Item } from '../types';
 import { docTypeOf, isTextDoc } from '../lib/formats';
 import { PDF_ICON } from './FormatMatrix';
+import { SettingControl } from './SettingControl';
+import { activeOverrides, effectiveSettings, fieldsFor, showValue, type SettingValue } from '../lib/settingFields';
+import type { Settings } from '../lib/settings';
 
 const KIND_ICONS: Record<Kind, string> = {
   image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6zm2.5-7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z',
@@ -24,6 +27,10 @@ const KIND_ICONS: Record<Kind, string> = {
 
 interface Props {
   item: Item;
+  /** the defaults (settings drawer); the card shows what this file overrides */
+  settings: Settings;
+  onOption: (id: string, key: keyof Settings, value: SettingValue) => void;
+  onResetOptions: (id: string) => void;
   onTarget: (id: string, target: string) => void;
   onQuality: (id: string, q: number) => void;
   onConvert: (id: string) => void;
@@ -46,9 +53,26 @@ const EDIT_ICONS = {
   sheet: 'M4 5h16v14H4zM4 10h16M4 15h16M10 5v14M16 5v14',
 };
 
-export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr }: Props) {
+export function FileCard({ item, settings, onOption, onResetOptions, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr }: Props) {
   const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
+  const [optsOpen, setOptsOpen] = useState(false);
+  // "more" menu: closes on a click elsewhere and on Escape
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const away = (e: PointerEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+  }, [menuOpen]);
+
+  // this file's options: the settings that change its conversion, and the ones it overrides
+  const fields = fieldsFor(item.kind, item.target);
+  const eff = effectiveSettings(settings, item.opts);
+  const overrides = activeOverrides(settings, item.opts, item.kind, item.target);
   const [copied, setCopied] = useState(false);
 
   const copyResult = async () => {
@@ -97,6 +121,7 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
 
   const m = item.meta;
   const hasDetails = !!m;
+  const canProject = item.kind !== 'doc' || isTextDoc(item.file);
   const detailRows: [string, string][] = [];
   if (m) {
     // common file info
@@ -195,27 +220,6 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             <svg viewBox="0 0 24 24" width="14" height="14"><path d={editIcon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {t('edit')}
           </button>
-          {(item.kind !== 'doc' || isTextDoc(item.file)) && (
-          <button
-            className="btn btn-ghost btn-sm fc-to-studio"
-            disabled={busy}
-            onClick={() => onToProject(item.id)}
-            title={t('tipOpenAsProject')}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M8 8h12v12H8zM4 16V4h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
-            {t('openAsProject')}
-          </button>
-          )}
-          {hasDetails && (
-            <button
-              className={`btn btn-ghost fc-detail-btn${showDetails ? ' active' : ''}`}
-              onClick={() => setShowDetails((v) => !v)}
-              aria-label={t('details')}
-              title={t('details')}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 7.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            </button>
-          )}
 
           <label className="fc-target">
             <span>{t('targetLabel')}</span>
@@ -280,6 +284,38 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             </button>
           )}
 
+          {/* less-used actions: one menu instead of two more buttons in the row */}
+          {(canProject || hasDetails) && (
+            <div className="fc-more" ref={menuRef}>
+              <button
+                className={`btn btn-ghost fc-remove${menuOpen ? ' active' : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label={t('more')}
+                title={t('more')}
+                onClick={() => setMenuOpen((v) => !v)}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="5" cy="12" r="1.7" fill="currentColor" /><circle cx="12" cy="12" r="1.7" fill="currentColor" /><circle cx="19" cy="12" r="1.7" fill="currentColor" /></svg>
+              </button>
+              {menuOpen && (
+                <div className="fc-menu" role="menu">
+                  {canProject && (
+                    <button role="menuitem" disabled={busy} onClick={() => { setMenuOpen(false); onToProject(item.id); }}>
+                      <b>{t('openAsProject')}</b>
+                      <span>{t('tipOpenAsProject')}</span>
+                    </button>
+                  )}
+                  {hasDetails && (
+                    <button role="menuitem" onClick={() => { setMenuOpen(false); setShowDetails((v) => !v); }}>
+                      <b>{t(showDetails ? 'detailsHide' : 'details')}</b>
+                      <span>{t('detailsTip')}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <button className="btn btn-ghost fc-remove" disabled={busy} onClick={() => onRemove(item.id)} aria-label={t('remove')}>
             <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
@@ -310,6 +346,36 @@ export function FileCard({ item, onTarget, onQuality, onConvert, onRemove, onEdi
             </div>
           )}
         </dl>
+      )}
+
+      {/* options of THIS file: what it overrides, and the controls to change them */}
+      {fields.length > 0 && (
+        <div className="fc-optrow">
+          <span className="fc-optrow-label">{t('optionsLabel')}</span>
+          {overrides.length === 0 ? (
+            <span className="fc-opt-default">{t('optionsDefault')}</span>
+          ) : (
+            overrides.map((f) => (
+              <span className="fc-opt-chip" key={f.key}>
+                {t(f.labelKey)}：{showValue(f, eff[f.key], t)}
+                <button disabled={busy} aria-label={t('optionReset', { name: t(f.labelKey) })} title={t('optionReset', { name: t(f.labelKey) })} onClick={() => onOption(item.id, f.key, settings[f.key])}>×</button>
+              </span>
+            ))
+          )}
+          <button className="fc-opt-toggle" aria-expanded={optsOpen} disabled={busy} onClick={() => setOptsOpen((v) => !v)}>
+            {t(optsOpen ? 'optionsHide' : 'optionsAdjust')}
+          </button>
+          {overrides.length > 1 && (
+            <button className="fc-opt-toggle" disabled={busy} onClick={() => onResetOptions(item.id)}>{t('optionsResetAll')}</button>
+          )}
+        </div>
+      )}
+      {optsOpen && fields.length > 0 && (
+        <div className="fc-opts sp-grid">
+          {fields.filter((f) => f.visible?.(eff) ?? true).map((f) => (
+            <SettingControl key={f.key} field={f} settings={eff} onChange={(key, value) => onOption(item.id, key, value)} />
+          ))}
+        </div>
       )}
 
       {showQuality && (
