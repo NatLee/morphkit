@@ -3,7 +3,7 @@
 > On-demand map for AI sessions. Read this INSTEAD of re-reading the source files for
 > orientation; grep the names below to jump precisely. If structure changed since this
 > was written, trust the code and update this file. Covers: `App.tsx`, `Hero`, `DropZone`,
-> `FileCard`, `SettingsPanel`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
+> `FileCard`, `SettingsPanel`, `SettingControl`, `FormatMatrix`, `DualRange`, `Overlay`, `ConfirmDialog`, `FramePicker`, `InfoTip`,
 > `InstallPrompt`.
 
 ## App.tsx (781 lines) — owns ALL convert-mode state
@@ -78,43 +78,51 @@ warnVideo filesSummary{n,size} progressSummary{done,total} convertAll downloadAl
 tabConvert tabSettings (tab bar) · installTitle installBody installBtn installLater installIosHint
 (InstallPrompt).
 
-## FileCard.tsx (346)
+## FileCard.tsx (412)
 
 `KIND_ICONS` has 5 kinds (doc = page-with-lines) (pdf glyph = `PDF_ICON` exported from FormatMatrix); `EDIT_ICONS.pdf`; `kindKey` picks
-kindImage/kindAudio/kindVideo/kindPdf/kindDoc. `.fc-qr` chip (meta.qr) opens the QR tool via `onQr`. Doc rows: words chip (`docWordsN`), details `docWords`/`docChars`/`docLines`/`docSheets`; target lists come from `outputsFor(item.kind, item.file)` (docs vary by sub-type); the open-as-project button is hidden for docs that are not text-ish (`isTextDoc`). PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
+kindImage/kindAudio/kindVideo/kindPdf/kindDoc. `.fc-qr` chip (meta.qr) opens the QR tool via `onQr`. Doc rows: words chip (`docWordsN`), details `docWords`/`docChars`/`docLines`/`docSheets`; target lists come from `outputsFor(item.kind, item.file)` (docs vary by sub-type); "save as project" is offered only for docs that are text-ish (`canProject` = `isTextDoc`). PDF rows: pages chip (`pdfPagesN`) instead of W×H; details add
 `pdfPages`/`pdfPageSize`/`tagTitle`/`pdfAuthor`; quality slider also for pdf→jpeg/webp. PPTX rows: slides chip (`docSlidesN`) + `docSlides` detail. `locked` (encrypted &&
 no `pdfPassword`) swaps convert for a 🔒 `pdfUnlock` button and routes edit to `onUnlock`; `.fc-lock(.open)` chip.
 
-State: `showDetails`, `copied` (1.5s). `copyResult()` fetches outUrl → canvas → ClipboardItem PNG.
-Props: `{item, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr}`.
+**Own options** (invariant 33): `fields = fieldsFor(kind, target)`, `eff = effectiveSettings(settings, item.opts)`,
+`overrides = activeOverrides(...)`. The row shows "using the defaults" or one chip per override (× sets the default back
+through `onOption(id, key, settings[key])`), an Adjust/Done toggle (`optsOpen`) and "Reset all" from two overrides up;
+the panel renders `<SettingControl>` for each field with `eff`, so `visible`/`disabled` rules follow the FILE's values.
+No row at all when nothing applies (image → ICO).
+
+State: `showDetails`, `copied` (1.5s), `optsOpen`, `menuOpen` (+ `menuRef`; closes on pointerdown elsewhere and Escape).
+`copyResult()` fetches outUrl → canvas → ClipboardItem PNG.
+Props: `{item, settings, onOption, onResetOptions, onTarget, onQuality, onConvert, onRemove, onEdit, onToProject, onUnlock, onQr}`.
 
 ```
 article.file-card.kind-*.status-*
   div.fc-main (flex, wraps)
     div.fc-thumb>img | div.fc-icon>svg
     div.fc-meta (min-width:180px) > p.fc-name + p.fc-info (.fc-kind .fc-size×n .fc-edited)
-    div.fc-controls > btn fc-edit · btn.fc-to-studio (openAsProject) · btn fc-detail-btn · label.fc-target>select
+    div.fc-controls > btn fc-edit · label.fc-target>select
       · div.fc-chips (.fc-chips-label + button.fc-chip×n — phone-only target picker; ≤640 CSS hides
         .fc-target and shows the chips: the native select's popup covered the card's controls)
-      · a|button.btn-accent (download/convert) · btn copy · btn.fc-remove
+      · a|button.btn-accent (download/convert) · btn copy
+      · div.fc-more > button (⋯, aria-haspopup=menu) + div.fc-menu[role=menu] > button[role=menuitem]×≤2
+        (save as project · file details; ≤640 the menu spans the card: .fc-more goes static, .fc-controls relative)
+      · btn.fc-remove
   dl.fc-details (grid; 1 col ≤640) > div.fc-detail-row > dt/dd  (+GPS → Google Maps link)
+  div.fc-optrow > .fc-optrow-label + (.fc-opt-default | span.fc-opt-chip×n > button ×) + button.fc-opt-toggle×1–2
+  div.fc-opts.sp-grid > <SettingControl/>×n   (optsOpen)
   div.fc-quality (image jpeg|webp) > input[range .4–1]
   div.fc-progress-row (converting media) > .fc-progress>.fc-bar + .fc-pct
   p.fc-error (t(item.error ?? 'failed') — ConvertError keys) | p.fc-warn(.danger)
 ```
 
-## SettingsPanel.tsx (365)
+## SettingsPanel.tsx (32) + SettingControl.tsx (71)
 
-Stateless controlled form; single mutator `set(key, value)` → `onChange({...settings, [key]: value})`.
-Module const `VBR_LEVELS: [q,kbps][]` (LAME 0→245 … 9→65). Seven `.sp-section` groups: General
-(workers select 1–4, keepMetadata, keepCoverArt disabled unless keepMetadata) · Image (defaultQuality range +
-imageMaxDim + imageTargetSize + ocrLang: auto or one of `OCR_LANGS`) ·
-Audio (audioBitrate, audioRateMode cbr|vbr, audioQuality V0–V9 vbr-only, audioSampleRate, audioChannels,
-audioLoudness — off or one of `LOUDNESS_TARGETS` −14/−16/−23 LUFS, each labelled by where such files go) ·
-Video (videoCrf range 18–32, disabled while videoTargetSize is set · videoTargetSize, videoPreset, videoMaxH, videoFps, videoMute) · PDF (pdfImageScale dpi select) ·
-Documents (docPageSize + docFontSize + docPdfText) · GIF (gifFps range 5–24, gifWidth).
-Size-target choices `IMAGE_TARGET_SIZES` / `VIDEO_TARGET_SIZES` are DECIMAL bytes (a file under 500,000 bytes
-passes a "500 KB" limit read either way), labelled by `sizeLabel`.
+The drawer holds the DEFAULTS for new files (title key `settings`, intro `p.sp-intro` says so). SettingsPanel maps
+`SETTING_SECTIONS` × `SETTING_FIELDS` (lib/settingFields, see libs.md) to `<SettingControl field settings onChange>`;
+it has no field markup of its own. SettingControl draws one field by `control.type`: select (option text ↔ the
+choice's real value, so numbers stay numbers), range (`span.sp-val` = `control.show(value)`), check (label + the hint
+as a sibling grid cell); `field.disabled(settings)` greys it, `hintWhen` gates the hint. FileCard reuses it with the
+file's effective settings.
 Pattern: `label.sp-field > span.sp-label [+span.sp-val] > select|input [+ span.sp-hint]`; checkboxes
 `label.sp-field.sp-check`. Mounted ONLY inside `.drawer` (which forces `.sp-grid` to 1 column); App renders a `.drawer-bottom-close`
 button after it, and ≤640 the drawer head is sticky with safe-area padding (the top X was unreachable

@@ -66,8 +66,9 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `styles.css` | Design system "Cyberdeck": circuit-grid ground + scanlines, neon signal palette (`--paint-*`), `--glow`/`--accent-ink` tokens, synthwave hero, Chakra Petch display, IBM Plex Sans/Mono, light default theme. All editors' CSS lives here too |
 | `components/Hero.tsx` | Tagline + title + feature chips only (format pickers were removed on purpose — they misled users) |
 | `components/DropZone.tsx` | Accepts every extension `detectKind` knows (`ACCEPT`), multi-file; optional blank-note link |
-| `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, details panel, warnings, ConvertError message |
-| `components/SettingsPanel.tsx` | Controlled Settings form (7 sections), single `set(key,val)` mutator; only ever mounted inside the drawer |
+| `components/FileCard.tsx` | Thumbnail, chips, edit/convert/download/copy-to-clipboard buttons, the file's own options (override chips + the controls that apply to its conversion), a "more" menu (save as project, file details), warnings, ConvertError message |
+| `components/SettingsPanel.tsx` | The drawer: every setting as the DEFAULT for new files, drawn section by section from `lib/settingFields`; only ever mounted inside the drawer |
+| `components/SettingControl.tsx` | One setting as a form control (select / range / check) from its `SettingField` description — shared by the drawer and the file cards |
 | `components/FormatMatrix.tsx` | Supported-formats section + per-kind editor capability notes; output chips come from lib/formats, input chips are a short curated pick |
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
@@ -83,7 +84,8 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | File | Role |
 |---|---|
 | `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists — the single registry the UI derives from (image outs include `pdf`, `ico` and `txt` = OCR, `SLOW_IMAGE_OUTPUTS` queue like media; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
-| `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
+| `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) — the defaults for new files |
+| `lib/settingFields.ts` | The ONE description of every setting: label, control, hint and `applies(kind, target)` = the conversions it changes. `fieldsFor`, `effectiveSettings(defaults, item.opts)`, `withOption` (an override equal to the default is dropped), `activeOverrides`, `showValue`. Invariant 33 |
 | `lib/ocr.ts` | Text recognition (tesseract.js, lazy): `withOcr(langs, consent, fn)` hands `fn` a reader that starts the engine on its FIRST read — asking `consent` before a download (sizes in `ocrDownloadBytes`) — and closes it after; `imageToText`; `ocrLangs` (setting `auto` follows the UI language, English always added). Invariant 32 |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
@@ -264,6 +266,14 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     OCR only pages without one (`pdfToText`'s `readScan`), so a normal PDF never asks. Images are
     flattened onto white before reading (Tesseract sees transparent as black). Chinese/Japanese set
     `preserve_interword_spaces` or every character comes out space-separated.
+33. **Settings are defaults; a file may override them** (`Item.opts: Partial<Settings>`). A conversion
+    reads `effectiveSettings(settingsRef.current, item.opts)` — inside `runConvert` never read
+    `settingsRef.current` directly (only the worker count is app-wide). A field's `applies(kind, target)`
+    in lib/settingFields MUST say the same as the conversion code that reads the setting (it uses the
+    same constants: `AUDIO_OUTPUTS`, `AV_TARGETS`, `ART_CAPABLE`, `RASTER_OUTPUTS`, `PDF_TEXT_OUTPUTS`),
+    or a card offers an option that does nothing. Changing an option of a finished file sends it back
+    to ready (`staleResult`), like changing the target. Overrides live in memory with the item; the
+    drawer's values are never changed from a card.
 
 ## Design language ("Cyberdeck")
 
@@ -286,7 +296,7 @@ the palette or the mark changes.
 
 ## Conventions
 
-- New converter feature → param in `settings.ts` + section in `SettingsPanel` + wire into `buildArgs` (recipe: `/add-setting`).
+- New converter feature → param in `settings.ts` + one entry in `lib/settingFields.ts` (the drawer and the cards draw themselves from it) + wire into `buildArgs` (recipe: `/add-setting`).
 - New editor capability → keep ImageEditor raster (paint into the active layer, invariant 18) and GifEditor frame-based; bake only geometry.
 - Structural change to a mapped file → update its `docs/claude/*.md` map in the same commit.
 - Bug fix → add a regression test in `tests/` next to the closest existing one.
