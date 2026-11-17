@@ -87,7 +87,7 @@ Never throws — missing fields are the failure mode.
 
 ## lib/formats.ts (164)
 
-Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf ico]` · `PDF_OUTPUTS` ·
+Exports: `Kind` (image|audio|video|pdf|doc) · `IMAGE_OUTPUTS [webp png jpeg apng gif pdf ico txt]` · `SLOW_IMAGE_OUTPUTS` (pdf, txt: queued through the semaphore, every other image output runs at once) · `PDF_OUTPUTS` ·
 `DOC_TEXT_EXT`/`DOC_SHEET_EXT` · `DocType` + `docTypeOf(file)` (docx|pptx|text|md|html|sheet|json) · `isTextDoc`
 (md/text/html/json — the docs that can be Studio text projects) · `DOC_OUTPUTS` (record per sub-type; first
 entry = default; sheets/json lead with xlsx/csv) + `docOutputs(file)` · `outputsFor(kind, file?)` (file REQUIRED for docs) · `AUDIO_OUTPUTS [mp3 wav ogg flac m4a]` ·
@@ -97,7 +97,7 @@ the same lists) · `outputsFor` · `defaultTarget`
 (gif→apng / apng→gif FIRST, else webp/mp3/mp4 preference, jpg≡jpeg) · `formatLabel` (jpeg→JPG, else upper
 case; FormatMatrix chips) · `outputFileName` (jpeg→.jpg) ·
 `mimeFor` · `formatBytes`. Input ext lists wider than outputs (svg/avif/opus in, not out).
-`apng` has NO ffmpeg path — must route to convertAnimImage; `ico` has none either — App routes it to `convertToIco`.
+`apng` has NO ffmpeg path — must route to convertAnimImage; `ico` has none either — App routes it to `convertToIco`; image `txt` goes to `imageToText` (lib/ocr).
 
 ## lib/settings.ts (85)
 
@@ -107,7 +107,8 @@ silently drops the user's value.
 Fields (defaults): concurrency 2 · imageMaxDim 0 · imageTargetSize 0 · audioBitrate '192k' · audioRateMode 'cbr' ·
 audioQuality 2 · audioSampleRate 0 · audioChannels 0 · defaultQuality 0.9 · pdfImageScale 2 ·
 docPageSize a4 · docFontSize 11 · docPdfText true · videoCrf 23 · videoPreset 'veryfast' ·
-videoMaxH 0 · videoFps 0 · videoMute false · videoTargetSize 0 · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true.
+videoMaxH 0 · videoFps 0 · videoMute false · videoTargetSize 0 · gifFps 12 · gifWidth 480 · keepMetadata true · keepCoverArt true ·
+audioLoudness 0 · ocrLang 'auto' (type `OcrLangSetting` from lib/ocr).
 
 ## lib/idb.ts (93)
 
@@ -164,7 +165,7 @@ transfers it; `onPassword` is intercepted and surfaced as `PdfPasswordError('nee
 (/Encrypt in the last 64 KiB) · `pageInfo(doc, i)` → {width, height (display pts), rotate (intrinsic)} ·
 `readNotes` (/Text annots → user-space fractions) · `renderPage(doc, i, {width|scale, maxDim, rotate, white})` ·
 `pdfInfo` · `pdfToImages(file, target, quality, maxDim, onProgress, password?, scale = 2)` → `{blob, multi}` (scale from
-`settings.pdfImageScale`: 72/144/216 dpi; multi-page → ZIP level 0) · `pdfToText` (pages joined by `joinPageText`, which throws `ConvertError("pdfNoText")` when no page has text) · `rasterizePdf` (plan B: every page → JPEG image page).
+`settings.pdfImageScale`: 72/144/216 dpi; multi-page → ZIP level 0) · `pdfToText(file, onProgress, password?, readScan?)` (a page without a text layer is rendered at `OCR_DPI` 300, capped at `OCR_MAX_DIM`, and handed to `readScan` = the OCR reader; pages joined by `joinPageText`, which throws `ConvertError("pdfNoText")` when no page has text even after OCR) · `rasterizePdf` (plan B: every page → JPEG image page).
 **Decrypt bridge**: `getPlainBytes(file, password, encrypted)` — WeakMap-cached qpdf decrypt; throws
 `PdfPasswordError('wrong')` when qpdf's log mentions the password.
 **Write side** (pdf-lib): `PageSpec` union (pdf bytes+index | image blob+size | blank) × `PageCommon {rotate,
@@ -240,6 +241,20 @@ only). `run(args, input)` spins a FRESH module per call (`noInitialRun`, `locate
 `/in.pdf`, `callMain([...args, '/in.pdf', '/out.pdf'])`, exit 0/3 ok else `QpdfError(log, code)`.
 `decryptPdf(bytes, pw)` = `--password=… --decrypt`; `encryptPdf(bytes, user, owner)` = `--encrypt user owner
 256 --` (owner falls back to user). Types via `declare module` in gif-libs.d.ts.
+
+## lib/ocr.ts (150)
+
+Text recognition with tesseract.js 7 (lazy `import('tesseract.js')`; worker, SIMD LSTM core and
+`@tesseract.js-data/<lang>/4.0.0_best_int` all come from tesseract.js's DEFAULT jsdelivr locations — `OCR_HOST`,
+also in the host list of public/sw.js). `OCR_LANGS` (eng chi_tra chi_sim jpn kor → endonyms) · `OcrLang`/`OcrLangSetting`
+('auto' + codes) · `ocrLangs(setting, uiLang)` (`AUTO_LANG` zh→chi_tra, ja→jpn, en→eng; English appended) ·
+`ocrDownloadBytes(langs)` (`ENGINE_BYTES` once + `LANG_BYTES` per language not yet in localStorage
+`morphkit-ocr-langs`; 0 = nothing to ask) · `OCR_ENGINE_VERSION` (the sizes were measured for it; a test compares
+it with node_modules) · `OcrConsent`/`OcrRead` · `withOcr(langs, consent, fn, onReading?)` (lazy engine on first
+read; consent false → `ocrDeclined`, load failure → `ocrLoadFailed`; `NO_SPACE_LANGS` → preserve_interword_spaces;
+`remember` after a successful load; worker terminated in `finally`; the state lives in an object because TS
+narrowing in `finally` cannot see the closure's assignment) · `imageToText(file, langs, consent, onProgress?)`
+(white-flattened canvas; empty → `ocrNoText`). Tests: tests/ocr.test.ts (tesseract.js mocked).
 
 ## lib/errors.ts (12)
 

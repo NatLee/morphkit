@@ -34,6 +34,9 @@ the edited file IS the deliverable; pdf save also clears `pdfPassword`). `unlock
 pdf.js then patches `pdfPassword` + re-probes meta; `pwFor` state renders `<PdfPasswordModal>` (opened by
 FileCard `onUnlock`, by `schedule` on a locked pdf, by `mergeAll` hitting a locked item, or by `runConvert`
 catching `PdfPasswordError`). PDF→PDF falls back to `rasterizePdf` when qpdf can't decrypt.
+OCR (invariant 32): `askOcr` is the `OcrConsent` every OCR job gets — the first caller sets `ocrAsk` (renders a
+`<ConfirmDialog tone=accent>` with size + host), later callers await the same `ocrGate` promise. Image `txt` → `imageToText`;
+PDF txt/md/html/docx go through `readText` = `withOcr(..., pdfToText(..., read))`.
 Effects: window `paste` (skipped while editor/drawer open), `keydown` Escape closes drawer.
 
 **JSX shell**:
@@ -51,6 +54,7 @@ div.app (+ .studio-mode)
                     + div.bb-actions (convertAll btn-accent · mergePdf (when mergeable > 1) · downloadAll (when more than one is done) · clearAll)
       div.file-list > <FileCard/>×n
   {editingItem && (<GifEditor>|<ImageEditor>|<PdfEditor>|<SheetEditor>|<DocEditor>|<MediaEditor>)}   ← portaled to body
+  {ocrAsk && <ConfirmDialog tone=accent/>}   (OCR download question)
   {pwFor && <PdfPasswordModal/>}
   {qrOpen !== null && <QrTool/>}
   div.drawer-overlay > aside.drawer > .drawer-head + <SettingsPanel/>   (showSettings)
@@ -103,7 +107,7 @@ article.file-card.kind-*.status-*
 Stateless controlled form; single mutator `set(key, value)` → `onChange({...settings, [key]: value})`.
 Module const `VBR_LEVELS: [q,kbps][]` (LAME 0→245 … 9→65). Seven `.sp-section` groups: General
 (workers select 1–4, keepMetadata, keepCoverArt disabled unless keepMetadata) · Image (defaultQuality range +
-imageMaxDim + imageTargetSize) ·
+imageMaxDim + imageTargetSize + ocrLang: auto or one of `OCR_LANGS`) ·
 Audio (audioBitrate, audioRateMode cbr|vbr, audioQuality V0–V9 vbr-only, audioSampleRate, audioChannels) ·
 Video (videoCrf range 18–32, disabled while videoTargetSize is set · videoTargetSize, videoPreset, videoMaxH, videoFps, videoMute) · PDF (pdfImageScale dpi select) ·
 Documents (docPageSize + docFontSize + docPdfText) · GIF (gifFps range 5–24, gifWidth).
@@ -150,8 +154,8 @@ range input (single) | DualRange (range) + fps select + `.fc-progress` + `.ed-fo
 - **Overlay.tsx (14)**: `createPortal(div.editor-overlay, document.body)` — invariant 17 lives here.
   Children must stopPropagation. Page scroll behind overlays is locked via `body:has(.editor-overlay)` CSS
   (plus `html:has(.editor-overlay)` with `overflow-y: clip`).
-- **ConfirmDialog.tsx (47)**: Overlay + `.editor.mini-modal.confirm-modal[role=alertdialog]` with title, `.confirm-msg`,
-  Cancel (`.btn-ghost`, focused on mount) and confirm (`.btn-danger`). Backdrop click and Escape cancel; keydown stops
+- **ConfirmDialog.tsx (50)**: Overlay + `.editor.mini-modal.confirm-modal[role=alertdialog]` with title, `.confirm-msg`,
+  Cancel (`.btn-ghost`, focused on mount) and confirm (`.btn-${tone}`: danger by default, accent for App's OCR download question). Backdrop click and Escape cancel; keydown stops
   propagation so editor shortcuts underneath stay quiet. Used by Studio for every delete.
 - **FormatMatrix.tsx (78)**: static 5 cards (image/audio/video/pdf/doc — `.mx-pdf` violet, `.mx-doc` accent) from module const `MATRIX`.
   OUT chips are derived (`outs(IMAGE_OUTPUTS)` … `formatLabel`, documents = the union of `DOC_OUTPUTS`), so a new

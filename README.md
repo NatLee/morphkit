@@ -50,6 +50,10 @@ installed as an app (PWA).
   video) and each image is squeezed under it (quality first, then dimensions), while MP4 / WebM get
   the bitrate that lands the clip under it. Sizes are decimal, so "500 KB" means 500,000 bytes and the
   result passes the limit however the site counts.
+- **Text recognition (OCR)**: pull the text out of a photo or screenshot (image → TXT), and scanned PDF
+  pages are read the same way when you export a PDF as TXT, Markdown, HTML or Word. Traditional and
+  Simplified Chinese, Japanese, Korean and English. The engine and language data (about 4–8 MB) download
+  only after you say yes, once, and stay in the browser; the files themselves never leave it.
 - A settings drawer for image size caps and size targets, audio bitrate / VBR / sample rate / channels,
   video CRF / size target / preset / resolution / frame rate, GIF frame rate and width, PDF render
   resolution and document page size.
@@ -118,6 +122,8 @@ Your files never leave the browser. The app does make a few network requests:
 - the ffmpeg core (~31 MB) from unpkg, the first time you convert audio or video;
 - Noto font subsets from Google Fonts when a document is turned into a PDF with selectable text
   (if that fails, the PDF falls back to rendered pages);
+- the text recognition engine and language data (about 4–8 MB) from jsDelivr, the first time you
+  read text from an image or a scanned PDF, and only after you agree in a dialog;
 - the interface fonts (Chakra Petch and IBM Plex) from Google Fonts.
 
 ## Known limitations

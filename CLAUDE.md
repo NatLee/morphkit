@@ -72,7 +72,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `components/InstallPrompt.tsx` | PWA install card: `beforeinstallprompt` capture (Android/desktop) or iOS share-hint; 14-day dismiss (localStorage `morphkit-install-dismissed`); hidden when standalone |
 | `components/InfoTip.tsx` | `(i)` glyph + fixed-position portal tooltip (`.tip-pop`) |
 | `components/Overlay.tsx` | Portal-to-body modal backdrop — use for ALL modals (see invariant 17) |
-| `components/ConfirmDialog.tsx` | Second step for irreversible actions (Studio project and asset deletes): Overlay + alertdialog, Cancel holds the focus, Escape cancels, danger button confirms |
+| `components/ConfirmDialog.tsx` | Second step before an action the user must agree to: Studio project and asset deletes (`tone` danger, the default) and the OCR download (`tone` accent). Overlay + alertdialog, Cancel holds the focus, Escape cancels |
 | `components/DualRange.tsx` | Generic dual-handle slider (time or frame ranges) |
 | `components/FramePicker.tsx` | Video → frames: single-frame (image projects) or clip w/ fps (GIF projects). Inlines its own portal — keep in sync with Overlay |
 | `vite-env.d.ts` | `vite/client` types (`import.meta.env`) |
@@ -82,8 +82,9 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 
 | File | Role |
 |---|---|
-| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists — the single registry the UI derives from (image outs include `pdf` and `ico`; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
+| `lib/formats.ts` | Kind detection (`image\|audio\|video\|pdf\|doc`), output lists — the single registry the UI derives from (image outs include `pdf`, `ico` and `txt` = OCR, `SLOW_IMAGE_OUTPUTS` queue like media; `VIDEO_OUTPUTS` = mp4/webm/gif + every audio output; `PDF_OUTPUTS` png/jpeg/webp/txt/docx/md/html/pdf; documents: `docTypeOf` → `DOC_OUTPUTS[type]` via `docOutputs(file)` — `outputsFor(kind, file)` needs the file for docs), `formatLabel` (jpeg → JPG), `ACCEPT` for file pickers, default targets (gif→apng, apng→gif, pdf→png, doc→first output), size thresholds, mime map |
 | `lib/settings.ts` | Persisted Settings (localStorage `morphkit-settings`) |
+| `lib/ocr.ts` | Text recognition (tesseract.js, lazy): `withOcr(langs, consent, fn)` hands `fn` a reader that starts the engine on its FIRST read — asking `consent` before a download (sizes in `ocrDownloadBytes`) — and closes it after; `imageToText`; `ocrLangs` (setting `auto` follows the UI language, English always added). Invariant 32 |
 | `lib/errors.ts` | `ConvertError(key)`: a conversion failure the user can act on — thrown where the problem is detected (e.g. `joinPageText` in pdf.ts for PDFs without text); App stores `key` on `Item.error` and FileCard shows that i18n message instead of the generic `failed` |
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
 | `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only); `fitToSize` squeezes an output under the image size target (quality first, then dimensions); `MIN_QUALITY` is the floor of every quality slider; `convertToIco` makes a multi-size favicon (`ICO_SIZES` up to the source size, `encodeIco` packs the PNGs) |
@@ -244,6 +245,15 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     back via `replaceAssetBlob`); sheets/pptx cannot. Ctrl+V of plain TEXT (no files)
     creates a note-N.md doc item and opens the editor (`addNote`) — inputs/textareas excluded.
 30. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
+32. **OCR** (lib/ocr.ts): NOTHING is fetched from cdn.jsdelivr.net before the user agrees. Every OCR
+    path goes through `withOcr` with App's `askOcr` (one ConfirmDialog shared by every job waiting on the
+    same download; no → `ConvertError('ocrDeclined')`). Downloaded languages are remembered in
+    localStorage `morphkit-ocr-langs` (tesseract.js keeps the data itself in IndexedDB); the sizes in the
+    dialog are `ENGINE_BYTES`/`LANG_BYTES`, measured for `OCR_ENGINE_VERSION` — tests/ocr.test.ts fails
+    when the installed tesseract.js moves on, so re-measure then. PDFs read the text layer first and
+    OCR only pages without one (`pdfToText`'s `readScan`), so a normal PDF never asks. Images are
+    flattened onto white before reading (Tesseract sees transparent as black). Chinese/Japanese set
+    `preserve_interword_spaces` or every character comes out space-separated.
 
 ## Design language ("Cyberdeck")
 
