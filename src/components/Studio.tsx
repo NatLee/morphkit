@@ -13,7 +13,7 @@ import { Overlay } from './Overlay';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Meter } from './SizeViz';
 import { sumBy, usedPct } from '../lib/sizeStats';
-import { filterCounts, groupByAge, liveFilter, matchesFilter, matchesQuery, projectTypeFor, type ProjectFilter } from '../lib/projectList';
+import { filterCounts, groupByAge, liveFilter, matchesFilter, matchesQuery, KIND_GLYPH, PROJECT_TYPES, projectTypeFor, TYPE_META, type ProjectFilter } from '../lib/projectList';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { MoreMenu } from './MoreMenu';
 import { createPortal } from 'react-dom';
@@ -53,7 +53,6 @@ import {
   type VideoDoc,
 } from '../lib/studioTypes';
 import type { Item } from '../types';
-import { PDF_ICON } from './FormatMatrix';
 import { PdfEditor } from './PdfEditor';
 import { DocEditor } from './DocEditor';
 import { useBlobUrlOwner } from '../lib/useBlobUrlOwner';
@@ -66,25 +65,6 @@ const TRASH_TOAST_MS = 8000;
    styles.css: phones, short/landscape viewports, touch tablets */
 const APP_MQ = '(max-width: 760px), (max-height: 540px), (pointer: coarse) and (max-width: 920px)';
 
-const KIND_GLYPH: Record<string, string> = {
-  image: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 10 3.5-4.5 2.5 3 2-2.5L18 15H6z',
-  audio: 'M9 18a3 3 0 1 1-2-2.83V6l11-2v10a3 3 0 1 1-2-2.83V7.4l-7 1.27V18z',
-  video: 'M4 6h11a1 1 0 0 1 1 1v2.5l4-2.5a.6.6 0 0 1 1 .5v9a.6.6 0 0 1-1 .5l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
-  gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14',
-  pdf: PDF_ICON,
-  doc: 'M6 3h9l4 4v14H6zM15 3v4h4M8 12h8M8 15h8M8 18h5',
-};
-
-/** Per project type: its name, what people use it for (`useKey`, the card title when starting one) and what it offers. */
-const TYPE_META: Record<ProjectType, { labelKey: string; useKey: string; descKey: string; glyph: string; color: string }> = {
-  audio: { labelKey: 'typeAudio', useKey: 'typeAudioUse', descKey: 'typeAudioDesc', glyph: KIND_GLYPH.audio, color: 'var(--paint-blue)' },
-  image: { labelKey: 'typeImage', useKey: 'typeImageUse', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image, color: 'var(--paint-green)' },
-  gif: { labelKey: 'typeGif', useKey: 'typeGifUse', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif, color: 'var(--paint-yellow)' },
-  video: { labelKey: 'typeVideo', useKey: 'typeVideoUse', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video, color: 'var(--paint-red)' },
-  pdf: { labelKey: 'typePdf', useKey: 'typePdfUse', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf, color: 'var(--paint-violet)' },
-  text: { labelKey: 'typeText', useKey: 'typeTextUse', descKey: 'typeTextDesc', glyph: KIND_GLYPH.doc, color: 'var(--accent)' },
-};
-const PROJECT_TYPES = Object.keys(TYPE_META) as ProjectType[];
 /** From this many days left, a trashed project's countdown turns to the warning colour. */
 const TRASH_WARN_DAYS = 7;
 

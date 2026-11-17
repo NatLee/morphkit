@@ -1,4 +1,5 @@
 import { extOf, isTextDoc } from './formats';
+import { KIND_ICONS } from './kindIcons';
 import { backupState, type ProjectRec, type ProjectType } from './studioTypes';
 
 /**
@@ -6,6 +7,21 @@ import { backupState, type ProjectRec, type ProjectType } from './studioTypes';
  * not in a backup, or the trash. The left rail (a row of chips on phones) picks one.
  */
 export type ProjectFilter = 'all' | ProjectType | 'unsaved' | 'trash';
+
+/** The kind icons, plus the GIF project's film-frame glyph (GIF is a project type, not a file kind). */
+export const KIND_GLYPH: Record<string, string> = { ...KIND_ICONS, gif: 'M4 5h16v14H4zM4 9h16M8 5v14M16 5v14' };
+
+/** Per project type: its name, what people use it for (`useKey`, the card title when starting one) and what it offers. */
+export const TYPE_META: Record<ProjectType, { labelKey: string; useKey: string; descKey: string; glyph: string; color: string }> = {
+  audio: { labelKey: 'typeAudio', useKey: 'typeAudioUse', descKey: 'typeAudioDesc', glyph: KIND_GLYPH.audio, color: 'var(--paint-blue)' },
+  image: { labelKey: 'typeImage', useKey: 'typeImageUse', descKey: 'typeImageDesc', glyph: KIND_GLYPH.image, color: 'var(--paint-green)' },
+  gif: { labelKey: 'typeGif', useKey: 'typeGifUse', descKey: 'typeGifDesc', glyph: KIND_GLYPH.gif, color: 'var(--paint-yellow)' },
+  video: { labelKey: 'typeVideo', useKey: 'typeVideoUse', descKey: 'typeVideoDesc', glyph: KIND_GLYPH.video, color: 'var(--paint-red)' },
+  pdf: { labelKey: 'typePdf', useKey: 'typePdfUse', descKey: 'typePdfDesc', glyph: KIND_GLYPH.pdf, color: 'var(--paint-violet)' },
+  text: { labelKey: 'typeText', useKey: 'typeTextUse', descKey: 'typeTextDesc', glyph: KIND_GLYPH.doc, color: 'var(--accent)' },
+};
+/** Every project type, in the order the app lists them. */
+export const PROJECT_TYPES = Object.keys(TYPE_META) as ProjectType[];
 
 /** Legacy records have no type: they are audio projects (invariant 14). */
 export const typeOf = (p: ProjectRec): ProjectType => p.type ?? 'audio';
