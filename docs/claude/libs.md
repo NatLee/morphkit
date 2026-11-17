@@ -16,7 +16,11 @@ size target: `FitTarget {maxBytes, duration?}` (only the converter passes one; S
 `AV_TARGETS` (mp4/webm: outputs with picture AND sound — audio replacement and the size target) ·
 `VIDEO_AUDIO_KBPS` (128, AAC in MP4 and the budget set aside for sound) · `mediaSeconds(duration, edit)`
 (trimmed span ÷ speed) · `videoKbpsFor(maxBytes, seconds, audioKbps)` (95% of the budget; below 50 kbps
-throws `ConvertError('fitTooSmall')`).
+throws `ConvertError('fitTooSmall')`) · loudness (invariant 31, tests/loudness.test.ts): `loudnessProbeArgs(input, lufs, trim)`
+(`-vn … loudnorm=…:print_format=json -f null -`), `parseLoudness(lines)` → `LoudnessMeasure` | null (no block or -inf),
+`audioFormatInLog(lines)` → `AudioFormat {sampleRate, layout}` | null (first input `Audio:` line; "N channels" = unknown),
+`loudnormFor(lufs, m, source)` → the second-pass filter STRING (linear loudnorm + `aformat` back to the source,
+48 kHz stereo fallback).
 
 Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-thread**, CDN-pinned) ·
 `getCoreBlobs` (memoized, resets to null on failure for retry) · `pool`/`acquireEngine`/`releaseEngine`
@@ -25,9 +29,9 @@ Internals (greppable): `CORE_URL` (unpkg @ffmpeg/core 0.12.6 esm, **single-threa
 `artOpts` (`-vn` unless keep+present+capable, else `-map 0:a -map 0:v:0? -c:v copy -disposition:v:0 attached_pic`) ·
 `rateOpts(codec, s)` — CBR/VBR split: mp3 VBR `-q:a q`; vorbis ALWAYS quality-driven (`-q:a 10-q` VBR, `5` CBR);
 aac/m4a always `-b:a` (native AAC VBR is experimental) · `audioOpts` (`-ar`/`-ac` when >0) ·
-`trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → one `fitWithin` size cap: GIF width × videoMaxH, downscale-only) · `afChain` (volume → atempo) ·
+`trimOpts` (`-ss/-t` BEFORE `-i`) · `vfChain` (rotate → setpts → extra → one `fitWithin` size cap: GIF width × videoMaxH, downscale-only) · `afChain(e, loudnorm?)` (loudnorm → volume → atempo) ·
 `videoRate(codec, s, kbps?)` (CRF normally; `-b:v` + x264 `-maxrate`/`-bufsize` with a size target) ·
-`buildArgs(target, input, output, s, e?, {input2, hasArt, videoKbps}: BuildOpts)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
+`buildArgs(target, input, output, s, e?, {input2, hasArt, videoKbps, loudnorm}: BuildOpts)` switch: mp3/wav/ogg/flac/m4a/mp4/webm/gif/default ·
 `sniffCoverArt` (first 64KiB latin1: APIC | covr | fLaC+image/) — only called for AUDIO sources (`detectKind`).
 
 Gotchas: art skipped whenever trim present (desync); convertMedia retries exec ONCE without art, and

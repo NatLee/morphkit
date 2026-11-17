@@ -108,7 +108,8 @@ Stateless controlled form; single mutator `set(key, value)` → `onChange({...se
 Module const `VBR_LEVELS: [q,kbps][]` (LAME 0→245 … 9→65). Seven `.sp-section` groups: General
 (workers select 1–4, keepMetadata, keepCoverArt disabled unless keepMetadata) · Image (defaultQuality range +
 imageMaxDim + imageTargetSize + ocrLang: auto or one of `OCR_LANGS`) ·
-Audio (audioBitrate, audioRateMode cbr|vbr, audioQuality V0–V9 vbr-only, audioSampleRate, audioChannels) ·
+Audio (audioBitrate, audioRateMode cbr|vbr, audioQuality V0–V9 vbr-only, audioSampleRate, audioChannels,
+audioLoudness — off or one of `LOUDNESS_TARGETS` −14/−16/−23 LUFS, each labelled by where such files go) ·
 Video (videoCrf range 18–32, disabled while videoTargetSize is set · videoTargetSize, videoPreset, videoMaxH, videoFps, videoMute) · PDF (pdfImageScale dpi select) ·
 Documents (docPageSize + docFontSize + docPdfText) · GIF (gifFps range 5–24, gifWidth).
 Size-target choices `IMAGE_TARGET_SIZES` / `VIDEO_TARGET_SIZES` are DECIMAL bytes (a file under 500,000 bytes

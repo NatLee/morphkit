@@ -89,7 +89,7 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
 | `lib/useBlobUrlOwner.ts` | Hook that owns blob: URLs held in state (App items, Studio thumbs): revokes the ones a commit no longer lists, the rest on unmount (invariant 2) |
 | `lib/imageConvert.ts` | Static images via Canvas (`quality`, `maxDim` downscale-only); `fitToSize` squeezes an output under the image size target (quality first, then dimensions); `MIN_QUALITY` is the floor of every quality slider; `convertToIco` makes a multi-size favicon (`ICO_SIZES` up to the source size, `encodeIco` packs the PNGs) |
 | `lib/animImage.ts` | GIF/APNG/static → RGBA frames (`decodeAnim`), `encodeAPNG` (upng-js, lossless alpha), `encodeGIFBlob(anim, matte\|null)` — `null` keeps binary alpha via gifenc `rgba4444` + `transparent+dispose:2`; `writeGifFrame` shared with GifEditor |
-| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) + the video size target (`videoKbpsFor` → average bitrate in place of CRF, one lower retry when the output overshoots) |
+| `lib/ffmpegClient.ts` | ffmpeg.wasm **single-thread** core (no COOP/COEP → works on Pages), instance **pool** (shared core blob, one download), `buildArgs()` merges Settings + MediaEdit (trim `-ss/-t` before `-i`; vf/af chains) + metadata (`-map_metadata`, `-id3v2_version 3`, cover-art stream map) + bitrate mode (`rateOpts`: CBR `-b:a` vs VBR `-q:a`) + the video size target (`videoKbpsFor` → average bitrate in place of CRF, one lower retry when the output overshoots) + loudness normalisation (a measuring pass first, then one linear `loudnorm` gain, invariant 31) |
 | `lib/metadata.ts` | Per-kind file info: dims/duration/EXIF-GPS (exifr)/bitrate estimate, PDF pages/author/encryption, document words/chars/lines/sheets/slides, QR codes found in images + `preview` (object URL for images — owned by `useBlobUrlOwner` once in state; dataURL frame-grab for video) |
 
 ### PDF
@@ -245,6 +245,15 @@ and i18n key or `{placeholder}` gaps. Rules, triggers, and rationale: `docs/clau
     back via `replaceAssetBlob`); sheets/pptx cannot. Ctrl+V of plain TEXT (no files)
     creates a note-N.md doc item and opens the editor (`addNote`) — inputs/textareas excluded.
 30. **PWA**: `public/sw.js` caches by `VERSION` const — bump it whenever caching semantics change or stale shells linger; ffmpeg core (unpkg) + Google Fonts are cached cross-origin by hostname allowlist. SW registers PROD-only (dev HMR fights a cached shell). Theme is 3-state (auto=follow OS, default / light / dark — `useTheme` in App.tsx; auto listens to `prefers-color-scheme` live). `theme-color` meta hexes live in TWO places (index.html inline script for first paint, `THEME_COLORS` in App.tsx) and must match `--bg` light/dark. ≤640 the bottom `.m-tabbar` owns mode switching (topbar `.studio-toggle` hides) and `.app` needs its padding-bottom clearance.
+31. **Loudness** (`settings.audioLoudness`, LUFS, 0 = off): two passes. `loudnessProbeArgs` measures
+    with the SAME trim as the encode (the replacement track, untrimmed, when the sound comes from
+    input 2), `parseLoudness` reads loudnorm's JSON block from the log, `loudnormFor` builds the
+    linear second pass. loudnorm outputs 192 kHz with NO channel layout; in ffmpeg 5.1 (the browser
+    core) AAC then fails with "Cannot select channel layout", so the chain ends with
+    `aformat=sample_rates=…:channel_layouts=…` from the source banner (`audioFormatInLog`). The
+    native ffmpeg 7 does not fail this way — check loudness changes in the browser. It runs first in
+    `afChain` (the card's volume still moves the normalised level); silence (-inf) is left alone; a
+    video without sound skips it, an audio target from one still throws `noAudioTrack`.
 32. **OCR** (lib/ocr.ts): NOTHING is fetched from cdn.jsdelivr.net before the user agrees. Every OCR
     path goes through `withOcr` with App's `askOcr` (one ConfirmDialog shared by every job waiting on the
     same download; no → `ConvertError('ocrDeclined')`). Downloaded languages are remembered in

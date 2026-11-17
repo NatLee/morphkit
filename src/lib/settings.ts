@@ -18,6 +18,8 @@ export interface Settings {
   audioSampleRate: number;
   /** Audio: 0 = keep original, 1 = mono, 2 = stereo. */
   audioChannels: 0 | 1 | 2;
+  /** Audio and the sound of MP4/WebM: make every file this loud, in LUFS (e.g. -14). 0 = off. */
+  audioLoudness: number;
   /** x264 CRF — lower is better quality, bigger file. */
   videoCrf: number;
   /** x264 encoder preset — slower compresses better. */
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   audioQuality: 2,
   audioSampleRate: 0,
   audioChannels: 0,
+  audioLoudness: 0,
   videoCrf: 23,
   videoPreset: 'veryfast',
   videoMaxH: 0,

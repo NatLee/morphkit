@@ -159,12 +159,107 @@ function vfChain(s: Settings, e?: MediaEdit, extra: string[] = [], maxW = 0): st
   return f.length ? ['-vf', f.join(',')] : [];
 }
 
-/** Audio filter chain: volume + tempo. */
-function afChain(e?: MediaEdit): string[] {
+/** Audio filter chain: loudness normalisation, then the card's own volume + tempo. */
+function afChain(e?: MediaEdit, loudnorm?: string): string[] {
   const f: string[] = [];
+  // first in the chain: the measurement pass saw the sound before any other filter
+  if (loudnorm) f.push(loudnorm);
   if (e?.volume != null && e.volume !== 1) f.push(`volume=${e.volume.toFixed(2)}`);
   if (e?.speed && e.speed !== 1) f.push(`atempo=${e.speed}`);
   return f.length ? ['-af', f.join(',')] : [];
+}
+
+// ---- loudness normalisation (EBU R128 loudnorm, two passes) ----
+
+/** True-peak ceiling (dBTP) and loudness range (LU) of every normalisation — the EBU R128 defaults. */
+const LOUDNORM_TP = -1.5;
+const LOUDNORM_LRA = 11;
+/** Share of the progress bar given to the measurement pass (it only decodes, so it is the quick one). */
+const LOUDNESS_PROBE_SHARE = 0.3;
+
+/** What the measurement pass reports (loudnorm's `print_format=json` block). */
+export interface LoudnessMeasure {
+  i: number;
+  tp: number;
+  lra: number;
+  thresh: number;
+  offset: number;
+}
+
+/** Sample rate and channel layout of a sound stream, as ffmpeg names them ("stereo", "5.1(side)"). */
+export interface AudioFormat {
+  sampleRate: number;
+  layout: string;
+}
+
+/** What the result gets when the source's format cannot be read from the log. */
+const LOUDNORM_FALLBACK_FORMAT: AudioFormat = { sampleRate: 48000, layout: 'stereo' };
+
+function loudnormBase(lufs: number): string {
+  return `loudnorm=I=${lufs}:TP=${LOUDNORM_TP}:LRA=${LOUDNORM_LRA}`;
+}
+
+/**
+ * Pass 1: decode the sound once and only measure it. `trim` must match the encode, or the gain is
+ * worked out for a different stretch of audio.
+ */
+export function loudnessProbeArgs(input: string, lufs: number, trim: string[] = []): string[] {
+  return [...trim, '-i', input, '-vn', '-af', `${loudnormBase(lufs)}:print_format=json`, '-f', 'null', '-'];
+}
+
+/**
+ * loudnorm prints its measurement as a JSON object at the end of the log, one line at a time.
+ * null when there is no block or nothing measurable (digital silence reports -inf):
+ * such a file is left as it is.
+ */
+export function parseLoudness(lines: readonly string[]): LoudnessMeasure | null {
+  const text = lines.join('\n');
+  const at = text.lastIndexOf('"input_i"');
+  if (at < 0) return null;
+  const open = text.lastIndexOf('{', at);
+  const close = text.indexOf('}', at);
+  if (open < 0 || close < 0) return null;
+  let raw: Record<string, string>;
+  try {
+    raw = JSON.parse(text.slice(open, close + 1));
+  } catch {
+    return null;
+  }
+  const m = {
+    i: Number(raw.input_i),
+    tp: Number(raw.input_tp),
+    lra: Number(raw.input_lra),
+    thresh: Number(raw.input_thresh),
+    offset: Number(raw.target_offset),
+  };
+  return Object.values(m).every(Number.isFinite) ? m : null;
+}
+
+/**
+ * The first sound stream in ffmpeg's input banner ("Audio: mp3, 44100 Hz, stereo, fltp, …").
+ * null when there is none, or when ffmpeg could not name the layout either ("6 channels").
+ */
+export function audioFormatInLog(lines: readonly string[]): AudioFormat | null {
+  for (const l of lines) {
+    const m = /Stream #\d+:\d+.*?: Audio: .*?(\d+) Hz, ([^,]+)/.exec(l);
+    if (m) return / channels$/.test(m[2]) ? null : { sampleRate: Number(m[1]), layout: m[2].trim() };
+  }
+  return null;
+}
+
+/**
+ * Pass 2: one linear gain from the measurement (no dynamic compression), then the source's own
+ * format back. loudnorm hands out 192 kHz with no channel layout, and in ffmpeg 5.1 (the browser
+ * build) an encoder such as AAC then refuses the stream ("Cannot select channel layout").
+ * The rate and channel settings still apply afterwards, as output options.
+ */
+export function loudnormFor(lufs: number, m: LoudnessMeasure, source: AudioFormat | null): string {
+  const { sampleRate, layout } = source ?? LOUDNORM_FALLBACK_FORMAT;
+  return (
+    `${loudnormBase(lufs)}:measured_I=${m.i}:measured_TP=${m.tp}:measured_LRA=${m.lra}` +
+    `:measured_thresh=${m.thresh}:offset=${m.offset}:linear=true` +
+    `,aformat=sample_rates=${sampleRate}:channel_layouts=${layout}`
+  );
 }
 
 function fpsOpt(s: Settings): string[] {
@@ -174,8 +269,8 @@ function fpsOpt(s: Settings): string[] {
 /** AAC bitrate of the sound in MP4 output; also what the size budget sets aside for sound. */
 export const VIDEO_AUDIO_KBPS = 128;
 
-function videoAudioTrack(s: Settings, e?: MediaEdit): string[] {
-  return s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'aac', '-b:a', `${VIDEO_AUDIO_KBPS}k`, ...afChain(e)];
+function videoAudioTrack(s: Settings, e?: MediaEdit, loud?: string): string[] {
+  return s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'aac', '-b:a', `${VIDEO_AUDIO_KBPS}k`, ...afChain(e, loud)];
 }
 
 /**
@@ -229,6 +324,8 @@ export interface BuildOpts {
   hasArt?: boolean;
   /** average video bitrate from the size target (`videoKbpsFor`), in place of CRF */
   videoKbps?: number;
+  /** loudness normalisation measured for this source (`loudnormFor`) */
+  loudnorm?: string;
 }
 
 /** Exported for the unit tests — argument order (trim before -i, maps, codecs) matters. */
@@ -238,7 +335,7 @@ export function buildArgs(
   output: string,
   s: Settings,
   e?: MediaEdit,
-  { input2, hasArt = false, videoKbps }: BuildOpts = {}
+  { input2, hasArt = false, videoKbps, loudnorm: loud }: BuildOpts = {}
 ): string[] {
   const trim = trimOpts(e);
   const t2 = trackMap(input2);
@@ -248,20 +345,20 @@ export function buildArgs(
   switch (target) {
     // ---- audio ----
     case 'mp3':
-      return [...trim, '-i', input, ...art, '-c:a', 'libmp3lame', ...rateOpts('mp3', s), ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, ...art, '-c:a', 'libmp3lame', ...rateOpts('mp3', s), ...audioOpts(s), ...afChain(e, loud), ...meta, output];
     case 'wav':
-      return [...trim, '-i', input, '-vn', ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, '-vn', ...audioOpts(s), ...afChain(e, loud), ...meta, output];
     case 'ogg':
-      return [...trim, '-i', input, '-vn', '-c:a', 'libvorbis', ...rateOpts('vorbis', s), ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, '-vn', '-c:a', 'libvorbis', ...rateOpts('vorbis', s), ...audioOpts(s), ...afChain(e, loud), ...meta, output];
     case 'flac':
-      return [...trim, '-i', input, ...art, '-c:a', 'flac', ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, ...art, '-c:a', 'flac', ...audioOpts(s), ...afChain(e, loud), ...meta, output];
     case 'm4a':
-      return [...trim, '-i', input, ...art, '-c:a', 'aac', ...rateOpts('aac', s), ...audioOpts(s), ...afChain(e), ...meta, output];
+      return [...trim, '-i', input, ...art, '-c:a', 'aac', ...rateOpts('aac', s), ...audioOpts(s), ...afChain(e, loud), ...meta, output];
     // ---- video ----
     case 'mp4':
-      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, ...videoRate('x264', s, videoKbps), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', `${VIDEO_AUDIO_KBPS}k`, ...afChain(e)] : videoAudioTrack(s, e)), ...meta, output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libx264', '-preset', s.videoPreset, ...videoRate('x264', s, videoKbps), '-pix_fmt', 'yuv420p', ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'aac', '-b:a', `${VIDEO_AUDIO_KBPS}k`, ...afChain(e, loud)] : videoAudioTrack(s, e, loud)), ...meta, output];
     case 'webm':
-      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', ...videoRate('vp8', s, videoKbps), ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e)]), ...meta, output];
+      return [...trim, '-i', input, ...t2.inputs, ...t2.map, '-c:v', 'libvpx', ...videoRate('vp8', s, videoKbps), ...vfChain(s, e), ...fpsOpt(s), ...(input2 ? ['-c:a', 'libvorbis', ...afChain(e, loud)] : s.videoMute || e?.mute ? ['-an'] : ['-c:a', 'libvorbis', ...afChain(e, loud)]), ...meta, output];
     case 'gif':
       // GIF carries no tags — copying metadata here only risks muxer warnings
       return [...trim, '-i', input, ...vfChain(s, e, [`fps=${s.gifFps}`], s.gifWidth), '-loop', '0', output];
@@ -415,8 +512,11 @@ export async function convertMedia(
     ? `in2_${stamp}.${extOf(edit!.audioTrack!.name) || 'bin'}`
     : undefined;
 
+  const isAudioTarget = (AUDIO_OUTPUTS as readonly string[]).includes(target);
+  // the bar covers every pass: [from, to] is the stretch the current ffmpeg run fills
+  let span: [number, number] = [0, 1];
   const handler = ({ progress }: { progress: number }) => {
-    if (Number.isFinite(progress)) onProgress(Math.min(1, Math.max(0, progress)));
+    if (Number.isFinite(progress)) onProgress(span[0] + (span[1] - span[0]) * Math.min(1, Math.max(0, progress)));
   };
   const log: string[] = [];
   const onLog = ({ message }: { message: string }) => { log.push(message); };
@@ -429,15 +529,35 @@ export async function convertMedia(
     const hasArt = settings.keepCoverArt && detectKind(file) === 'audio' ? await sniffCoverArt(file) : false;
     ff.on('progress', handler);
     ff.on('log', onLog);
+
+    // loudness target: measure the sound first, then every encode below applies one linear gain
+    let loudnorm: string | undefined;
+    const hasSound = isAudioTarget || (AV_TARGETS.has(target) && !settings.videoMute && !edit?.mute);
+    if (settings.audioLoudness < 0 && hasSound) {
+      span = [0, LOUDNESS_PROBE_SHARE];
+      // the sound comes from the replacement track when there is one (the trim only cuts input 0)
+      const code = await ff.exec(loudnessProbeArgs(in2Name ?? inName, settings.audioLoudness, in2Name ? [] : trimOpts(edit)));
+      if (code !== 0) {
+        if (!noStreamInLog(log)) throw new Error(`ffmpeg exited with ${code}`);
+        if (isAudioTarget) throw new ConvertError('noAudioTrack');
+        // a video without sound: nothing to normalise
+      } else {
+        const m = parseLoudness(log);
+        if (m) loudnorm = loudnormFor(settings.audioLoudness, m, audioFormatInLog(log));
+      }
+      log.length = 0;
+      span = [LOUDNESS_PROBE_SHARE, 1];
+    }
+
     // every run writes the same output name; -y overwrites instead of asking (no stdin here)
     const run = async (kbps?: number) => {
-      let code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, hasArt, videoKbps: kbps })]);
+      let code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, hasArt, videoKbps: kbps, loudnorm })]);
       // cover-art mapping is best-effort: retry once without it rather than fail
       if (code !== 0 && hasArt) {
-        code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, videoKbps: kbps })]);
+        code = await ff.exec(['-y', ...buildArgs(target, inName, outName, settings, edit, { input2: in2Name, videoKbps: kbps, loudnorm })]);
       }
       if (code !== 0) {
-        if ((AUDIO_OUTPUTS as readonly string[]).includes(target) && noStreamInLog(log)) throw new ConvertError('noAudioTrack');
+        if (isAudioTarget && noStreamInLog(log)) throw new ConvertError('noAudioTrack');
         throw new Error(`ffmpeg exited with ${code}`);
       }
       const data = await ff.readFile(outName);

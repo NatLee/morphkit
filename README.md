@@ -54,9 +54,12 @@ installed as an app (PWA).
   pages are read the same way when you export a PDF as TXT, Markdown, HTML or Word. Traditional and
   Simplified Chinese, Japanese, Korean and English. The engine and language data (about 4–8 MB) download
   only after you say yes, once, and stay in the browser; the files themselves never leave it.
-- A settings drawer for image size caps and size targets, audio bitrate / VBR / sample rate / channels,
-  video CRF / size target / preset / resolution / frame rate, GIF frame rate and width, PDF render
-  resolution and document page size.
+- **Even loudness**: make every file land at the same level, −14 LUFS for streaming, −16 for podcasts
+  or −23 for broadcast. It measures the sound first and then moves the whole level once, so nothing
+  gets squashed; the sound of MP4 / WebM output is levelled too.
+- A settings drawer for image size caps, size targets and the text recognition language, audio
+  bitrate / VBR / sample rate / channels / loudness, video CRF / size target / preset / resolution /
+  frame rate, GIF frame rate and width, PDF render resolution and document page size.
 
 **Editors** (open any file with *Edit*)
 
