@@ -14,7 +14,7 @@
    radii 6/10 (--wobble-sm/-lg are legacy aliases, now sharp) · body 15px + **circuit-grid
    background (var(--weave) graph lines, 28px)** · `body::after` CRT scanlines (fixed, z999) ·
    native `select` fix
-2. `top bar` — .topbar .brand .brand-name .topbar-actions .lang-switch .theme-toggle
+2. `top bar` — .topbar .brand .brand-name .mode-nav(Home | Projects, .mode-nav-n count; hidden ≤640) .topbar-actions(margin-left:auto) .lang-switch .theme-toggle
 3. `hero` — .hero (**overflow:hidden — the floor/orb pseudos are wider than phone viewports**)
    + synthwave floor `.hero::before` (perspective grid, gridFlow anim) +
    drifting neon orbs `.hero::after` (orbDrift) · .hero-tagline (mono terminal prompt,
@@ -103,7 +103,7 @@
 22. `studio` — desktop collapse: `.st-body:has(.st-assets.collapsed)` → max-content column, gutter + stats
     hidden · focus (≤760): .st-assets = fixed bottom sheet (translateY ↔ not-.collapsed, animation:none,
     72px FAB clearance) + .st-fab(.on, .st-fab-n badge) + .st-scrim + floating `.ed-foot` save pill,
-    .st-export/.st-del/.type-badge hidden · .studio-toggle · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
+    .st-export/.st-del/.type-badge hidden · .app.studio-mode(full-bleed) · .studio(**desktop: fixed height
     calc(100vh−96px); ≤760: height auto, page scrolls**) .st-bar .st-name
     .st-body(min(--st-assets-w,40vw)|8px .split-gutter|1fr, resizable; 1fr ≤760)
     .st-assets .st-main .view-anim .mixer .media-view .st-assets-head .st-import .st-empty .asset-row
@@ -113,12 +113,14 @@
     .clip(**touch-action:none**; tracks cycle pigments via .tl-row:nth-child — row 1 is the ruler)
     .clip-wave .clip-name .clip-edge(8px; 14 touch) .mix-empty(padding-left
     192 = HEAD_W+20) .playhead(top:-30px) · themed scrollbars group · `project launcher`: .st-launcher
-    .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-new ·
-    `typed projects`: .type-badge .tb-audio/image/gif/video .pj-type .type-icon .picker-panel .picker-list ·
+    .launcher-title .pj-grid(minmax 230px) .pj-card .pj-open .pj-name .pj-meta .pj-actions .pj-explain .pj-note
+    .pj-uses-head .pj-uses(3 cols → 2 ≤900 → 1 ≤560, so six cards never leave an orphan) .pj-use(.ut-{type} sets --c)
+    .pj-use-title .pj-use-desc ·
+    `typed projects`: .type-badge .tb-audio/image/gif/video/pdf/text .picker-panel .picker-list ·
     `inline editors`: .ie-inline-wrap .editor.ie-inline(flex column, overflow hidden, viewport fills) ·
     `video workspace`: .vw .vw-top(1fr|8px .split-gutter|min(--vw-side-w,44vw); 1fr ≤760)
     .vw-preview(var(--vw-ph, 34vh) via .split-gutter.h; 26vh ≤640) .vw-side .vw-extract .vw-note ·
-    `launcher v2`: .pj-thumb .pj-body .pj-list .type-modal .mini-modal .meta-list .confirm-msg .rz-grid .bg-check
+    `launcher v2`: .pj-thumb .pj-body .pj-list .mini-modal .meta-list .confirm-msg .rz-grid .bg-check
     .vw-pick .frame-modal .fp-preview(240px; 180 ≤640) .st-note(fixed toast z150, safe-area aware) ·
     .footer-link · .st-tabs · `media view`: .media-grid .media-card .media-thumb .media-name .media-actions ·
     `info tooltip`: .info-i .tip-pop(fixed z300)
@@ -146,12 +148,12 @@
 | `≤720px` OR `≤540px tall` OR coarse-pointer ≤920 | .ie-layout → 1 column (same condition as the layers sheet) |
 | `≤640px` (phone) | .app gutter 16px; .topbar wraps; hero compact; dropzone compact; .bb-actions full-width grow; file-card controls grow + .fc-details 1col; .fc-target hidden →
 .fc-chips target chip row shown (native select popup covered the card); **modal editors become full-width sheets** (.editor-overlay padding 0, .editor 100% wide, radius 0, safe-area padding, 100dvh cap); .media-preview.mp-video 34vh; .ie-viewport/.ie-canvas 44vh + .layers-panel 240px; .ed-toolbar + .gif-transport wrap into rows (.ed-options stays a nowrap scroller on purpose); drawer + studio compact; **text/number inputs + selects → 16px font (iOS focus-zoom guard)**; .fp-preview 180px; .vw-preview 26vh |
-| `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×4 (z95, safe-area padding); `.studio-toggle` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
+| `≤640px` (app tabs) | `.m-tabbar` → fixed bottom grid ×4 (z95, safe-area padding); `.mode-nav` hidden (tab bar owns mode switching); `.app`/`.app.studio-mode` get padding-bottom clearance; `.st-note` + `.install-card` raised above the bar |
 | `≤640px` (settings) | drawer → full-screen APP PAGE under the tab bar (z90/91, the 設定 tab toggles it like QR): flex column, head + `.drawer-bottom-close` pinned (close carries the 76px tab-bar clearance), ONLY `.settings-panel` scrolls |
 | app-mode (toolbars) | **mobile-layer block** (must stay after the ≤640 `.ed-toolbar{flex-wrap:wrap}` or it loses the cascade): `.pdf-tools` / `.mixer .gif-transport` / `.doc-tools` / `.doc-mdbar` become nowrap swipeable rows (scrollbar hidden, children flex-shrink 0); `.md-pop` goes `position:fixed` above the tab bar (the strip's overflow would clip an absolute popover); `.vw-tabs` shows (video/audio pane switch, `.vw.vw-pane-*` hides the other pane); `.trk-head:not(.tl-corner)` is FORCED to 72px (= LANE_H) w/ compact name/buttons/gain — the coarse bumps grew it to ~90px and rows misaligned with their lanes |
 | `@media (display-mode: standalone)` | installed PWA: `.footer` hidden; `.topbar` padding-top honors `env(safe-area-inset-top)` (22px desktop / 14px ≤640) |
 | `≤400px` | gutter 12px, hero-title 34px, lang buttons tighter |
-| `@supports (height:100dvh)` | .studio/.st-launcher/.editor/.type-modal switch to dvh (mobile URL-bar resize) |
+| `@supports (height:100dvh)` | .studio/.st-launcher/.editor switch to dvh (mobile URL-bar resize) |
 | `@media (hover:none)` | .lp-actions always visible; .clip-edge tinted; .kbd-hints/.dz-kbd hidden; .zf-xy (zoom-float cursor coords) hidden — no hover, no coords |
 | `@media (pointer:coarse)` | .tool-btn 40px, dual-handle 22px, swatches 18px, clip-edge 14px, layer/track buttons enlarged, .btn min-height 40px, thumbs 56px, overscroll-behavior:contain on scrollers; .ed-options scrollbar hidden (swipe scrolls) |
 

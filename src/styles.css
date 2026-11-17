@@ -166,7 +166,38 @@ select optgroup {
   letter-spacing: 0.01em;
 }
 
-.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+/* the app's two places: Home | Projects (phones: the bottom tab bar takes over) */
+.mode-nav {
+  display: flex;
+  gap: 2px;
+  margin-left: 22px;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.mode-nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.mode-nav button:hover:not(.active) { color: var(--ink); }
+.mode-nav button.active { background: var(--ink); color: var(--bg); }
+.mode-nav-n { font-family: var(--font-mono); font-size: 11px; opacity: 0.75; }
 
 .lang-switch {
   display: flex;
@@ -3483,32 +3514,6 @@ kbd {
 
 /* ============ studio ============ */
 
-.studio-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--bg-raised);
-  color: var(--ink-dim);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.studio-toggle:hover { color: var(--ink); border-color: var(--ink); }
-
-.studio-toggle.active {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bg);
-}
-
 /* studio goes full-bleed: professional tools use the whole viewport */
 .app.studio-mode {
   max-width: none;
@@ -4052,23 +4057,84 @@ kbd {
   padding: 0 14px 12px;
 }
 
-.pj-new {
-  border-style: dashed;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 132px;
-  cursor: pointer;
+/* what a project is (first visit) / the one-line facts (later) */
+.pj-explain {
+  margin: 6px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 15px;
+  line-height: 1.75;
+  max-width: 78ch;
+}
+
+.pj-note {
+  margin: 6px 0 10px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 13.5px;
+  line-height: 1.6;
   color: var(--ink-dim);
-  padding: 18px;
 }
 
-.pj-new:hover { color: var(--accent); border-color: var(--accent); }
+.pj-note b { color: var(--ink); font-weight: 600; }
 
-.pj-new .pj-plus {
-  font-size: 28px;
-  line-height: 1;
+/* start a project by what you want to make */
+.pj-uses-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin: 26px 0 10px;
 }
+
+.pj-uses-head h3 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 18px; }
+.pj-uses-head span { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); }
+
+/* six cards: 3 × 2, 2 × 3 or 1 × 6 — never a lone card on the last row */
+.pj-uses {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) { .pj-uses { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .pj-uses { grid-template-columns: minmax(0, 1fr); } }
+
+.pj-use {
+  --c: var(--accent);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.pj-use:hover { border-color: var(--c); transform: translateY(-2px); box-shadow: var(--glow); }
+.pj-use-title { display: flex; align-items: center; gap: 8px; font-size: 15.5px; font-weight: 600; line-height: 1.4; }
+.pj-use-title svg { color: var(--c); flex: none; }
+.pj-use-desc { font-size: 13px; line-height: 1.55; color: var(--ink-dim); }
+.pj-use .type-badge { margin-top: 3px; }
+.ut-audio { --c: var(--paint-blue); }
+.ut-image { --c: var(--paint-green); }
+.ut-gif { --c: var(--paint-yellow); }
+.ut-video { --c: var(--paint-red); }
+.ut-pdf { --c: var(--paint-violet); }
+.ut-text { --c: var(--accent); }
 
 /* ---- typed projects ---- */
 
@@ -4093,28 +4159,7 @@ kbd {
 .tb-image { border-color: var(--paint-green); color: var(--paint-green); }
 .tb-gif { border-color: var(--paint-yellow); color: var(--paint-yellow); }
 .tb-video { border-color: var(--paint-red); color: var(--paint-red); }
-
-.pj-type {
-  align-items: flex-start;
-  gap: 6px;
-  padding: 20px 18px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.pj-type:hover { border-color: var(--accent); }
-
-.type-icon {
-  color: var(--accent);
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--bg);
-  margin-bottom: 4px;
-}
+.tb-pdf { border-color: var(--paint-violet); color: var(--paint-violet); }
 
 .picker-panel {
   border: 1.5px dashed var(--line-strong);
@@ -4316,21 +4361,6 @@ kbd {
 .pj-list .pj-name { font-size: 16px; }
 
 .pj-list .pj-actions { padding: 0 12px 0 0; }
-
-.type-modal {
-  width: min(760px, 94vw);
-  max-height: 84vh;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-/* cancel sits clearly apart from the type cards */
-.type-modal > .btn-ghost {
-  align-self: flex-end;
-  margin-top: 6px;
-}
 
 .mini-modal {
   width: min(380px, 94vw);
@@ -4602,7 +4632,6 @@ kbd {
   .studio { height: calc(100dvh - 96px); }
   .st-launcher { height: auto; min-height: calc(100dvh - 96px); }
   .editor { max-height: calc(100dvh - 40px); }
-  .type-modal { max-height: 84dvh; }
 }
 
 /* notch / home-indicator clearance (env() = 0 on desktop) */
@@ -4750,9 +4779,9 @@ html:has(.drawer-overlay) { overflow-y: clip; }
 
   .footer { padding: 18px 0 26px; }
 
-  /* app-like bottom tab bar (convert / studio / QR / settings) — the topbar
-     Studio toggle hides because the tab bar owns mode switching here */
-  .studio-toggle { display: none; }
+  /* app-like bottom tab bar (home / projects / QR / settings) — the topbar
+     nav hides because the tab bar owns mode switching here */
+  .mode-nav { display: none; }
   .m-tabbar {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -5369,7 +5398,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .btn:active:not(:disabled),
 .tool-btn:active:not(:disabled),
 .theme-toggle:active,
-.studio-toggle:active,
+.mode-nav button:active,
 .lang-switch button:active,
 .st-tabs button:active,
 .trk-btns button:active,

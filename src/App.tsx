@@ -27,7 +27,7 @@ import { convertDoc } from './lib/docs';
 import { imageToText, OCR_HOST, OCR_LANGS, ocrLangs, withOcr, type OcrConsent, type OcrLang } from './lib/ocr';
 import { closePdf, imageToPdf, mergeToPdf, openPdf, PdfPasswordError, pdfToImages, pdfToText, rasterizePdf } from './lib/pdf';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
-import { createProjectWithAsset } from './lib/idb';
+import { createProjectWithAsset, listProjects } from './lib/idb';
 import { ConvertError } from './lib/errors';
 import { useBlobUrlOwner } from './lib/useBlobUrlOwner';
 import type { ProjectType } from './lib/studioTypes';
@@ -105,6 +105,11 @@ export default function App() {
   const [mode, setMode] = useState<'convert' | 'studio'>('convert');
   // set by "open as project" so Studio skips its launcher and opens the new project
   const [studioEnterId, setStudioEnterId] = useState<string | null>(null);
+  // how many projects this browser holds — shown next to the nav entry (Studio reports changes)
+  const [projectCount, setProjectCount] = useState(0);
+  useEffect(() => {
+    listProjects().then((l) => setProjectCount(l.length)).catch(() => { /* no IndexedDB: nothing saved */ });
+  }, []);
   // encrypted PDF awaiting its password (item id)
   const [pwFor, setPwFor] = useState<string | null>(null);
   // QR tool modal: null = closed, '' = generator, text = reader with that payload
@@ -533,17 +538,26 @@ export default function App() {
           <span className="brand-name">MorphKit</span>
         </div>
 
-        <div className="topbar-actions">
+        {/* the two places of the app; phones use the bottom tab bar instead (CSS hides this ≤640) */}
+        <nav className="mode-nav" aria-label="MorphKit">
+          <button className={mode === 'convert' ? 'active' : ''} aria-current={mode === 'convert' ? 'page' : undefined} onClick={() => setMode('convert')}>
+            {t('navHome')}
+          </button>
           <button
-            className={`studio-toggle${mode === 'studio' ? ' active' : ''}`}
+            className={mode === 'studio' ? 'active' : ''}
+            aria-current={mode === 'studio' ? 'page' : undefined}
+            title={t('navProjectsTip')}
             onClick={() => {
-              setMode((m) => (m === 'studio' ? 'convert' : 'studio'));
-              setStudioEnterId(null); // manual toggle always lands on the launcher
+              setMode('studio');
+              setStudioEnterId(null); // the nav always lands on the project list
             }}
           >
-            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            {mode === 'studio' ? t('backLabel') : 'Studio'}
+            {t('navProjects')}
+            {projectCount > 0 && <span className="mode-nav-n">{projectCount}</span>}
           </button>
+        </nav>
+
+        <div className="topbar-actions">
           <button className="theme-toggle qr-btn" onClick={() => setQrOpen('')} aria-label={t('qrTitle')} title={t('qrTitle')}>
             <svg viewBox="0 0 24 24" width="17" height="17"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2zM14 20h1M20 18v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
           </button>
@@ -586,7 +600,7 @@ export default function App() {
 
       {mode === 'studio' ? (
         <main>
-          <Studio enterProjectId={studioEnterId} />
+          <Studio enterProjectId={studioEnterId} onProjectCount={setProjectCount} />
         </main>
       ) : (
       <main>
@@ -764,7 +778,7 @@ export default function App() {
           onClick={() => { setMode('convert'); setShowSettings(false); setQrOpen(null); }}
         >
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h11m0 0-3-3m3 3-3 3M20 17H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          <span>{t('tabConvert')}</span>
+          <span>{t('navHome')}</span>
         </button>
         <button
           className={mode === 'studio' && !showSettings && qrOpen == null ? 'active' : ''}
@@ -776,7 +790,7 @@ export default function App() {
           }}
         >
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h10M4 18h13M18 10v8m-2.5-2.5L18 18l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          <span>Studio</span>
+          <span>{t('navProjects')}</span>
         </button>
         <button className={qrOpen != null ? 'active' : ''} onClick={() => { setShowSettings(false); setQrOpen((v) => (v == null ? '' : null)); }}>
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h2v2h-2zM14 20h1M20 18v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>

@@ -29,11 +29,12 @@ widths — collapsed desktop shrinks the grid column via `:has`, hides stats + g
 `.st-assets.collapsed` hides everything but the head row (app-mode widths; desktop shrinks the column).
 Init MERGES the async idb project list into state and never overwrites a non-null `curId` (see
 CLAUDE.md invariant 14 — clobbering loses projects created during the load). Prop `enterProjectId?` (from App's "open as project"): init effect jumps straight into that
-workspace, skipping the launcher; App clears it on manual studio-toggle.
+workspace, skipping the launcher; App clears it when the nav is used. Prop `onProjectCount?` reports `projects.length` (the nav badge).
+**Naming**: users see 專案 / Projects / プロジェクト everywhere; "Studio" survives only in code (component, CSS classes, `mode==='studio'`).
 
 **State**: projects · curId (mirrored to localStorage `'morphkit-project'`) · assets (sorted by addedAt) ·
 bufVer (bump after decodes → waveform redraw) · activeTrackId (lifted, shared Mixer/VideoWorkspace) ·
-entered · pickType · `confirmDel` ({project}|{asset}|null — the pending delete shown in ConfirmDialog) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
+entered · quota · `confirmDel` ({project}|{asset}|null — the pending delete shown in ConfirmDialog) · pjStats {id:{n,bytes}} · thumbs {id:{url,video}} · layout grid|list (`'mk-layout'`) ·
 sortBy (`'mk-sort'`) · metaPj · metaFacts {id, name, meta: FileMeta} (info-modal probe, keyed by project
 id so a slow probe can't paint another project's rows) · blankOpen · imgImport (Blob→ImageEditor.importBlob) · gifImportFrames ·
 framePick {blob, mode} · note (5s flash) · dropHot · bcW/bcH (blank canvas, default 1280×720) ·
@@ -60,10 +61,13 @@ idb `createProjectWithAsset`, then enters) · `blankCanvas`
 15MB cap `tooBigGif`) · `dropExternalToEditor` · `onFramesPicked` · `pseudoItem(a)` (**memoized** pseudo-Item
 for inline editors — invariant 15) · `persistBase`. Window `paste` listener while entered.
 
-**Launcher DOM**: `.studio.st-launcher > .st-bar (h2.launcher-title, InfoTip, .opt-spacer, select.tb-select,
-.st-tabs grid|list, import btn)` + `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body
-(.type-badge.tb-{type}, .pj-name, .pj-meta)) + .pj-actions (info/export/delete → confirm)` + `.pj-card.pj-new` ·
-Overlay→`.editor.type-modal > .pj-grid > .pj-card.pj-type×6` (one per `TYPE_META` entry) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
+**Launcher DOM** (two states by `projects.length`): `.studio.st-launcher > .st-bar (h2.launcher-title, .opt-spacer,
+[select.tb-select + .st-tabs grid|list — only with projects], import btn)` + first visit `p.pj-explain` | later `p.pj-note`
+(count · `totalBytes` from pjStats · `quota` from navigator.storage.estimate when the browser reports one · local-only reminder)
++ `.pj-grid|.pj-list > .pj-card (button.pj-open > .pj-thumb + .pj-body (.type-badge.tb-{type}, .pj-name, .pj-meta)) +
+.pj-actions (info/export/delete → confirm)` + `.pj-uses-head` + `.pj-uses > button.pj-use.ut-{type}×6` (one per `TYPE_META`
+entry: `useKey` title = what people make with it, `descKey`, type badge; click = `createProject(type)` — there is no type
+modal any more) · Overlay→`.editor.mini-modal` (metadata dl, rows from `metaRows`).
 
 **Workspace DOM**: `.studio > .st-bar (back btn, .type-badge, input.st-name, spacer, export/delete → confirm)` +
 `.st-body (resizable assets | .split-gutter | 1fr grid; 1fr ≤760) > aside.st-assets (drop target; .asset-row[draggable] > .asset-icon
